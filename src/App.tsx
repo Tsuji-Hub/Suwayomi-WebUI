@@ -100,6 +100,7 @@ const { GlobalReaderSettings } = loadable(
 const { More } = loadable(() => import('@/features/settings/screens/More.tsx'), lazyLoadFallback);
 const { Reader } = loadable(() => import('@/features/reader/screens/Reader.tsx'), lazyLoadFallback);
 const { HistorySettings } = loadable(() => import('@/features/history/screens/HistorySettings.tsx'), lazyLoadFallback);
+const { Discover } = loadable(() => import('@/features/tsuji/discover/screens/Discover.tsx'), lazyLoadFallback);
 const { ExtensionStores } = loadable(
     () => import('@/features/extension/store/screens/ExtensionStores.tsx'),
     lazyLoadFallback,
@@ -368,6 +369,7 @@ const MainApp = () => {
                         {!hideHistory && <Route path={AppRoutes.history.match} element={<History />} />}
                         <Route path={AppRoutes.browse.match} element={<Browse />} />
                         <Route path={AppRoutes.browse.match} element={<Browse />} />
+                        <Route path={AppRoutes.discover.match} element={<Discover />} />
                         <Route path={AppRoutes.migrate.match}>
                             <Route index element={<Migration />} />
                             <Route path={AppRoutes.migrate.children.singleMangaSearch.match} element={<SearchAll />} />

@@ -16,6 +16,7 @@ import { ReaderSettingOverlayMode } from '@/features/reader/overlay/settings/Rea
 import { CheckboxInput } from '@/base/components/inputs/CheckboxInput.tsx';
 import { ReaderSettingBackgroundColor } from '@/features/reader/settings/general/components/ReaderSettingBackgroundColor.tsx';
 import { ReaderSettingSafeAreaInset } from '@/features/reader/settings/general/components/ReaderSettingSafeAreaInset.tsx';
+import { TsujiReaderProgressSetting } from '@/features/tsuji/progress/components/TsujiProgressSettings.tsx';
 
 export const ReaderGeneralSettings = ({
     overlayMode,
@@ -58,6 +59,7 @@ export const ReaderGeneralSettings = ({
                 checked={settings.shouldShowPageNumber}
                 onChange={(_, checked) => updateSetting('shouldShowPageNumber', checked)}
             />
+            <TsujiReaderProgressSetting />
             <ReaderSettingSafeAreaInset
                 safeAreaInset={settings.safeAreaInset}
                 updateSetting={(value) => updateSetting('safeAreaInset', value)}

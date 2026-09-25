@@ -33,6 +33,7 @@ import { getErrorMessage } from '@/lib/HelperFunctions.ts';
 import { assertIsDefined } from '@/base/Asserts.ts';
 import { usePress } from '@/base/hooks/usePress.ts';
 import { Confirmation } from '@/base/AppAwaitableComponent.ts';
+import { TsujiProgressBadge } from '@/features/tsuji/progress/components/TsujiProgressBadge.tsx';
 
 const getMangaLinkTo = (mode: MangaCardMode, mangaId: number): string => {
     switch (mode) {
@@ -208,7 +209,9 @@ export const MangaCard = memo((props: MangaCardProps) => {
                                 downloadCount={downloadCount}
                                 updateLibraryState={updateLibraryState}
                                 mode={mode}
-                            />
+                            >
+                                <TsujiProgressBadge mangaId={id} mode={mode} />
+                            </MangaBadges>
                         }
                     />
                     {!!handleSelection && popupState.isOpen && (

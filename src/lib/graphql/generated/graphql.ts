@@ -4,6 +4,32 @@ type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 import type * as Types from './graphql-base.types';
 
+export type TsujiMangaProgressFieldsFragment = {
+    __typename: 'MangaType';
+    id: number;
+    latestReadChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
+    highestNumberedChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
+    chapters: { __typename: 'ChapterNodeList'; totalCount: number };
+};
+
+export type TsujiLibraryIndexQueryVariables = Exact<{ [key: string]: never }>;
+
+export type TsujiLibraryIndexQuery = {
+    __typename: 'Query';
+    mangas: {
+        __typename: 'MangaNodeList';
+        nodes: Array<{
+            __typename: 'MangaType';
+            id: number;
+            title: string;
+            trackRecords: {
+                __typename: 'TrackRecordNodeList';
+                nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
+            };
+        }>;
+    };
+};
+
 export type CreateBackupMutationVariables = Exact<{
     input: Types.CreateBackupInput;
 }>;
@@ -380,6 +406,7 @@ export type GetCategoryMangasQuery = {
                     id: number;
                     sourceOrder: number;
                     lastReadAt: string;
+                    chapterNumber: number;
                 } | null;
                 latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
                 latestUploadedChapter: { __typename: 'ChapterType'; id: number; uploadDate: string } | null;
@@ -1746,7 +1773,13 @@ export type MangaLibraryFieldsFragment = {
         scanlator: string | null;
     } | null;
     lastReadChapter: { __typename: 'ChapterType'; id: number; sourceOrder: number; lastReadAt: string } | null;
-    latestReadChapter: { __typename: 'ChapterType'; id: number; sourceOrder: number; lastReadAt: string } | null;
+    latestReadChapter: {
+        __typename: 'ChapterType';
+        id: number;
+        sourceOrder: number;
+        lastReadAt: string;
+        chapterNumber: number;
+    } | null;
     latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
     latestUploadedChapter: { __typename: 'ChapterType'; id: number; uploadDate: string } | null;
     highestNumberedChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
@@ -1827,7 +1860,13 @@ export type MangaScreenFieldsFragment = {
         scanlator: string | null;
     } | null;
     lastReadChapter: { __typename: 'ChapterType'; id: number; sourceOrder: number; lastReadAt: string } | null;
-    latestReadChapter: { __typename: 'ChapterType'; id: number; sourceOrder: number; lastReadAt: string } | null;
+    latestReadChapter: {
+        __typename: 'ChapterType';
+        id: number;
+        sourceOrder: number;
+        lastReadAt: string;
+        chapterNumber: number;
+    } | null;
     latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
     latestUploadedChapter: { __typename: 'ChapterType'; id: number; uploadDate: string } | null;
     highestNumberedChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
@@ -1912,6 +1951,7 @@ export type RefreshMangaMutation = {
                 id: number;
                 sourceOrder: number;
                 lastReadAt: string;
+                chapterNumber: number;
             } | null;
             latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
             latestUploadedChapter: { __typename: 'ChapterType'; id: number; uploadDate: string } | null;
@@ -2189,7 +2229,13 @@ export type GetMangaScreenQuery = {
             scanlator: string | null;
         } | null;
         lastReadChapter: { __typename: 'ChapterType'; id: number; sourceOrder: number; lastReadAt: string } | null;
-        latestReadChapter: { __typename: 'ChapterType'; id: number; sourceOrder: number; lastReadAt: string } | null;
+        latestReadChapter: {
+            __typename: 'ChapterType';
+            id: number;
+            sourceOrder: number;
+            lastReadAt: string;
+            chapterNumber: number;
+        } | null;
         latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
         latestUploadedChapter: { __typename: 'ChapterType'; id: number; uploadDate: string } | null;
         highestNumberedChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
@@ -2423,6 +2469,7 @@ export type GetMangasLibraryQuery = {
                 id: number;
                 sourceOrder: number;
                 lastReadAt: string;
+                chapterNumber: number;
             } | null;
             latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
             latestUploadedChapter: { __typename: 'ChapterType'; id: number; uploadDate: string } | null;

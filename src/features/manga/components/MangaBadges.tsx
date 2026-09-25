@@ -34,6 +34,7 @@ export const MangaBadges = ({
     unread,
     downloadCount,
     mode,
+    children,
 }: {
     inLibraryIndicator?: boolean;
     updateLibraryState: () => void;
@@ -41,6 +42,7 @@ export const MangaBadges = ({
     unread?: number;
     downloadCount?: number;
     mode: MangaCardMode;
+    children?: React.ReactNode;
 }) => {
     const { t } = useLingui();
 
@@ -83,6 +85,7 @@ export const MangaBadges = ({
             {((showUnreadBadge && mode === 'default') || mode === 'duplicate') && (unread ?? 0) > 0 && (
                 <Badge sx={{ backgroundColor: 'primary.main', color: 'primary.contrastText' }}>{unread}</Badge>
             )}
+            {children}
             {((showDownloadBadge && mode === 'default') || mode === 'duplicate') && (downloadCount ?? 0) > 0 && (
                 <Badge
                     sx={{

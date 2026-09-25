@@ -134,6 +134,11 @@ msgstr "{0} / {1}"
 msgid "{0} / {1}{2}"
 msgstr "{0} / {1}{2}"
 
+#. placeholder {0}: media.chapters
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+msgid "{0} chapters"
+msgstr "{0} chapters"
+
 #. placeholder {0}: updateStatus.progress
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
 msgid "{0}% | Updating…"
@@ -454,6 +459,23 @@ msgstr "Alpha"
 msgid "Also remove from {0}"
 msgstr "Also remove from {0}"
 
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "AniList"
+msgstr "AniList"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "AniList + MAL"
+msgstr "AniList + MAL"
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "AniList isn't serving this sort right now; showing the closest available order."
+msgstr "AniList isn't serving this sort right now; showing the closest available order."
+
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Any"
+msgstr "Any"
+
 #: src/features/settings/screens/Appearance.tsx
 #: src/features/settings/screens/Settings.tsx
 msgid "Appearance"
@@ -625,6 +647,10 @@ msgstr "Basic Authentication"
 msgid "Behaviour"
 msgstr "Behaviour"
 
+#: src/features/tsuji/recs/Recs.constants.ts
+msgid "Best match"
+msgstr "Best match"
+
 #: src/features/settings/Settings.constants.ts
 msgid "Binary"
 msgstr "Binary"
@@ -762,6 +788,7 @@ msgstr "Cancel"
 
 #: src/features/manga/Manga.constants.ts
 #: src/features/tracker/Tracker.constants.ts
+#: src/features/tsuji/recs/Recs.constants.ts
 msgid "Cancelled"
 msgstr "Cancelled"
 
@@ -787,6 +814,26 @@ msgstr "Category selection dialog"
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "CBZ MIME-Type"
 msgstr "CBZ MIME-Type"
+
+#: src/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx
+msgid "Ch {read}"
+msgstr "Ch {read}"
+
+#: src/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx
+msgid "Ch {read} / {total} · {remaining} left"
+msgstr "Ch {read} / {total} · {remaining} left"
+
+#: src/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx
+msgid "Ch {read} / {total} · caught up"
+msgstr "Ch {read} / {total} · caught up"
+
+#: src/features/tsuji/progress/components/TsujiReaderChapterProgress.tsx
+msgid "Ch. {current}"
+msgstr "Ch. {current}"
+
+#: src/features/tsuji/progress/components/TsujiReaderChapterProgress.tsx
+msgid "Ch. {current} / {total}"
+msgstr "Ch. {current} / {total}"
 
 #: src/features/manga/Manga.constants.ts
 msgid "Change categories"
@@ -873,6 +920,7 @@ msgid "Cleanup database"
 msgstr "Cleanup database"
 
 #: src/base/collection/components/SelectableCollectionSelectAll.tsx
+#: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Clear"
 msgstr "Clear"
 
@@ -930,6 +978,10 @@ msgstr "Compact grid"
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Compatible"
 msgstr "Compatible"
+
+#: src/features/tsuji/recs/Recs.constants.ts
+msgid "Complete"
+msgstr "Complete"
 
 #: src/features/manga/Manga.constants.ts
 msgid "Completed"
@@ -1205,6 +1257,18 @@ msgstr "Could not update WebUI"
 msgid "Could not validate backup"
 msgstr "Could not validate backup"
 
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Couldn't load more titles."
+msgstr "Couldn't load more titles."
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Couldn't load recommendations."
+msgstr "Couldn't load recommendations."
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Couldn't load the tag list."
+msgstr "Couldn't load the tag list."
+
 #: src/features/category/components/CategorySelect.tsx
 #: src/features/device/screens/DeviceSetting.tsx
 #: src/features/reader/hotkeys/settings/components/RecordHotkey.tsx
@@ -1445,6 +1509,11 @@ msgstr "Disconnected"
 #: src/features/settings/screens/About.tsx
 msgid "Discord"
 msgstr "Discord"
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+#: src/features/tsuji/discover/TsujiDiscoverNavItem.ts
+msgid "Discover"
+msgstr "Discover"
 
 #: src/base/components/GridLayouts.tsx
 #: src/features/chapter/components/ChapterOptions.tsx
@@ -1795,6 +1864,14 @@ msgstr "Filter manga feed to display only chapters you have downloaded."
 msgid "Filter manga feed to display only chapters you haven’t read yet."
 msgstr "Filter manga feed to display only chapters you haven’t read yet."
 
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Filters"
+msgstr "Filters"
+
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+msgid "Find to read"
+msgstr "Find to read"
+
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
 msgid "Finish date"
 msgstr "Finish date"
@@ -1856,6 +1933,14 @@ msgstr "FlareSolverr will automatically rotate expired sessions based on the TTL
 msgid "Flavor"
 msgstr "Flavor"
 
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "For You"
+msgstr "For You"
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "For You arrives in a later update."
+msgstr "For You arrives in a later update."
+
 #: src/features/theme/Themes.ts
 msgid "Forest Dew"
 msgstr "Forest Dew"
@@ -1872,6 +1957,10 @@ msgstr "Fourth to last read chapter"
 #: src/features/reader/settings/ReaderSettings.constants.tsx
 msgid "General"
 msgstr "General"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Genres"
+msgstr "Genres"
 
 #: src/features/settings/screens/About.tsx
 msgid "GitHub Server"
@@ -1930,12 +2019,17 @@ msgstr "Headers ({0})"
 
 #: src/features/manga/Manga.constants.ts
 #: src/features/tracker/Tracker.constants.ts
+#: src/features/tsuji/recs/Recs.constants.ts
 msgid "Hiatus"
 msgstr "Hiatus"
 
 #: src/features/reader/overlay/progress-bar/settings/components/ReaderSettingProgressBarType.tsx
 msgid "Hidden"
 msgstr "Hidden"
+
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Hidden gems"
+msgstr "Hidden gems"
 
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "Hide entries already in library"
@@ -1944,6 +2038,14 @@ msgstr "Hide entries already in library"
 #: src/features/history/screens/HistorySettings.tsx
 msgid "Hide history"
 msgstr "Hide history"
+
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Hide novels and one-shots"
+msgstr "Hide novels and one-shots"
+
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Hide titles in my library"
+msgstr "Hide titles in my library"
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Hikari connection pool"
@@ -2315,6 +2417,10 @@ msgstr "Links"
 msgid "List"
 msgstr "List"
 
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Load more"
+msgstr "Load more"
+
 #: src/features/theme/components/ThemePreview.tsx
 msgid "Loading theme fonts…"
 msgstr "Loading theme fonts…"
@@ -2388,6 +2494,7 @@ msgstr ""
 #: src/features/manga/screens/Manga.tsx
 #: src/features/reader/settings/behaviour/components/ReaderSettingExitMode.tsx
 #: src/features/tracker/Tracker.constants.ts
+#: src/features/tsuji/recs/Recs.constants.ts
 msgid "Manga"
 msgstr "Manga"
 
@@ -2406,6 +2513,7 @@ msgid "Manga thumbnail as background"
 msgstr "Manga thumbnail as background"
 
 #: src/features/tracker/Tracker.constants.ts
+#: src/features/tsuji/recs/Recs.constants.ts
 msgid "Manhua"
 msgstr "Manhua"
 
@@ -2416,6 +2524,7 @@ msgid "entry-type-detection-manhua"
 msgstr "Manhua"
 
 #: src/features/tracker/Tracker.constants.ts
+#: src/features/tsuji/recs/Recs.constants.ts
 msgid "Manhwa"
 msgstr "Manhwa"
 
@@ -2554,6 +2663,14 @@ msgstr "MIME-Type"
 msgid "MIME-Type target"
 msgstr "MIME-Type target"
 
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Minimum chapters"
+msgstr "Minimum chapters"
+
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Minimum score"
+msgstr "Minimum score"
+
 #: src/features/theme/Themes.ts
 msgid "Minty Miracles"
 msgstr "Minty Miracles"
@@ -2584,6 +2701,10 @@ msgstr "Modern"
 msgid "More"
 msgstr "More"
 
+#: src/features/tsuji/recs/Recs.constants.ts
+msgid "Most popular"
+msgstr "Most popular"
+
 #: src/features/theme/Themes.ts
 msgid "Mountain Sunset"
 msgstr "Mountain Sunset"
@@ -2611,6 +2732,10 @@ msgstr "Never"
 msgid "New category"
 msgstr "New category"
 
+#: src/features/tsuji/recs/Recs.constants.ts
+msgid "Newest"
+msgstr "Newest"
+
 #: src/features/reader/tap-zones/ReaderTapZone.constants.ts
 msgid "Next"
 msgstr "Next"
@@ -2628,6 +2753,10 @@ msgstr "Next page"
 #: src/features/reader/viewer/components/ReaderTransitionPage.tsx
 msgid "Next:"
 msgstr "Next:"
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "No AniList match for this series."
+msgstr "No AniList match for this series."
 
 #: src/features/chapter/components/ChapterList.tsx
 msgid "No chapters found"
@@ -2657,6 +2786,10 @@ msgstr "No manga matches this filter"
 msgid "No match found"
 msgstr "No match found"
 
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "No matching tags."
+msgstr "No matching tags."
+
 #: src/features/reader/viewer/ReaderChapterViewer.tsx
 msgid "No pages found"
 msgstr "No pages found"
@@ -2672,6 +2805,14 @@ msgstr "No sources found. Install Some extensions first."
 #: src/features/source/components/SourceLanguageSelect.tsx
 msgid "No sources installed"
 msgstr "No sources installed"
+
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+msgid "No synopsis available."
+msgstr "No synopsis available."
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "No titles match these tags and filters."
+msgstr "No titles match these tags and filters."
 
 #: src/features/backup/Backup.utils.ts
 #: src/features/category/components/CategoriesInclusionSetting.tsx
@@ -2689,6 +2830,14 @@ msgstr "Not yet published"
 #: src/features/tracker/Tracker.constants.ts
 msgid "Not yet released"
 msgstr "Not yet released"
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Nothing left after filters."
+msgstr "Nothing left after filters."
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Nothing matched your filters in the titles loaded so far."
+msgstr "Nothing matched your filters in the titles loaded so far."
 
 #: src/features/tracker/Tracker.constants.ts
 msgid "Novel"
@@ -2756,6 +2905,7 @@ msgid "Oneshot"
 msgstr "Oneshot"
 
 #: src/features/manga/Manga.constants.ts
+#: src/features/tsuji/recs/Recs.constants.ts
 msgid "Ongoing"
 msgstr "Ongoing"
 
@@ -2794,6 +2944,10 @@ msgstr "Open in browser"
 #: src/features/source/browse/screens/SourceMangas.tsx
 msgid "Open in WebView"
 msgstr "Open in WebView"
+
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+msgid "Open on AniList"
+msgstr "Open on AniList"
 
 #: src/features/reader/settings/behaviour/components/ReaderSettingExitMode.tsx
 msgid "Open page on exit"
@@ -2878,6 +3032,7 @@ msgid "Pinned"
 msgstr "Pinned"
 
 #: src/features/source/browse/screens/SourceMangas.tsx
+#: src/features/tsuji/discover/screens/Discover.tsx
 msgid "Popular"
 msgstr "Popular"
 
@@ -3010,6 +3165,7 @@ msgid "Red"
 msgstr "Red"
 
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
+#: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Refresh"
 msgstr "Refresh"
 
@@ -3070,6 +3226,7 @@ msgstr "Removed non library manga from categories"
 #: src/base/components/settings/CheckboxListSetting.tsx
 #: src/features/reader/hotkeys/settings/components/RecordHotkey.tsx
 #: src/features/source/browse/components/SourceOptions.tsx
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Reset"
 msgstr "Reset"
 
@@ -3108,6 +3265,8 @@ msgstr "Resume"
 #: src/features/chapter/components/buttons/ChapterDownloadRetryButton.tsx
 #: src/features/manga/hooks/useManageMangaLibraryState.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
+#: src/features/tsuji/discover/screens/Discover.tsx
+#: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Retry"
 msgstr "Retry"
 
@@ -3240,6 +3399,10 @@ msgstr "Search results"
 msgid "Search results will include manga that do not match the current filters"
 msgstr "Search results will include manga that do not match the current filters"
 
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Search tags"
+msgstr "Search tags"
+
 #: src/features/migration/Migration.constants.ts
 msgid "Searching…"
 msgstr "Searching…"
@@ -3299,6 +3462,10 @@ msgstr "Selected"
 #: src/features/reader/filters/settings/components/ReaderSettingSepia.tsx
 msgid "Sepia"
 msgstr "Sepia"
+
+#: src/features/tsuji/progress/components/TsujiProgressSettings.tsx
+msgid "Series progress badges"
+msgstr "Series progress badges"
 
 #: src/features/reader/settings/layout/ReaderLayoutSettings.tsx
 msgid "Series settings"
@@ -3378,6 +3545,10 @@ msgstr "Share"
 msgid "Show"
 msgstr "Show"
 
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Show adult titles"
+msgstr "Show adult titles"
+
 #: src/features/library/screens/LibrarySettings.tsx
 msgid "Show all duplicated entries in your library"
 msgstr "Show all duplicated entries in your library"
@@ -3433,6 +3604,10 @@ msgstr "Show page number"
 msgid "Show reading mode"
 msgstr "Show reading mode"
 
+#: src/features/tsuji/progress/components/TsujiProgressSettings.tsx
+msgid "Show series progress"
+msgstr "Show series progress"
+
 #: src/features/reader/settings/behaviour/ReaderBehaviourSettings.tsx
 msgid "Show tap zones overlay"
 msgstr "Show tap zones overlay"
@@ -3457,6 +3632,10 @@ msgstr "Shows a dialog in case the version got updated. This dialog will be show
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Shows a dialog in case the version of the server has changed"
 msgstr "Shows a dialog in case the version of the server has changed"
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Similar"
+msgstr "Similar"
 
 #: src/features/settings/Settings.constants.ts
 msgid "Simple Login"
@@ -3528,6 +3707,7 @@ msgstr ""
 
 #: src/features/chapter/components/ChapterOptions.tsx
 #: src/features/library/components/LibraryOptionsPanel.tsx
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Sort"
 msgstr "Sort"
 
@@ -3608,6 +3788,7 @@ msgstr "Static navigation"
 #: src/features/manga/components/details/MangaDetails.tsx
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
 #: src/features/tracker/components/cards/TrackerMangaCard.tsx
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Status"
 msgstr "Status"
 
@@ -3706,6 +3887,19 @@ msgstr "System"
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Tabs"
 msgstr "Tabs"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Tags"
+msgstr "Tags"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Tags & genres"
+msgstr "Tags & genres"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Tap once to include, twice to exclude, three times to clear. Included tags must all match."
+msgstr "Tap once to include, twice to exclude, three times to clear. Included tags must all match."
 
 #: src/features/reader/settings/layout/components/ReaderSettingTapZoneLayout.tsx
 msgid "Tap zones"
@@ -3875,6 +4069,10 @@ msgstr "Toggle stretch image"
 msgid "Top"
 msgstr "Top"
 
+#: src/features/tsuji/recs/Recs.constants.ts
+msgid "Top rated"
+msgstr "Top rated"
+
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Total chapters"
 msgstr "Total chapters"
@@ -3922,8 +4120,17 @@ msgstr "Tracking"
 msgid "Tree Frog Green"
 msgstr "Tree Frog Green"
 
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Trending"
+msgstr "Trending"
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Try again"
+msgstr "Try again"
+
 #: src/features/settings/screens/ServerSettings.tsx
 #: src/features/tracker/components/cards/TrackerMangaCard.tsx
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Type"
 msgstr "Type"
 
@@ -4022,6 +4229,10 @@ msgstr "Unread chapters"
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
 msgid "Untracked manga"
 msgstr "Untracked manga"
+
+#: src/features/tsuji/recs/Recs.constants.ts
+msgid "Upcoming"
+msgstr "Upcoming"
 
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
 #: src/features/extension/Extensions.constants.ts

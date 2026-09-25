@@ -27,6 +27,7 @@ import { AppRoutes } from '@/base/AppRoute.constants.ts';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { STABLE_EMPTY_ARRAY } from '@/base/Base.constants.ts';
 import { DownloaderState } from '@/lib/graphql/generated/graphql-base.types.ts';
+import { TSUJI_DISCOVER_NAV_ITEM } from '@/features/tsuji/discover/TsujiDiscoverNavItem.ts';
 
 type RestrictedNavBarItem<Show extends NavbarItem['show']> = Omit<NavbarItem, 'show'> & { show: Show };
 
@@ -89,6 +90,7 @@ const NAVIGATION_BAR_BASE_ITEMS = [
 ] as const satisfies RestrictedNavBarItem<'both'>[];
 
 const NAVIGATION_BAR_DESKTOP_ITEMS = [
+    TSUJI_DISCOVER_NAV_ITEM,
     {
         path: AppRoutes.downloads.path,
         title: msg`Downloads`,

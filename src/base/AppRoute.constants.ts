@@ -209,6 +209,7 @@ export const AppRoutes = {
                 [SearchParam.TAB]: tab,
             }),
     },
+    discover: { match: 'discover', path: '/discover' },
     migrate: {
         match: 'migrate/*',
         path: '/migrate',

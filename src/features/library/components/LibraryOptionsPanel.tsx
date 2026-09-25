@@ -39,6 +39,7 @@ import { GridLayout } from '@/base/Base.types';
 import { getErrorMessage } from '@/lib/HelperFunctions.ts';
 import { Collapsable } from '@/base/components/Collapsable.tsx';
 import Replay from '@mui/icons-material/Replay';
+import { TsujiLibraryProgressSetting } from '@/features/tsuji/progress/components/TsujiProgressSettings.tsx';
 
 const TITLES: { [key in 'filter' | 'sort' | 'display']: MessageDescriptor } = {
     filter: msg`Filter`,
@@ -262,6 +263,7 @@ export const LibraryOptionsPanel = ({
                                 checked={showDownloadBadge}
                                 onChange={() => updateMetadataServerSettings('showDownloadBadge', !showDownloadBadge)}
                             />
+                            <TsujiLibraryProgressSetting />
                             <FormLabel sx={{ mt: 2 }}>{t`Tabs`}</FormLabel>
                             <CheckboxInput
                                 label={t`Show number of items`}

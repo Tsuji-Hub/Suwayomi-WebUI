@@ -34,6 +34,7 @@ import {
     useReaderSettingsStore,
     useReaderStore,
 } from '@/features/reader/stores/ReaderStore.ts';
+import { TsujiReaderChapterProgress } from '@/features/tsuji/progress/components/TsujiReaderChapterProgress.tsx';
 
 const useGetPreviousNavBarStaticValue = (isVisible: boolean, isStaticNav: boolean) => {
     const wasNavBarStaticRef = useRef(isStaticNav);
@@ -151,6 +152,7 @@ const BaseReaderNavBarDesktop = ({
                             nextChapter={nextChapter}
                             previousChapter={previousChapter}
                         />
+                        <TsujiReaderChapterProgress />
                     </Stack>
                     <Divider />
                     <ReaderNavBarDesktopQuickSettings openSettings={openSettings} />

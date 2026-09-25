@@ -51,6 +51,8 @@ import type { SourceIdInfo } from '@/features/source/Source.types.ts';
 import { Thumbnail } from '@/features/manga/components/details/Thumbnail.tsx';
 import { DescriptionGenre } from '@/features/manga/components/details/DescriptionGenre.tsx';
 import { SearchLink } from '@/features/manga/components/details/SearchLink.tsx';
+import { TsujiSeriesProgressLine } from '@/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx';
+import { TsujiSimilarSection } from '@/features/tsuji/similar/TsujiSimilarSection.tsx';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { IconBrowser } from '@/assets/icons/IconBrowser.tsx';
 import { IconWebView } from '@/assets/icons/IconWebView.tsx';
@@ -261,6 +263,7 @@ export const MangaDetails = ({
                                 </CustomTooltip>
                             </ClipBoardGuard>
                         </Stack>
+                        <TsujiSeriesProgressLine mangaId={manga.id} />
                         {manga.author && (
                             <Metadata
                                 title={t`Author`}
@@ -291,6 +294,7 @@ export const MangaDetails = ({
                 </MangaButtonsContainer>
             </TopContentWrapper>
             <DescriptionGenre manga={manga} mode={mode} />
+            <TsujiSimilarSection manga={manga} />
         </DetailsWrapper>
     );
 };

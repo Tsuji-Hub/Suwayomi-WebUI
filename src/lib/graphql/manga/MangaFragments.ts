@@ -8,6 +8,7 @@
 
 import gql from 'graphql-tag';
 import { SOURCE_BASE_FIELDS } from '@/lib/graphql/source/SourceFragments.ts';
+import { TSUJI_MANGA_PROGRESS_FIELDS } from '@/features/tsuji/graphql/TsujiFragments.ts';
 
 export const MANGA_META_FIELDS = gql`
     fragment MANGA_META_FIELDS on MangaMetaType {
@@ -113,11 +114,13 @@ export const MANGA_LIBRARY_FIELDS = gql`
     ${MANGA_CHAPTER_NODE_FIELDS}
     ${MANGA_META_FIELDS}
     ${SOURCE_BASE_FIELDS}
+    ${TSUJI_MANGA_PROGRESS_FIELDS}
 
     fragment MANGA_LIBRARY_FIELDS on MangaType {
         ...MANGA_BASE_FIELDS
         ...MANGA_CHAPTER_STAT_FIELDS
         ...MANGA_CHAPTER_NODE_FIELDS
+        ...TSUJI_MANGA_PROGRESS_FIELDS
 
         genre
         lastFetchedAt
