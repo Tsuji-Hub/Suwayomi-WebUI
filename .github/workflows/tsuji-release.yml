@@ -1,0 +1,84 @@
+# Tsuji fork: build, test and publish a deployable WebUI zip for every push to `custom` or a `feat/**` branch.
+# Upstream's own workflows only run on master, pull requests or manual dispatch, so they don't fire here.
+name: tsuji-release
+
+on:
+  push:
+    branches:
+      - custom
+      - 'feat/**'
+
+concurrency:
+  group: tsuji-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # create the release and its tag
+
+jobs:
+  release:
+    name: Build, test and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the revision number is the commit count, like `pnpm build-zip`.
+          fetch-depth: 0
+
+      # Version comes from package.json "packageManager".
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm tsc
+
+      - name: Test (tsuji)
+        run: pnpm test:tsuji
+
+      - name: Build
+        run: pnpm build
+
+      - name: Zip build (same layout as pnpm build-zip)
+        id: zip
+        run: |
+          rev=$(git rev-list HEAD --count)
+          short=$(git rev-parse --short HEAD)
+          zip_name="Suwayomi-WebUI-r${rev}.zip"
+          echo "r${rev}" > build/revision
+          (cd build && zip -9 -r "../buildZip/${zip_name}" *)
+          (cd buildZip && sha256sum "${zip_name}" > "${zip_name}.sha256")
+          echo "tag=r${rev}-${short}" >> "$GITHUB_OUTPUT"
+          echo "zip=buildZip/${zip_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.zip.outputs.tag }}
+          ZIP: ${{ steps.zip.outputs.zip }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          if [ "$BRANCH" != "custom" ]; then
+            prerelease="--prerelease"
+          fi
+          sha256=$(cut -d ' ' -f 1 "${ZIP}.sha256")
+          notes=$(printf 'Tsuji WebUI build from `%s` at %s.\n\nSHA-256 (%s): `%s`\n\nDeploy: copy the zip contents into the server webUI folder (flavor Custom) and restart the server.' \
+            "$BRANCH" "$GITHUB_SHA" "$(basename "$ZIP")" "$sha256")
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # Re-run of the same commit: refresh the assets.
+            gh release upload "$TAG" "$ZIP" "${ZIP}.sha256" --clobber
+          else
+            gh release create "$TAG" "$ZIP" "${ZIP}.sha256" \
+              --target "$GITHUB_SHA" --title "$TAG ($BRANCH)" --notes "$notes" $prerelease
+          fi
