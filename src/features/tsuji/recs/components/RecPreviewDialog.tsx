@@ -20,6 +20,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import { useLingui } from '@lingui/react/macro';
 import { MANGA_COVER_ASPECT_RATIO } from '@/features/manga/Manga.constants.ts';
 import { RecCoverImage } from '@/features/tsuji/recs/components/RecCoverImage.tsx';
+import type { OnSeenMark } from '@/features/tsuji/seen/components/SeenControls.tsx';
+import { useSeenBadge } from '@/features/tsuji/seen/components/SeenControls.tsx';
+import type { SeenState } from '@/features/tsuji/seen/seen.ts';
 import { COMIC_TYPE_LABELS, getStatusBadge } from '@/features/tsuji/recs/Recs.constants.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import {
@@ -49,14 +52,21 @@ export const RecPreviewDialog = ({
     isOpen,
     onClose,
     onFind,
+    getSeenState,
+    onMark,
 }: {
     media: RecMedia | null;
     isOpen: boolean;
     onClose: () => void;
     onFind: (media: RecMedia) => void;
+    /** Live list/mark state, so the dialog follows a mark made from it. */
+    getSeenState?: (mediaId: number) => SeenState | null;
+    onMark?: OnSeenMark;
 }) => {
     const { t } = useLingui();
     const synopsis = useMemo(() => htmlToPlainText(media?.description), [media?.description]);
+    const seenState = media && getSeenState ? getSeenState(media.id) : null;
+    const seenBadge = useSeenBadge(seenState, media?.chapters ?? null);
 
     if (!media) {
         return null;
@@ -66,6 +76,7 @@ export const RecPreviewDialog = ({
     const status = getStatusBadge(media.status);
     const comicType = getComicType(media.countryOfOrigin);
     const facts = [
+        seenBadge?.text ?? null,
         comicType ? t(COMIC_TYPE_LABELS[comicType]) : null,
         status ? t(status.label) : null,
         media.chapters ? t`${media.chapters} chapters` : null,
@@ -105,7 +116,18 @@ export const RecPreviewDialog = ({
                     ))}
                 </Stack>
             </DialogContent>
-            <DialogActions>
+            <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+                {onMark && seenState?.source === 'mark' && (
+                    <Button sx={{ mr: 'auto' }} onClick={() => onMark(media, null)}>
+                        {t`Unhide`}
+                    </Button>
+                )}
+                {onMark && seenState?.source !== 'mark' && (
+                    <Stack direction="row" sx={{ mr: 'auto', gap: 1 }}>
+                        <Button onClick={() => onMark(media, 'read')}>{t`Mark as read`}</Button>
+                        <Button onClick={() => onMark(media, 'skip')}>{t`Not interested`}</Button>
+                    </Stack>
+                )}
                 {isAniListUrl(media.siteUrl) && (
                     <Button
                         component="a"

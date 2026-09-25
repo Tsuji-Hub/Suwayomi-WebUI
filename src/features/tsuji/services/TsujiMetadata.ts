@@ -28,11 +28,27 @@ const toMetadata = (meta: GqlMetaHolder['meta']): Partial<Metadata> =>
  */
 const asRawKey = (key: TsujiMetaKey) => key as unknown as AppMetadataKeys;
 
-export const useTsujiGlobalMeta = (): Partial<Metadata> => {
-    const { data } = requestManager.useGetGlobalMeta();
+export const useTsujiGlobalMetaQuery = (): { meta: Partial<Metadata>; isLoading: boolean } => {
+    const { data, loading } = requestManager.useGetGlobalMeta();
+    const meta = useMemo(() => toMetadata(data?.metas.nodes), [data]);
 
-    return useMemo(() => toMetadata(data?.metas.nodes), [data]);
+    return { meta, isLoading: loading && !data };
 };
+
+export const useTsujiGlobalMeta = (): Partial<Metadata> => useTsujiGlobalMetaQuery().meta;
+
+/** Server value right now (network-only), for read-patch-write updates that must not clobber other devices. */
+export const readFreshTsujiGlobalMeta = async (key: TsujiMetaKey): Promise<string | undefined> => {
+    const { data } = await requestManager.getGlobalMeta({
+        fetchPolicy: 'network-only',
+        context: { queryDeduplication: false },
+    }).response;
+    return toMetadata(data?.metas.nodes)[key];
+};
+
+/** Like setTsujiGlobalMeta, but rejects on failure so the caller can report it. */
+export const writeTsujiGlobalMeta = (key: TsujiMetaKey, value: string): Promise<void> =>
+    requestServerMetadataUpdate({ update: [[asRawKey(key), value]], isMetadataKey: true });
 
 export const useTsujiFlag = (key: TsujiMetaKey, fallback: boolean = true): boolean => {
     const value = useTsujiGlobalMeta()[key];

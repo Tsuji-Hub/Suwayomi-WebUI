@@ -24,8 +24,8 @@ export const SERVER_SORTS: Record<DiscoverSort, string> = {
 };
 
 /**
- * AniList (degraded mode, 2026-09) returns zero results for TRENDING_DESC and START_DATE_DESC while other sorts
- * work. When page 1 of these comes back empty but the fallback doesn't, the fallback is used for the session.
+ * AniList (degraded mode, 2026-09) intermittently returns zero results, or answers in ~10 s, for TRENDING_DESC and
+ * START_DATE_DESC while other sorts work. See loadDiscoverPage for when the fallback is used and remembered.
  */
 export const SORT_FALLBACKS: Partial<Record<string, string>> = {
     TRENDING_DESC: 'POPULARITY_DESC',
@@ -57,9 +57,10 @@ const nonEmpty = <T>(list: T[]): T[] | undefined => (list.length ? list : undefi
 export type DiscoverVariables = Record<string, unknown>;
 
 /**
- * AniList filter arguments. Filters AniList can apply exactly go server-side to save the 30 req/min budget;
- * the rest (hide in library, min chapters, multi-type, Manhua = CN + TW) stay client-side. Empty lists are omitted
- * because AniList treats an empty `_in` list as "match nothing".
+ * AniList filter arguments. Status, score and a single country go server-side to save the 30 req/min budget. The rest
+ * stays client-side: hide in library, min chapters, multi-type, Manhua (CN + TW), and novels/one-shots + adult,
+ * because `format_not_in` / `isAdult` made degraded AniList ~4x slower (1.6 s vs 0.37 s) and intermittently empty.
+ * Empty lists are omitted because AniList treats an empty `_in` list as "match nothing".
  */
 export const buildDiscoverVariables = (selection: DiscoverSelection, filters: RecFilters): DiscoverVariables => {
     const [onlyType] = filters.types;
@@ -70,21 +71,37 @@ export const buildDiscoverVariables = (selection: DiscoverSelection, filters: Re
         genreNotIn: nonEmpty(namesWithState(selection.genres, 'exclude')),
         tagIn: nonEmpty(namesWithState(selection.tags, 'include')),
         tagNotIn: nonEmpty(namesWithState(selection.tags, 'exclude')),
-        formatNotIn: filters.hideNovelOneShot ? ['NOVEL', 'ONE_SHOT'] : undefined,
         statusIn: nonEmpty([...filters.statuses].sort()),
         country,
         minScore: filters.minScore > 0 ? filters.minScore - 1 : undefined,
-        isAdult: filters.showAdult ? undefined : false,
     };
 
     return Object.fromEntries(Object.entries(variables).filter(([, value]) => value !== undefined));
 };
 
 /** Server filters that the client filters (passesFilters) also apply, so dropping them never shows wrong titles. */
-const OPTIONAL_FILTER_KEYS = ['formatNotIn', 'statusIn', 'country', 'minScore', 'isAdult'];
+const OPTIONAL_FILTER_KEYS = ['statusIn', 'country', 'minScore'];
 
 export const hasOptionalFilters = (variables: DiscoverVariables): boolean =>
     Object.keys(variables).some((key) => OPTIONAL_FILTER_KEYS.includes(key));
+
+/**
+ * Whether a title satisfies the optional server filters (status, single country, minimum score). Used to tell
+ * "AniList dropped results for these arguments" (relaxed results still match them) from a filter combination that
+ * genuinely has no matches (relaxed results don't).
+ */
+export const matchesOptionalFilters = (
+    media: { status: string | null; countryOfOrigin: string | null; averageScore: number | null },
+    variables: DiscoverVariables,
+): boolean => {
+    const { statusIn, country, minScore } = variables as { statusIn?: string[]; country?: string; minScore?: number };
+
+    return (
+        (!statusIn || (!!media.status && statusIn.includes(media.status))) &&
+        (!country || media.countryOfOrigin === country) &&
+        (minScore === undefined || (media.averageScore ?? 0) > minScore)
+    );
+};
 
 export const stripOptionalFilters = (variables: DiscoverVariables): DiscoverVariables =>
     Object.fromEntries(Object.entries(variables).filter(([key]) => !OPTIONAL_FILTER_KEYS.includes(key)));

@@ -7,7 +7,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AniListError, createAniListClient, getRateLimitWaitMs } from '@/features/tsuji/services/AniListClient.ts';
+import {
+    AniListError,
+    createAniListClient,
+    getRateLimitWaitMs,
+    isAniListTimeout,
+} from '@/features/tsuji/services/AniListClient.ts';
 import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -65,6 +70,45 @@ describe('createAniListClient', () => {
         const assertion = expect(client.request('query', {})).rejects.toThrow('Not Found.');
         await vi.runAllTimersAsync();
 
+        await assertion;
+    });
+
+    it('times out a hanging request with a distinct error', async () => {
+        const fetchFn = vi.fn(
+            (_input: string, init: RequestInit) =>
+                new Promise<Response>((_resolve, reject) => {
+                    init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+                }),
+        );
+        const client = createAniListClient({ fetchFn, queue: new SpacedQueue(2100) });
+
+        let caught: unknown = null;
+        const pending = client.request('query', {}, { timeoutMs: 4000 }).catch((error) => {
+            caught = error;
+        });
+        await vi.advanceTimersByTimeAsync(3999);
+        expect(caught).toBeNull();
+        await vi.advanceTimersByTimeAsync(1);
+        await pending;
+
+        expect(isAniListTimeout(caught)).toBe(true);
+    });
+
+    it("forwards the caller's abort without reporting a timeout", async () => {
+        const fetchFn = vi.fn(
+            (_input: string, init: RequestInit) =>
+                new Promise<Response>((_resolve, reject) => {
+                    init.signal?.addEventListener('abort', () => reject(new Error('aborted by caller')));
+                }),
+        );
+        const client = createAniListClient({ fetchFn, queue: new SpacedQueue(2100) });
+        const controller = new AbortController();
+
+        const assertion = expect(client.request('query', {}, { signal: controller.signal })).rejects.toThrow(
+            'aborted by caller',
+        );
+        await vi.advanceTimersByTimeAsync(10);
+        controller.abort();
         await assertion;
     });
 });

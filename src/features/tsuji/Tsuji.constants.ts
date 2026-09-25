@@ -15,7 +15,13 @@ export const TSUJI_META_KEYS = {
     readerChapterProgress: 'tsuji_readerChapterProgress',
     recFilters: 'tsuji_recFilters',
     anilistId: 'tsuji_anilistId',
+    /** AniList user whose public manga list marks titles as already read (default DEFAULT_ANILIST_USER). */
+    anilistUser: 'tsuji_anilistUser',
+    /** Manual marks, JSON `{ [anilistMediaId]: "read" | "skip" }`, merged on write across devices. */
+    seen: 'tsuji_seen',
 } as const;
+
+export const DEFAULT_ANILIST_USER = 'ejustice';
 
 export type TsujiMetaKey = (typeof TSUJI_META_KEYS)[keyof typeof TSUJI_META_KEYS];
 
@@ -28,3 +34,5 @@ export const TRACKER_ID = {
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const RECS_CACHE_TTL_MS = 7 * DAY_MS;
+
+export const MY_LIST_TTL_MS = 30 * 60 * 1000;

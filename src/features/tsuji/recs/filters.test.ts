@@ -45,6 +45,9 @@ const media = (overrides: Partial<RecMedia> = {}): RecMedia => ({
     ...overrides,
 });
 
+const completedWhenOne = (id: number) =>
+    id === 1 ? ({ source: 'list', status: 'COMPLETED', progress: 10 } as const) : null;
+
 const passes = (item: RecMedia, filters = {}) =>
     passesFilters(item, { ...DEFAULT_REC_FILTERS, ...filters }, EMPTY_LIBRARY_INDEX);
 
@@ -104,6 +107,17 @@ describe('passesFilters', () => {
     it('applies the hidden-gems popularity floor of 50', () => {
         expect(passes(media({ popularity: 49 }), { hiddenGems: true })).toBe(false);
         expect(passes(media({ popularity: 50 }), { hiddenGems: true })).toBe(true);
+    });
+
+    it("hides what's on my AniList unless the filter is off", () => {
+        const seen = (filters = {}) =>
+            passesFilters(media(), { ...DEFAULT_REC_FILTERS, ...filters }, EMPTY_LIBRARY_INDEX, {
+                getSeenState: completedWhenOne,
+            });
+
+        expect(seen()).toBe(false);
+        expect(seen({ hideOnMyList: false })).toBe(true);
+        expect(passes(media())).toBe(true);
     });
 
     it('requires include tags (non-spoiler) and rejects exclude tags (any)', () => {
@@ -197,6 +211,18 @@ describe('parseRecFilters / countActiveFilters', () => {
                 sort: 'NEWEST',
             }),
         ).toBe(3));
+
+    it('counts the AniList-list filter and its Planned sub-toggle', () => {
+        expect(countActiveFilters({ ...DEFAULT_REC_FILTERS, hideOnMyList: false })).toBe(1);
+        expect(countActiveFilters({ ...DEFAULT_REC_FILTERS, hidePlanned: true })).toBe(1);
+        expect(countActiveFilters({ ...DEFAULT_REC_FILTERS, hideOnMyList: false, hidePlanned: true })).toBe(1);
+    });
+
+    it('defaults the new AniList-list filters for values saved before they existed', () =>
+        expect(parseRecFilters(JSON.stringify({ minScore: 60 }))).toMatchObject({
+            hideOnMyList: true,
+            hidePlanned: false,
+        }));
 });
 
 describe('getTagOptions', () => {

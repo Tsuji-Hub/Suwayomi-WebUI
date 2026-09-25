@@ -12,6 +12,7 @@ import type { DiscoverVariables } from '@/features/tsuji/discover/discoverQuery.
 import type { TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import { loadDiscoverPage, loadTagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
+import type { FeedPhase } from '@/features/tsuji/discover/landing.ts';
 
 type FeedState = {
     key: string;
@@ -37,10 +38,13 @@ export const useDiscoverFeed = ({
     variables,
     serverSort,
     isEnabled = true,
+    allowSortFallback = true,
 }: {
     variables: DiscoverVariables;
     serverSort: string;
     isEnabled?: boolean;
+    /** Off for landing Trending: Popular is loaded in parallel anyway. */
+    allowSortFallback?: boolean;
 }) => {
     const key = useMemo(() => JSON.stringify({ variables, serverSort }), [variables, serverSort]);
     const [state, setState] = useState<FeedState>(() => createFeedState(key));
@@ -72,6 +76,7 @@ export const useDiscoverFeed = ({
             serverSort: feed.serverSort ?? serverSort,
             page: feed.pages.length + 1,
             isRelaxed: feed.isRelaxed,
+            allowSortFallback,
             signal: controller.signal,
         })
             .then((page) => {
@@ -100,7 +105,7 @@ export const useDiscoverFeed = ({
                 defaultPromiseErrorHandler('useDiscoverFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });
-    }, [isEnabled, variables, serverSort]);
+    }, [isEnabled, variables, serverSort, allowSortFallback]);
 
     const shouldLoadFirstPage = isEnabled && !current.pages.length && current.status === 'idle';
     useEffect(() => {
@@ -111,7 +116,18 @@ export const useDiscoverFeed = ({
 
     const retry = useCallback(() => setState((previous) => ({ ...previous, status: 'idle' })), []);
 
+    const phase = ((): FeedPhase => {
+        if (!isEnabled) {
+            return 'off';
+        }
+        if (current.pages.length) {
+            return current.pages[0].length ? 'ready' : 'empty';
+        }
+        return current.status === 'error' ? 'failed' : 'pending';
+    })();
+
     return {
+        phase,
         pages: current.pages,
         hasNextPage: current.hasNextPage,
         isLoading: current.status === 'loading' || (isEnabled && !current.pages.length && current.status === 'idle'),
@@ -122,13 +138,17 @@ export const useDiscoverFeed = ({
     };
 };
 
-/** Tag catalog for the picker; null while loading. */
-export const useTagCatalog = () => {
+/** Tag catalog for the picker; null while loading. Loads only once `isEnabled` (the picker is opened). */
+export const useTagCatalog = (isEnabled: boolean) => {
     const [catalog, setCatalog] = useState<TagCatalog | null>(null);
     const [isError, setIsError] = useState(false);
     const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {
+        if (!isEnabled || catalog) {
+            return undefined;
+        }
+
         let isActive = true;
         setIsError(false);
 
@@ -144,7 +164,7 @@ export const useTagCatalog = () => {
         return () => {
             isActive = false;
         };
-    }, [attempt]);
+    }, [isEnabled, attempt]);
 
     const retry = useCallback(() => setAttempt((value) => value + 1), []);
 

@@ -10,8 +10,12 @@ import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 
-/** AniList is running degraded at 30 req/min; 2.1 s spacing keeps one tab under it. */
+/**
+ * AniList is running degraded at 30 req/min: a burst of 3 (Trending + Popular + your list on Discover open), then
+ * one every 2.1 s keeps one tab under it.
+ */
 const ANILIST_SPACING_MS = 2100;
+const ANILIST_BURST = 3;
 const DEFAULT_RATE_LIMIT_WAIT_MS = 60_000;
 const MAX_RATE_LIMIT_RETRIES = 2;
 
@@ -47,27 +51,74 @@ export const getRateLimitWaitMs = (headers: Headers, now: number): number => {
     return DEFAULT_RATE_LIMIT_WAIT_MS;
 };
 
+/** Discover/Similar budget: first attempts and optional steps get `fast`; the last attempt of a chain gets `slow`. */
+export const ANILIST_TIMEOUT_MS = { fast: 4000, slow: 12_000 } as const;
+
+const TIMEOUT_STATUS = 408;
+
+export const isAniListTimeout = (error: unknown): boolean =>
+    error instanceof AniListError && error.status === TIMEOUT_STATUS;
+
+export type AniListRequestOptions = { signal?: AbortSignal; timeoutMs?: number };
+
 export const createAniListClient = ({
     fetchFn = (input, init) => fetch(input, init),
-    queue = new SpacedQueue(ANILIST_SPACING_MS),
+    queue = new SpacedQueue(ANILIST_SPACING_MS, { burst: ANILIST_BURST }),
     now = Date.now,
 }: { fetchFn?: FetchFn; queue?: SpacedQueue; now?: () => number } = {}) => {
+    /** The timeout starts when the request leaves the queue: rate-limit waits don't count against it. */
+    const send = async <T>(
+        query: string,
+        variables: Record<string, unknown>,
+        signal: AbortSignal | undefined,
+        timeoutMs: number,
+    ) => {
+        // An already-aborted signal never fires 'abort' again, so check before sending.
+        signal?.throwIfAborted();
+
+        const controller = new AbortController();
+        const forwardAbort = () => controller.abort(signal?.reason);
+        signal?.addEventListener('abort', forwardAbort, { once: true });
+
+        let hasTimedOut = false;
+        const timer = setTimeout(() => {
+            hasTimedOut = true;
+            controller.abort();
+        }, timeoutMs);
+
+        try {
+            const response = await fetchFn(ANILIST_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ query, variables }),
+                signal: controller.signal,
+            });
+            const body: AniListBody<T> = await response.json().catch(() => null);
+
+            signal?.throwIfAborted();
+            if (hasTimedOut) {
+                throw new AniListError(`AniList did not answer within ${timeoutMs / 1000} s`, TIMEOUT_STATUS);
+            }
+
+            return { response, body };
+        } catch (error) {
+            if (hasTimedOut) {
+                throw new AniListError(`AniList did not answer within ${timeoutMs / 1000} s`, TIMEOUT_STATUS);
+            }
+            throw error;
+        } finally {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', forwardAbort);
+        }
+    };
+
     const request = async <T>(
         query: string,
         variables: Record<string, unknown>,
-        signal?: AbortSignal,
+        { signal, timeoutMs = ANILIST_TIMEOUT_MS.slow }: AniListRequestOptions = {},
         attempt: number = 0,
     ): Promise<T> => {
-        const response = await queue.run(
-            () =>
-                fetchFn(ANILIST_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify({ query, variables }),
-                    signal,
-                }),
-            signal,
-        );
+        const { response, body } = await queue.run(() => send<T>(query, variables, signal, timeoutMs), signal);
 
         if (response.status === 429) {
             queue.pauseUntil(now() + getRateLimitWaitMs(response.headers, now()));
@@ -76,14 +127,13 @@ export const createAniListClient = ({
                 throw new AniListError('AniList rate limit reached', 429);
             }
 
-            return request<T>(query, variables, signal, attempt + 1);
+            return request<T>(query, variables, { signal, timeoutMs }, attempt + 1);
         }
 
         if (response.headers.get('X-RateLimit-Remaining') === '0') {
             queue.pauseUntil(now() + getRateLimitWaitMs(response.headers, now()));
         }
 
-        const body: AniListBody<T> = await response.json().catch(() => null);
         if (!response.ok || !body?.data) {
             throw new AniListError(
                 body?.errors?.[0]?.message ?? `AniList request failed (${response.status})`,
@@ -97,5 +147,5 @@ export const createAniListClient = ({
     return { request };
 };
 
-/** One shared client (and queue) for every AniList call in the tab: Similar, Discover, id resolution. */
+/** One shared client (and queue) for every AniList call in the tab: Similar, Discover, id resolution, your list. */
 export const aniList = createAniListClient();

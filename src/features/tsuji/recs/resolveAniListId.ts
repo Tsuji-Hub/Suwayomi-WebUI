@@ -10,7 +10,7 @@ import { RECS_CACHE_TTL_MS, TRACKER_ID } from '@/features/tsuji/Tsuji.constants.
 import type { ByMalResponse, SearchResponse } from '@/features/tsuji/recs/aniListQueries.ts';
 import { BY_MAL_QUERY, SEARCH_QUERY } from '@/features/tsuji/recs/aniListQueries.ts';
 import { findExactTitleMatch } from '@/features/tsuji/recs/normalize.ts';
-import { aniList, AniListError } from '@/features/tsuji/services/AniListClient.ts';
+import { aniList, AniListError, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 
 export type TrackRecordRef = { trackerId: number; remoteId: string };
@@ -32,7 +32,11 @@ const isNotFound = (error: unknown) => error instanceof AniListError && error.st
 
 const lookupByMalId = async (idMal: number, signal: AbortSignal): Promise<number | null> => {
     try {
-        const { Media } = await aniList.request<ByMalResponse>(BY_MAL_QUERY, { idMal }, signal);
+        const { Media } = await aniList.request<ByMalResponse>(
+            BY_MAL_QUERY,
+            { idMal },
+            { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
+        );
         return toId(Media?.id);
     } catch (error) {
         if (isNotFound(error)) {
@@ -47,7 +51,11 @@ const searchByTitle = async (
     title: string,
     signal: AbortSignal,
 ): Promise<{ id: number | null; hasResults: boolean }> => {
-    const { Page } = await aniList.request<SearchResponse>(SEARCH_QUERY, { search: title }, signal);
+    const { Page } = await aniList.request<SearchResponse>(
+        SEARCH_QUERY,
+        { search: title },
+        { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
+    );
     const media = Page?.media ?? [];
 
     const id = findExactTitleMatch(

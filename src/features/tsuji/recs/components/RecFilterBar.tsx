@@ -135,6 +135,27 @@ export const RecFilterBar = ({
                     <FormControlLabel
                         control={
                             <Switch
+                                checked={filters.hideOnMyList}
+                                onChange={(_, checked) => update({ hideOnMyList: checked })}
+                            />
+                        }
+                        label={t`Hide what's on my AniList`}
+                    />
+                    <FormControlLabel
+                        sx={{ ml: 3 }}
+                        disabled={!filters.hideOnMyList}
+                        control={
+                            <Switch
+                                size="small"
+                                checked={filters.hidePlanned}
+                                onChange={(_, checked) => update({ hidePlanned: checked })}
+                            />
+                        }
+                        label={t`Also hide Planned`}
+                    />
+                    <FormControlLabel
+                        control={
+                            <Switch
                                 checked={filters.hideNovelOneShot}
                                 onChange={(_, checked) => update({ hideNovelOneShot: checked })}
                             />

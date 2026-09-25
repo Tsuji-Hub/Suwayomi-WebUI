@@ -20,6 +20,9 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useLingui } from '@lingui/react/macro';
 import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
 import { RecCoverImage } from '@/features/tsuji/recs/components/RecCoverImage.tsx';
+import type { OnSeenMark } from '@/features/tsuji/seen/components/SeenControls.tsx';
+import { RecCardMenu, useSeenBadge } from '@/features/tsuji/seen/components/SeenControls.tsx';
+import type { SeenState } from '@/features/tsuji/seen/seen.ts';
 import { TypographyMaxLines } from '@/base/components/texts/TypographyMaxLines.tsx';
 import { usePress } from '@/base/hooks/usePress.ts';
 import { MANGA_COVER_ASPECT_RATIO } from '@/features/manga/Manga.constants.ts';
@@ -63,6 +66,19 @@ const Cover = styled('div')(({ theme }) => ({
     backgroundColor: theme.palette.action.hover,
 }));
 
+/** Bottom-left column: list/mark badge above the release status, so neither collides on narrow cards. */
+const BottomBadges = styled('div')(({ theme }) => ({
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    right: 6,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: theme.spacing(0.5),
+    pointerEvents: 'none',
+}));
+
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
 
 export type RecCardProps = {
@@ -71,10 +87,15 @@ export type RecCardProps = {
     agreement?: boolean;
     onOpen: (media: RecMedia) => void;
     onPreview: (media: RecMedia) => void;
+    /** On the user's AniList list or manually marked. */
+    seenState?: SeenState | null;
+    /** Enables the overflow menu (Mark as read / Not interested / Unhide). */
+    onMark?: OnSeenMark;
 };
 
-export const RecCard = memo(({ media, agreement = false, onOpen, onPreview }: RecCardProps) => {
+export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seenState, onMark }: RecCardProps) => {
     const { t } = useLingui();
+    const seenBadge = useSeenBadge(seenState, media.chapters);
 
     const title = getDisplayTitle(media);
     const synopsis = useMemo(
@@ -137,13 +158,25 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview }: Re
                                 {media.chapters}
                             </CoverBadge>
                         )}
-                        {status && (
-                            <CoverBadge sx={{ bottom: 6, left: 6 }}>
-                                <Box component="span" sx={{ color: status.color }}>
-                                    ●
-                                </Box>
-                                {t(status.label)}
-                            </CoverBadge>
+                        {(seenBadge || status) && (
+                            <BottomBadges>
+                                {seenBadge && (
+                                    <CoverBadge sx={{ position: 'static' }}>
+                                        <Box component="span" sx={{ color: seenBadge.color }}>
+                                            ■
+                                        </Box>
+                                        {seenBadge.text}
+                                    </CoverBadge>
+                                )}
+                                {status && (
+                                    <CoverBadge sx={{ position: 'static' }}>
+                                        <Box component="span" sx={{ color: status.color }}>
+                                            ●
+                                        </Box>
+                                        {t(status.label)}
+                                    </CoverBadge>
+                                )}
+                            </BottomBadges>
                         )}
                     </Cover>
                 </ButtonBase>
@@ -159,6 +192,7 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview }: Re
                         <Typography variant="caption">{abbreviateCount(popularity)}</Typography>
                     </Stack>
                 )}
+                {onMark && <RecCardMenu media={media} seenState={seenState} onMark={onMark} onPreview={onPreview} />}
             </Stack>
             {!!tags.length && (
                 <Stack

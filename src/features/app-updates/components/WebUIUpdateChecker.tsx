@@ -16,7 +16,7 @@ import Button from '@mui/material/Button';
 import { useLingui } from '@lingui/react/macro';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import type { WebUiUpdateStatus } from '@/lib/graphql/generated/graphql-base.types.ts';
-import { UpdateState, WebUiChannel } from '@/lib/graphql/generated/graphql-base.types.ts';
+import { UpdateState, WebUiChannel, WebUiFlavor } from '@/lib/graphql/generated/graphql-base.types.ts';
 import { useLocalStorage } from '@/base/hooks/useStorage.tsx';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { makeToast } from '@/base/utils/Toast.ts';
@@ -30,7 +30,7 @@ import { AppSession } from '@/base/AppSession.ts';
 
 const disabledUpdateCheck = () => Promise.resolve();
 
-export const WebUIUpdateChecker = () => {
+const WebUIUpdateCheckerContent = () => {
     const { t } = useLingui();
 
     const [webUIVersion, setWebUIVersion] = useLocalStorage<string>('webUIVersion');
@@ -186,4 +186,19 @@ export const WebUIUpdateChecker = () => {
             </DialogActions>
         </Dialog>
     );
+};
+
+/**
+ * tsuji: mount only once server settings are known, and not at all for a Custom WebUI. The server has no update
+ * mapping for a Custom build, so checkForWebUIUpdate failed after ~10 s on every load (it could also fire before the
+ * settings arrived, while the auto-update interval still read as off).
+ */
+export const WebUIUpdateChecker = () => {
+    const serverSettings = requestManager.useGetServerSettings();
+
+    if (!serverSettings.data || serverSettings.data.settings.webUIFlavor === WebUiFlavor.Custom) {
+        return null;
+    }
+
+    return <WebUIUpdateCheckerContent />;
 };

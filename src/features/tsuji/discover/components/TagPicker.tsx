@@ -12,6 +12,7 @@ import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import Button from '@mui/material/Button';
 import Collapse from '@mui/material/Collapse';
+import LinearProgress from '@mui/material/LinearProgress';
 import FormLabel from '@mui/material/FormLabel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -42,22 +43,36 @@ const groupByCategory = (tags: CatalogTag[]): [string, CatalogTag[]][] => {
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 };
 
+/**
+ * Renders immediately (the selected chips need no catalog); the AniList tag catalog is loaded by the parent once
+ * the panel is first expanded, so opening Discover never waits on it.
+ */
 export const TagPicker = ({
     catalog,
+    isCatalogError,
+    onRetryCatalog,
+    isExpanded,
+    onExpandedChange,
     selection,
     onChange,
     showAdult,
 }: {
-    catalog: TagCatalog;
+    catalog: TagCatalog | null;
+    isCatalogError: boolean;
+    onRetryCatalog: () => void;
+    isExpanded: boolean;
+    onExpandedChange: (isExpanded: boolean) => void;
     selection: DiscoverSelection;
     onChange: (selection: DiscoverSelection) => void;
     showAdult: boolean;
 }) => {
     const { t } = useLingui();
-    const [isExpanded, setIsExpanded] = useState(false);
     const [query, setQuery] = useState('');
 
-    const tags = useMemo(() => catalog.tags.filter((tag) => showAdult || !tag.isAdult), [catalog.tags, showAdult]);
+    const tags = useMemo(
+        () => (catalog?.tags ?? []).filter((tag) => showAdult || !tag.isAdult),
+        [catalog?.tags, showAdult],
+    );
     const groups = useMemo(() => groupByCategory(tags), [tags]);
     const normalizedQuery = query.trim().toLowerCase();
     const matches = useMemo(
@@ -93,7 +108,7 @@ export const TagPicker = ({
                     size="small"
                     startIcon={<TuneIcon />}
                     endIcon={isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                    onClick={() => setIsExpanded(!isExpanded)}
+                    onClick={() => onExpandedChange(!isExpanded)}
                     aria-expanded={isExpanded}
                 >
                     {t`Tags & genres`}
@@ -110,8 +125,20 @@ export const TagPicker = ({
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {t`Tap once to include, twice to exclude, three times to clear. Included tags must all match.`}
                     </Typography>
+                    {!catalog && !isCatalogError && <LinearProgress aria-label={t`Loading tags`} />}
+                    {isCatalogError && (
+                        <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                {t`Couldn't load the tag list.`}
+                            </Typography>
+                            <Button size="small" onClick={onRetryCatalog}>
+                                {t`Retry`}
+                            </Button>
+                        </Stack>
+                    )}
                     <TextField
                         size="small"
+                        disabled={!catalog}
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder={t`Search tags`}
@@ -130,7 +157,7 @@ export const TagPicker = ({
                         <>
                             <FormLabel>{t`Genres`}</FormLabel>
                             <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
-                                {catalog.genres
+                                {(catalog?.genres ?? [])
                                     .filter((genre) => showAdult || genre !== 'Hentai')
                                     .map((genre) => renderChip('genres', genre))}
                             </Stack>

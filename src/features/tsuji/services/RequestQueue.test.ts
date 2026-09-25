@@ -76,6 +76,47 @@ describe('SpacedQueue', () => {
         expect(task).not.toHaveBeenCalled();
     });
 
+    it('lets a burst start together, then refills one per interval', async () => {
+        const queue = new SpacedQueue(2100, { burst: 3 });
+        const starts: number[] = [];
+
+        const all = Promise.all([0, 1, 2, 3, 4].map(() => queue.run(recordStart(starts))));
+        await vi.runAllTimersAsync();
+        await all;
+
+        expect(starts).toEqual([0, 0, 0, 2100, 4200]);
+    });
+
+    it('refills the burst while idle, capped at the burst size', async () => {
+        const queue = new SpacedQueue(2100, { burst: 2 });
+        const starts: number[] = [];
+
+        await Promise.all([queue.run(recordStart(starts)), queue.run(recordStart(starts))]);
+        vi.setSystemTime(60_000);
+        const all = Promise.all([0, 1, 2].map(() => queue.run(recordStart(starts))));
+        await vi.runAllTimersAsync();
+        await all;
+
+        expect(starts).toEqual([0, 0, 60_000, 60_000, 62_100]);
+    });
+
+    it('refunds the token when aborted after leaving the queue but before starting', async () => {
+        const queue = new SpacedQueue(2100, { burst: 1 });
+        const starts: number[] = [];
+        const task = vi.fn(() => Promise.resolve());
+        const controller = new AbortController();
+
+        const aborted = queue.run(task, controller.signal).catch(() => 'aborted');
+        controller.abort(new Error('aborted'));
+        const next = queue.run(recordStart(starts));
+        await vi.runAllTimersAsync();
+
+        expect(await aborted).toBe('aborted');
+        await next;
+        expect(task).not.toHaveBeenCalled();
+        expect(starts).toEqual([0]);
+    });
+
     it('does not spend a slot on an aborted task', async () => {
         const queue = new SpacedQueue(2100);
         const starts: number[] = [];

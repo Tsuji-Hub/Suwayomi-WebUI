@@ -11,6 +11,8 @@ import type { ComicType, RecMedia, RecMediaStatus } from '@/features/tsuji/recs/
 import { getAllTitles, getComicType, getVisibleTags } from '@/features/tsuji/recs/media.ts';
 import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
 import type { ScoredCandidate } from '@/features/tsuji/recs/rank.ts';
+import type { SeenState } from '@/features/tsuji/seen/seen.ts';
+import { isHiddenBySeen } from '@/features/tsuji/seen/seen.ts';
 import { diversify, GEM_MIN_POPULARITY } from '@/features/tsuji/recs/rank.ts';
 
 export type RecSort = 'BEST' | 'SCORE' | 'POPULARITY' | 'NEWEST';
@@ -19,6 +21,10 @@ export type TagFilterState = 'include' | 'exclude';
 
 export type RecFilters = {
     hideInLibrary: boolean;
+    /** Hide what's on the user's AniList (reading, completed, dropped, paused, rereading) and manual marks. */
+    hideOnMyList: boolean;
+    /** With hideOnMyList: also hide Planned. */
+    hidePlanned: boolean;
     hideNovelOneShot: boolean;
     /** Empty = all types. */
     types: ComicType[];
@@ -40,6 +46,8 @@ export const REC_SORTS: RecSort[] = ['BEST', 'SCORE', 'POPULARITY', 'NEWEST'];
 
 export const DEFAULT_REC_FILTERS: RecFilters = {
     hideInLibrary: true,
+    hideOnMyList: true,
+    hidePlanned: false,
     hideNovelOneShot: true,
     types: [],
     statuses: [],
@@ -90,6 +98,8 @@ export const parseRecFilters = (raw: string | undefined): RecFilters => {
 
     return {
         hideInLibrary: pickBoolean(parsed.hideInLibrary, DEFAULT_REC_FILTERS.hideInLibrary),
+        hideOnMyList: pickBoolean(parsed.hideOnMyList, DEFAULT_REC_FILTERS.hideOnMyList),
+        hidePlanned: pickBoolean(parsed.hidePlanned, DEFAULT_REC_FILTERS.hidePlanned),
         hideNovelOneShot: pickBoolean(parsed.hideNovelOneShot, DEFAULT_REC_FILTERS.hideNovelOneShot),
         types: pickList(parsed.types, COMIC_TYPES),
         statuses: pickList(parsed.statuses, REC_STATUSES),
@@ -106,6 +116,8 @@ export const parseRecFilters = (raw: string | undefined): RecFilters => {
 export const countActiveFilters = (filters: RecFilters): number =>
     [
         filters.hideInLibrary !== DEFAULT_REC_FILTERS.hideInLibrary,
+        filters.hideOnMyList !== DEFAULT_REC_FILTERS.hideOnMyList,
+        filters.hideOnMyList && filters.hidePlanned !== DEFAULT_REC_FILTERS.hidePlanned,
         filters.hideNovelOneShot !== DEFAULT_REC_FILTERS.hideNovelOneShot,
         filters.types.length > 0,
         filters.statuses.length > 0,
@@ -172,9 +184,16 @@ export const passesFilters = (
     media: RecMedia,
     filters: RecFilters,
     libraryIndex: LibraryIndex,
-    { applyTagFilters = true }: { applyTagFilters?: boolean } = {},
+    {
+        applyTagFilters = true,
+        getSeenState,
+    }: { applyTagFilters?: boolean; getSeenState?: (mediaId: number) => SeenState | null } = {},
 ): boolean => {
     if (filters.hideInLibrary && isInLibrary(media, libraryIndex)) {
+        return false;
+    }
+
+    if (getSeenState && isHiddenBySeen(getSeenState(media.id), filters)) {
         return false;
     }
 

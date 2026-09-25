@@ -25,6 +25,8 @@ import { RecPreviewDialog, useRecPreview } from '@/features/tsuji/recs/component
 import { useFindToRead, useLibraryIndex, useRecFilters } from '@/features/tsuji/recs/useRecsData.ts';
 import type { SimilarManga } from '@/features/tsuji/similar/useSimilarRecs.ts';
 import { useSimilarRecs } from '@/features/tsuji/similar/useSimilarRecs.ts';
+import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
+import { MyListNotice } from '@/features/tsuji/seen/components/MyListNotice.tsx';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
 
@@ -47,6 +49,8 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     const libraryIndex = useLibraryIndex();
     const findToRead = useFindToRead();
     const preview = useRecPreview();
+    const seen = useSeen();
+    const markSeen = useSeenActions();
 
     const data = state.status === 'ready' ? state.data : null;
     const ranked = useMemo(() => (data ? rankCandidates(data.seedTags, data.candidates) : []), [data]);
@@ -54,11 +58,13 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
         () =>
             libraryIndex
                 ? sortRecs(
-                      ranked.filter((item) => passesFilters(item, filters, libraryIndex)),
+                      ranked.filter((item) =>
+                          passesFilters(item, filters, libraryIndex, { getSeenState: seen.getSeenState }),
+                      ),
                       filters,
                   )
                 : [],
-        [ranked, filters, libraryIndex],
+        [ranked, filters, libraryIndex, seen.getSeenState],
     );
     const tagOptions = useMemo(
         () => getTagOptions(data?.candidates ?? [], filters.showAdult),
@@ -66,7 +72,9 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     );
     const sortOptions = REC_SORTS.map((value) => ({ value, label: t(REC_SORT_LABELS[value]) }));
 
-    const isLoading = state.status === 'loading' || (state.status === 'ready' && !libraryIndex);
+    // Cards wait for the library index and the AniList list (capped by its 4 s timeout), so they don't vanish after
+    // rendering; the header and filters are usable meanwhile.
+    const isLoading = state.status === 'loading' || (state.status === 'ready' && (!libraryIndex || !seen.isSettled));
     const sourceLabel = data?.sources.includes('mal') ? t`AniList + MAL` : t`AniList`;
 
     const body = (() => {
@@ -123,6 +131,8 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
                         agreement={item.agreement}
                         onOpen={findToRead}
                         onPreview={preview.show}
+                        seenState={seen.getSeenState(item.id)}
+                        onMark={markSeen}
                     />
                 ))}
             </CardRow>
@@ -159,12 +169,17 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
                     showHiddenGems
                 />
             )}
+            {data && seen.myList.isUnavailable && (
+                <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
+            )}
             {body}
             <RecPreviewDialog
                 media={preview.media}
                 isOpen={preview.isOpen}
                 onClose={preview.close}
                 onFind={findToRead}
+                getSeenState={seen.getSeenState}
+                onMark={markSeen}
             />
         </Stack>
     );

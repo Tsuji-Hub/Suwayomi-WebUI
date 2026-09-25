@@ -9,13 +9,20 @@
 type Waiter = { start: () => void };
 
 /**
- * Starts tasks in call order, no closer together than `spacingMs`, and holds every queued task while paused
- * (e.g. after a 429). A slot is only handed out when a task reaches the front, so aborted tasks never use one.
+ * Token bucket: up to `burst` tasks start at once, then one per `spacingMs` (average rate 1 / spacingMs). Tasks start
+ * in call order, every queued task is held while paused (e.g. after a 429), and a token is only spent when a task
+ * reaches the front, so aborted tasks never use one.
  */
 export class SpacedQueue {
     private readonly waiters: Waiter[] = [];
 
-    private lastStart = -Infinity;
+    private readonly burst: number;
+
+    private readonly now: () => number;
+
+    private tokens: number;
+
+    private lastRefill: number;
 
     private pausedUntil = 0;
 
@@ -23,8 +30,13 @@ export class SpacedQueue {
 
     constructor(
         private readonly spacingMs: number,
-        private readonly now: () => number = Date.now,
-    ) {}
+        { burst = 1, now = Date.now }: { burst?: number; now?: () => number } = {},
+    ) {
+        this.burst = burst;
+        this.now = now;
+        this.tokens = burst;
+        this.lastRefill = now();
+    }
 
     pauseUntil(epochMs: number): void {
         this.pausedUntil = Math.max(this.pausedUntil, epochMs);
@@ -52,7 +64,44 @@ export class SpacedQueue {
             this.pump();
         });
 
+        // Aborted between leaving the queue and starting (e.g. a React effect cleanup in the same tick):
+        // give the token back and don't send anything.
+        if (signal?.aborted) {
+            this.refund();
+            throw signal.reason;
+        }
+
         return task();
+    }
+
+    private refund(): void {
+        this.tokens = Math.min(this.burst, this.tokens + 1);
+
+        // A waiter may already be sleeping for the next token: wake it now instead.
+        if (this.timer !== null) {
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
+        this.pump();
+    }
+
+    private refill(time: number): void {
+        const elapsed = time - this.lastRefill;
+        if (elapsed > 0) {
+            this.tokens = Math.min(this.burst, this.tokens + elapsed / this.spacingMs);
+            this.lastRefill = time;
+        }
+    }
+
+    private schedule(waitMs: number): void {
+        // Re-evaluated on wake-up: the pause may have been extended or the head waiter aborted.
+        this.timer = setTimeout(
+            () => {
+                this.timer = null;
+                this.pump();
+            },
+            Math.max(1, Math.ceil(waitMs)),
+        );
     }
 
     private pump(): void {
@@ -60,19 +109,21 @@ export class SpacedQueue {
             return;
         }
 
-        const waitMs = Math.max(this.lastStart + this.spacingMs, this.pausedUntil) - this.now();
-        if (waitMs > 0) {
-            // Re-evaluated on wake-up: the pause may have been extended or the head waiter aborted.
-            this.timer = setTimeout(() => {
-                this.timer = null;
-                this.pump();
-            }, waitMs);
+        const time = this.now();
+        if (time < this.pausedUntil) {
+            this.schedule(this.pausedUntil - time);
             return;
         }
 
-        const waiter = this.waiters.shift()!;
-        this.lastStart = this.now();
-        waiter.start();
+        this.refill(time);
+        // Tolerate float drift so a nearly full token doesn't cost another timer round.
+        if (this.tokens < 1 - 1e-9) {
+            this.schedule((1 - this.tokens) * this.spacingMs);
+            return;
+        }
+
+        this.tokens = Math.max(0, this.tokens - 1);
+        this.waiters.shift()!.start();
         this.pump();
     }
 }

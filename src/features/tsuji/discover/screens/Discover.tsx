@@ -8,12 +8,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useLingui } from '@lingui/react/macro';
+import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
 import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
 import { useIntersectionObserver } from '@/base/hooks/useIntersectionObserver.tsx';
 import type { DiscoverSelection, DiscoverSort } from '@/features/tsuji/discover/discoverQuery.ts';
@@ -26,6 +29,9 @@ import {
     LANDING_SORTS,
     SERVER_SORTS,
 } from '@/features/tsuji/discover/discoverQuery.ts';
+import { DegradedMemory } from '@/features/tsuji/discover/degradedMemory.ts';
+import type { LandingSource } from '@/features/tsuji/discover/landing.ts';
+import { pickLandingSource } from '@/features/tsuji/discover/landing.ts';
 import { useDiscoverFeed, useTagCatalog } from '@/features/tsuji/discover/useDiscoverFeed.ts';
 import { TagPicker } from '@/features/tsuji/discover/components/TagPicker.tsx';
 import type { RecFilters } from '@/features/tsuji/recs/filters.ts';
@@ -37,6 +43,9 @@ import { REC_CARD_WIDTH, RecCard, RecCardSkeleton } from '@/features/tsuji/recs/
 import { RecFilterBar } from '@/features/tsuji/recs/components/RecFilterBar.tsx';
 import { RecPreviewDialog, useRecPreview } from '@/features/tsuji/recs/components/RecPreviewDialog.tsx';
 import { useFindToRead, useLibraryIndex, useRecFilters } from '@/features/tsuji/recs/useRecsData.ts';
+import { MyListNotice } from '@/features/tsuji/seen/components/MyListNotice.tsx';
+import { TsujiSettingsDialog } from '@/features/tsuji/seen/components/TsujiSettingsDialog.tsx';
+import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { useSessionState } from '@/features/tsuji/services/useSessionState.ts';
 
 /**
@@ -45,6 +54,8 @@ import { useSessionState } from '@/features/tsuji/services/useSessionState.ts';
  */
 const MAX_EMPTY_PAGE_STREAK = 3;
 const MIN_VISIBLE_PER_PAGE = 5;
+/** Past this, Trending arriving late no longer replaces the Popular grid under the user. */
+const SCROLL_LOCK_PX = 120;
 const SKELETON_KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index}`);
 
 const CardGrid = styled('div')(({ theme }) => ({
@@ -67,6 +78,14 @@ const getTrailingSparseStreak = (counts: number[]): number => {
     return counts.length - 1 - lastFull;
 };
 
+const Skeletons = ({ count }: { count: number }) => (
+    <CardGrid aria-busy>
+        {SKELETON_KEYS.slice(0, count).map((key) => (
+            <RecCardSkeleton key={key} />
+        ))}
+    </CardGrid>
+);
+
 const DiscoverBrowse = () => {
     const { t } = useLingui();
     const [selection, setSelection] = useSessionState<DiscoverSelection>('discoverSelection', EMPTY_SELECTION);
@@ -75,7 +94,11 @@ const DiscoverBrowse = () => {
     const libraryIndex = useLibraryIndex();
     const findToRead = useFindToRead();
     const preview = useRecPreview();
-    const { catalog, isError: isCatalogError, retry: retryCatalog } = useTagCatalog();
+    const seen = useSeen();
+    const markSeen = useSeenActions();
+
+    const [isPickerExpanded, setIsPickerExpanded] = useState(false);
+    const catalog = useTagCatalog(isPickerExpanded);
 
     // Hidden gems is a Similar-only mode; don't let it silently filter Discover.
     const filters: RecFilters = useMemo(() => ({ ...storedFilters, hiddenGems: false }), [storedFilters]);
@@ -86,25 +109,70 @@ const DiscoverBrowse = () => {
     const includedTags = useMemo(() => getIncludedTags(selection), [selection]);
     const variables = useMemo(() => buildDiscoverVariables(selection, filters), [selection, filters]);
 
-    const feed = useDiscoverFeed({ variables, serverSort: SERVER_SORTS[sort] });
-    const isTrendingLanding = !isBrowsing && sort === 'TRENDING';
-    const popular = useDiscoverFeed({ variables, serverSort: SERVER_SORTS.POPULARITY, isEnabled: isTrendingLanding });
-    const hasFellBack = !!feed.serverSort && feed.serverSort !== SERVER_SORTS[sort];
+    // Landing: Trending and Popular in parallel; whichever has cards first fills the grid (see pickLandingSource).
+    const isLanding = !isBrowsing && sort === 'TRENDING';
+    const [isTrendingKnownBroken] = useState(() => DegradedMemory.isSortFailed(SERVER_SORTS.TRENDING));
+    const trending = useDiscoverFeed({
+        variables,
+        serverSort: SERVER_SORTS.TRENDING,
+        isEnabled: isLanding && !isTrendingKnownBroken,
+        allowSortFallback: false,
+    });
+    const popular = useDiscoverFeed({ variables, serverSort: SERVER_SORTS.POPULARITY, isEnabled: isLanding });
+    const browse = useDiscoverFeed({ variables, serverSort: SERVER_SORTS[sort], isEnabled: !isLanding });
+
+    const [landingSource, setLandingSource] = useState<LandingSource>('loading');
+    const variablesKey = JSON.stringify(variables);
+    useEffect(() => setLandingSource('loading'), [variablesKey]);
+    useEffect(() => {
+        if (!isLanding) {
+            return;
+        }
+
+        setLandingSource((current) =>
+            pickLandingSource({
+                current,
+                trending: trending.phase,
+                popular: popular.phase,
+                hasScrolled: window.scrollY > SCROLL_LOCK_PX,
+                hasPagedPopular: popular.pages.length > 1,
+            }),
+        );
+    }, [isLanding, trending.phase, popular.phase, popular.pages.length]);
+
+    const isTrendingOut = trending.phase === 'off' || trending.phase === 'empty' || trending.phase === 'failed';
+    useEffect(() => {
+        // Trending came back empty or timed out while Popular works: skip it for the next 30 minutes.
+        if (isLanding && popular.phase === 'ready' && (trending.phase === 'empty' || trending.phase === 'failed')) {
+            DegradedMemory.rememberSortFailed(SERVER_SORTS.TRENDING);
+        }
+    }, [isLanding, popular.phase, trending.phase]);
+
+    const landingFeed = landingSource === 'trending' ? trending : popular;
+    const feed = isLanding ? landingFeed : browse;
+    const hasFellBack = isLanding
+        ? landingSource === 'popular' && isTrendingOut
+        : !!browse.serverSort && browse.serverSort !== SERVER_SORTS[sort];
 
     const isVisible = useCallback(
-        (media: RecMedia) => !!libraryIndex && passesFilters(media, filters, libraryIndex, { applyTagFilters: false }),
-        [filters, libraryIndex],
+        (media: RecMedia) =>
+            !!libraryIndex &&
+            passesFilters(media, filters, libraryIndex, {
+                applyTagFilters: false,
+                getSeenState: seen.getSeenState,
+            }),
+        [filters, libraryIndex, seen.getSeenState],
     );
 
     const { items, emptyStreak } = useMemo(() => {
-        const seen = new Set<number>();
+        const seenIds = new Set<number>();
         const visiblePages = feed.pages.map((page) =>
             (sort === 'BEST' && includedTags.length ? rerankByIncludeTags(page, includedTags) : page).filter(
                 (media) => {
-                    if (seen.has(media.id) || !isVisible(media)) {
+                    if (seenIds.has(media.id) || !isVisible(media)) {
                         return false;
                     }
-                    seen.add(media.id);
+                    seenIds.add(media.id);
                     return true;
                 },
             ),
@@ -116,10 +184,18 @@ const DiscoverBrowse = () => {
         };
     }, [feed.pages, sort, includedTags, isVisible]);
 
-    const popularItems = useMemo(() => (popular.pages[0] ?? []).filter(isVisible), [popular.pages, isVisible]);
+    const popularRow = useMemo(
+        () => (isLanding && landingSource === 'trending' ? (popular.pages[0] ?? []).filter(isVisible) : []),
+        [isLanding, landingSource, popular.pages, isVisible],
+    );
 
+    // Cards wait for the library index and the AniList list (capped by its 4 s timeout), so hidden titles don't
+    // flash in and vanish; tabs, the tag picker and filters are usable meanwhile.
+    const areCardsReady = !!libraryIndex && seen.isSettled;
+    const isInitialLoading =
+        !areCardsReady || (isLanding && landingSource === 'loading') || (feed.isLoading && !feed.pages.length);
     const canAutoLoad =
-        !!libraryIndex && feed.hasNextPage && !feed.isLoading && !feed.isError && emptyStreak < MAX_EMPTY_PAGE_STREAK;
+        areCardsReady && feed.hasNextPage && !feed.isLoading && !feed.isError && emptyStreak < MAX_EMPTY_PAGE_STREAK;
 
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isSentinelVisible, setIsSentinelVisible] = useState(false);
@@ -129,33 +205,36 @@ const DiscoverBrowse = () => {
     useIntersectionObserver(sentinelRef, handleIntersection, { rootMargin: '600px' });
 
     useEffect(() => {
-        if (isSentinelVisible && canAutoLoad) {
+        if (isSentinelVisible && canAutoLoad && !isInitialLoading) {
             feed.loadMore();
         }
-    }, [isSentinelVisible, canAutoLoad, feed.loadMore, feed.pages.length]);
+    }, [isSentinelVisible, canAutoLoad, isInitialLoading, feed.loadMore, feed.pages.length]);
 
-    const isInitialLoading = !libraryIndex || (feed.isLoading && !feed.pages.length);
+    const renderCard = (media: RecMedia) => (
+        <RecCard
+            key={media.id}
+            media={media}
+            onOpen={findToRead}
+            onPreview={preview.show}
+            seenState={seen.getSeenState(media.id)}
+            onMark={markSeen}
+        />
+    );
+
+    const gridHeading = landingSource === 'trending' ? t`Trending` : t`Popular`;
 
     return (
         <Stack sx={{ gap: 2 }}>
-            {catalog && (
-                <TagPicker
-                    catalog={catalog}
-                    selection={selection}
-                    onChange={setSelection}
-                    showAdult={filters.showAdult}
-                />
-            )}
-            {isCatalogError && (
-                <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                        {t`Couldn't load the tag list.`}
-                    </Typography>
-                    <Button size="small" onClick={retryCatalog}>
-                        {t`Retry`}
-                    </Button>
-                </Stack>
-            )}
+            <TagPicker
+                catalog={catalog.catalog}
+                isCatalogError={catalog.isError}
+                onRetryCatalog={catalog.retry}
+                isExpanded={isPickerExpanded}
+                onExpandedChange={setIsPickerExpanded}
+                selection={selection}
+                onChange={setSelection}
+                showAdult={filters.showAdult}
+            />
             <RecFilterBar
                 filters={storedFilters}
                 onFiltersChange={setFilters}
@@ -166,58 +245,47 @@ const DiscoverBrowse = () => {
                 }))}
                 onSortChange={(value) => setSortChoice(value as DiscoverSort)}
             />
-            {hasFellBack && (
+            {seen.myList.isUnavailable && (
+                <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
+            )}
+            {hasFellBack && !isInitialLoading && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    {t`AniList isn't serving this sort right now; showing the closest available order.`}
+                    {isLanding
+                        ? t`Trending isn't available from AniList right now; showing Popular.`
+                        : t`AniList isn't serving this sort right now; showing the closest available order.`}
                 </Typography>
             )}
-            {isTrendingLanding && !hasFellBack && !!popularItems.length && (
+            {!isInitialLoading && !!popularRow.length && (
                 <Stack sx={{ gap: 1 }}>
                     <Typography variant="h6" component="h2">
                         {t`Popular`}
                     </Typography>
-                    <CardRow>
-                        {popularItems.map((media) => (
-                            <RecCard key={media.id} media={media} onOpen={findToRead} onPreview={preview.show} />
-                        ))}
-                    </CardRow>
+                    <CardRow>{popularRow.map(renderCard)}</CardRow>
                 </Stack>
             )}
-            {isTrendingLanding && (
+            {isLanding && !isInitialLoading && (
                 <Typography variant="h6" component="h2">
-                    {hasFellBack ? t`Popular` : t`Trending`}
+                    {gridHeading}
                 </Typography>
             )}
-            {isInitialLoading && (
-                <CardGrid aria-busy>
-                    {SKELETON_KEYS.map((key) => (
-                        <RecCardSkeleton key={key} />
-                    ))}
-                </CardGrid>
-            )}
-            {!isInitialLoading && !!items.length && (
-                <CardGrid>
-                    {items.map((media) => (
-                        <RecCard key={media.id} media={media} onOpen={findToRead} onPreview={preview.show} />
-                    ))}
-                </CardGrid>
-            )}
+            {isInitialLoading && <Skeletons count={12} />}
+            {!isInitialLoading && !!items.length && <CardGrid>{items.map(renderCard)}</CardGrid>}
             {!isInitialLoading && !items.length && !feed.hasNextPage && !feed.isError && (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {t`No titles match these tags and filters.`}
                 </Typography>
             )}
-            {feed.isError && (
+            {!isInitialLoading && feed.isError && (
                 <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                        {t`Couldn't load more titles.`}
+                        {feed.pages.length ? t`Couldn't load more titles.` : t`AniList didn't answer in time.`}
                     </Typography>
                     <Button size="small" onClick={feed.retry}>
                         {t`Retry`}
                     </Button>
                 </Stack>
             )}
-            {!feed.isError && feed.hasNextPage && emptyStreak >= MAX_EMPTY_PAGE_STREAK && (
+            {!isInitialLoading && !feed.isError && feed.hasNextPage && emptyStreak >= MAX_EMPTY_PAGE_STREAK && (
                 <Stack sx={{ alignItems: 'center', gap: 1 }}>
                     {!items.length && (
                         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -229,19 +297,15 @@ const DiscoverBrowse = () => {
                     </Button>
                 </Stack>
             )}
-            {feed.isLoading && !!feed.pages.length && (
-                <CardGrid aria-busy>
-                    {SKELETON_KEYS.slice(0, 6).map((key) => (
-                        <RecCardSkeleton key={key} />
-                    ))}
-                </CardGrid>
-            )}
+            {!isInitialLoading && feed.isLoading && <Skeletons count={6} />}
             <div ref={sentinelRef} />
             <RecPreviewDialog
                 media={preview.media}
                 isOpen={preview.isOpen}
                 onClose={preview.close}
                 onFind={findToRead}
+                getSeenState={seen.getSeenState}
+                onMark={markSeen}
             />
         </Stack>
     );
@@ -250,15 +314,27 @@ const DiscoverBrowse = () => {
 export const Discover = () => {
     const { t } = useLingui();
     const [tab, setTab] = useSessionState<'discover' | 'forYou'>('discoverTab', 'discover');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     useAppTitle(t`Discover`);
 
     return (
         <Stack sx={{ p: 1, gap: 2 }}>
-            <Tabs value={tab} onChange={(_, value: 'discover' | 'forYou') => setTab(value)}>
-                <Tab value="discover" label={t`Discover`} />
-                <Tab value="forYou" label={t`For You`} />
-            </Tabs>
+            <Stack direction="row" sx={{ alignItems: 'center' }}>
+                <Tabs value={tab} onChange={(_, value: 'discover' | 'forYou') => setTab(value)}>
+                    <Tab value="discover" label={t`Discover`} />
+                    <Tab value="forYou" label={t`For You`} />
+                </Tabs>
+                <CustomTooltip title={t`Discover settings`}>
+                    <IconButton
+                        aria-label={t`Discover settings`}
+                        onClick={() => setIsSettingsOpen(true)}
+                        sx={{ ml: 'auto' }}
+                    >
+                        <SettingsIcon />
+                    </IconButton>
+                </CustomTooltip>
+            </Stack>
             {tab === 'discover' ? (
                 <DiscoverBrowse />
             ) : (
@@ -266,6 +342,7 @@ export const Discover = () => {
                     {t`For You arrives in a later update.`}
                 </Typography>
             )}
+            <TsujiSettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </Stack>
     );
 };

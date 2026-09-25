@@ -12,15 +12,13 @@ import {
     EMPTY_SELECTION,
     getIncludedTags,
     hasSelection,
+    matchesOptionalFilters,
 } from '@/features/tsuji/discover/discoverQuery.ts';
 import { DEFAULT_REC_FILTERS } from '@/features/tsuji/recs/filters.ts';
 
 describe('buildDiscoverVariables', () => {
-    it('defaults to hiding novels/one-shots and adult titles, nothing else', () =>
-        expect(buildDiscoverVariables(EMPTY_SELECTION, DEFAULT_REC_FILTERS)).toEqual({
-            formatNotIn: ['NOVEL', 'ONE_SHOT'],
-            isAdult: false,
-        }));
+    it('sends no filters by default (novels/one-shots and adult are filtered client-side)', () =>
+        expect(buildDiscoverVariables(EMPTY_SELECTION, DEFAULT_REC_FILTERS)).toEqual({}));
 
     it('maps tri-state tags and genres to _in / _not_in', () =>
         expect(
@@ -47,6 +45,19 @@ describe('buildDiscoverVariables', () => {
         expect(
             buildDiscoverVariables(EMPTY_SELECTION, { ...DEFAULT_REC_FILTERS, types: ['MANHWA', 'MANGA'] }),
         ).not.toHaveProperty('country');
+    });
+});
+
+describe('matchesOptionalFilters', () => {
+    const media = { status: 'RELEASING', countryOfOrigin: 'KR', averageScore: 80 };
+
+    it('checks status, country and minimum score (strictly greater, like averageScore_greater)', () => {
+        expect(matchesOptionalFilters(media, {})).toBe(true);
+        expect(matchesOptionalFilters(media, { statusIn: ['RELEASING'], country: 'KR', minScore: 79 })).toBe(true);
+        expect(matchesOptionalFilters(media, { statusIn: ['FINISHED'] })).toBe(false);
+        expect(matchesOptionalFilters(media, { country: 'JP' })).toBe(false);
+        expect(matchesOptionalFilters(media, { minScore: 80 })).toBe(false);
+        expect(matchesOptionalFilters({ ...media, averageScore: null }, { minScore: 0 })).toBe(false);
     });
 });
 

@@ -57,6 +57,11 @@ msgstr "{0, plural, one {# second} other {# seconds}}"
 msgid "{0, plural, one {# Source} other {# Sources}}"
 msgstr "{0, plural, one {# Source} other {# Sources}}"
 
+#. placeholder {0}: myList.count
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "{0, plural, one {# title} other {# titles}}"
+msgstr "{0, plural, one {# title} other {# titles}}"
+
 #. placeholder {0}: trackersInUse.length
 #: src/features/manga/components/TrackMangaButton.tsx
 msgid "{0, plural, one {# Tracker} other {# Tracker}}"
@@ -316,6 +321,10 @@ msgstr "{extensionStoreCount, plural, one {# extension store} other {# extension
 msgid "{installedExtensionCount, plural, one {# installed} other {# installed}}"
 msgstr "{installedExtensionCount, plural, one {# installed} other {# installed}}"
 
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "{markCount, plural, one {# title marked read or not interested} other {# titles marked read or not interested}}"
+msgstr "{markCount, plural, one {# title marked read or not interested} other {# titles marked read or not interested}}"
+
 #: src/features/chapter/components/ChapterList.tsx
 #: src/features/chapter/components/MissingChaptersInfoSeparator.tsx
 msgid "{missingChapterCount, plural, one {Missing # chapter} other {Missing # chapters}}"
@@ -329,6 +338,10 @@ msgstr "{otherResultsCount, plural, one {# more match} other {# more matches}}"
 #: src/features/app-updates/components/VersionInfo.tsx
 msgid "{progress}% | Updating…"
 msgstr "{progress}% | Updating…"
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "{titles}, synced at {time}"
+msgstr "{titles}, synced at {time}"
 
 #: src/features/backup/Backup.utils.ts
 msgid "{ttl, plural, one {Delete backups that are older than # day} other {Delete backups that are older than # days}}"
@@ -454,6 +467,10 @@ msgstr "Allowed Languages"
 msgid "Alpha"
 msgstr "Alpha"
 
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Also hide Planned"
+msgstr "Also hide Planned"
+
 #. placeholder {0}: tracker.name
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
 msgid "Also remove from {0}"
@@ -469,8 +486,16 @@ msgid "AniList + MAL"
 msgstr "AniList + MAL"
 
 #: src/features/tsuji/discover/screens/Discover.tsx
+msgid "AniList didn't answer in time."
+msgstr "AniList didn't answer in time."
+
+#: src/features/tsuji/discover/screens/Discover.tsx
 msgid "AniList isn't serving this sort right now; showing the closest available order."
 msgstr "AniList isn't serving this sort right now; showing the closest available order."
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "AniList username"
+msgstr "AniList username"
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Any"
@@ -783,6 +808,7 @@ msgstr "Can't migrate an entry to itself"
 #: src/features/source/configuration/components/MultiSelectListPreference.tsx
 #: src/features/theme/components/CreateThemeDialog.tsx
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -924,9 +950,25 @@ msgstr "Cleanup database"
 msgid "Clear"
 msgstr "Clear"
 
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Clear all"
+msgstr "Clear all"
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Clear all marks"
+msgstr "Clear all marks"
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Clear all marks?"
+msgstr "Clear all marks?"
+
 #: src/features/settings/screens/ImagesSettings.tsx
 msgid "Clear cache"
 msgstr "Clear cache"
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Cleared all marks"
+msgstr "Cleared all marks"
 
 #: src/features/settings/screens/ImagesSettings.tsx
 msgid "Cleared the cache"
@@ -948,6 +990,7 @@ msgstr "Client data"
 #: src/base/components/feedback/SnackbarWithDescription.tsx
 #: src/features/app-updates/components/VersionUpdateInfoDialog.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Close"
 msgstr "Close"
 
@@ -984,6 +1027,7 @@ msgid "Complete"
 msgstr "Complete"
 
 #: src/features/manga/Manga.constants.ts
+#: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Completed"
 msgstr "Completed"
 
@@ -1257,6 +1301,14 @@ msgstr "Could not update WebUI"
 msgid "Could not validate backup"
 msgstr "Could not validate backup"
 
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Couldn't clear the marks. Check the connection to the server."
+msgstr "Couldn't clear the marks. Check the connection to the server."
+
+#: src/features/tsuji/seen/components/MyListNotice.tsx
+msgid "Couldn't load {userName}'s AniList list, so nothing is hidden."
+msgstr "Couldn't load {userName}'s AniList list, so nothing is hidden."
+
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "Couldn't load more titles."
 msgstr "Couldn't load more titles."
@@ -1265,9 +1317,17 @@ msgstr "Couldn't load more titles."
 msgid "Couldn't load recommendations."
 msgstr "Couldn't load recommendations."
 
-#: src/features/tsuji/discover/screens/Discover.tsx
+#: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Couldn't load the tag list."
 msgstr "Couldn't load the tag list."
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Couldn't load this list. Check the username and that the list is public."
+msgstr "Couldn't load this list. Check the username and that the list is public."
+
+#: src/features/tsuji/seen/useSeen.tsx
+msgid "Couldn't save that. Check the connection to the server."
+msgstr "Couldn't save that. Check the connection to the server."
 
 #: src/features/category/components/CategorySelect.tsx
 #: src/features/device/screens/DeviceSetting.tsx
@@ -1479,6 +1539,10 @@ msgstr "Desktop"
 msgid "Destination - {0}"
 msgstr "Destination - {0}"
 
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Details"
+msgstr "Details"
+
 #: src/features/device/screens/DeviceSetting.tsx
 #: src/features/settings/screens/Settings.tsx
 msgid "Device"
@@ -1514,6 +1578,11 @@ msgstr "Discord"
 #: src/features/tsuji/discover/TsujiDiscoverNavItem.ts
 msgid "Discover"
 msgstr "Discover"
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Discover settings"
+msgstr "Discover settings"
 
 #: src/base/components/GridLayouts.tsx
 #: src/features/chapter/components/ChapterOptions.tsx
@@ -1610,6 +1679,10 @@ msgstr "Downloads"
 #: src/features/migration/components/MigrationDestinationSourceList.tsx
 msgid "Drag to prioritize"
 msgstr "Drag to prioritize"
+
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Dropped"
+msgstr "Dropped"
 
 #: src/features/theme/Themes.ts
 msgid "Dune"
@@ -1724,6 +1797,10 @@ msgstr "Every 6 hours"
 #: src/features/settings/Settings.constants.ts
 msgid "Every hour"
 msgstr "Every hour"
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Every title you marked as read or not interested shows up again, on all devices. Your AniList list is not affected."
+msgstr "Every title you marked as read or not interested shows up again, on all devices. Your AniList list is not affected."
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Example for possible values: 1 (bytes), 1KB (kilobytes), 1MB (megabytes), 1GB (gigabytes)"
@@ -2046,6 +2123,10 @@ msgstr "Hide novels and one-shots"
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Hide titles in my library"
 msgstr "Hide titles in my library"
+
+#: src/features/tsuji/recs/components/RecFilterBar.tsx
+msgid "Hide what's on my AniList"
+msgstr "Hide what's on my AniList"
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Hikari connection pool"
@@ -2421,11 +2502,16 @@ msgstr "List"
 msgid "Load more"
 msgstr "Load more"
 
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Loading tags"
+msgstr "Loading tags"
+
 #: src/features/theme/components/ThemePreview.tsx
 msgid "Loading theme fonts…"
 msgstr "Loading theme fonts…"
 
 #: src/base/components/settings/SelectSetting.tsx
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Loading…"
 msgstr "Loading…"
 
@@ -2549,6 +2635,8 @@ msgid "Mark all as read"
 msgstr "Mark all as read"
 
 #: src/features/chapter/Chapter.constants.ts
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+#: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -2571,6 +2659,18 @@ msgstr "Mark selected as read"
 #: src/features/chapter/Chapter.constants.ts
 msgid "Mark selected as unread"
 msgstr "Mark selected as unread"
+
+#: src/features/tsuji/seen/useSeen.tsx
+msgid "Marked as read"
+msgstr "Marked as read"
+
+#: src/features/tsuji/seen/useSeen.tsx
+msgid "Marked not interested"
+msgstr "Marked not interested"
+
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Marked on cards"
+msgstr "Marked on cards"
 
 #: src/features/migration/components/MigrationBulkSearchOptionsDialog.tsx
 msgid "Match based on chapter number"
@@ -2701,6 +2801,10 @@ msgstr "Modern"
 msgid "More"
 msgstr "More"
 
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "More actions"
+msgstr "More actions"
+
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Most popular"
 msgstr "Most popular"
@@ -2822,6 +2926,11 @@ msgstr "No titles match these tags and filters."
 #: src/features/settings/Settings.constants.ts
 msgid "None"
 msgstr "None"
+
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Not interested"
+msgstr "Not interested"
 
 #: src/features/tracker/Tracker.constants.ts
 msgid "Not yet published"
@@ -3009,6 +3118,10 @@ msgstr "Parallel source requests"
 msgid "Password"
 msgstr "Password"
 
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Paused"
+msgstr "Paused"
+
 #: src/features/navigation-bar/NavigationBar.constants.ts
 msgid "Paused — {count} remaining"
 msgstr "Paused — {count} remaining"
@@ -3030,6 +3143,10 @@ msgstr "Pin source"
 #: src/features/global-search/screens/SearchAll.tsx
 msgid "Pinned"
 msgstr "Pinned"
+
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Planned"
+msgstr "Planned"
 
 #: src/features/source/browse/screens/SourceMangas.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
@@ -3120,6 +3237,10 @@ msgstr "Quick settings"
 msgid "Random"
 msgstr "Random"
 
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Read"
+msgstr "Read"
+
 #: src/features/reader/settings/screens/GlobalReaderSettings.tsx
 #: src/features/settings/screens/Settings.tsx
 msgid "Reader"
@@ -3132,6 +3253,10 @@ msgstr "Reader — Manga {mangaId} Chapter {chapterSourceOrder}"
 #: src/features/reader/settings/layout/components/ReaderSettingWidth.tsx
 msgid "Reader width"
 msgstr "Reader width"
+
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Reading"
+msgstr "Reading"
 
 #: src/features/reader/overlay/navigation/desktop/quick-settings/components/ReaderNavBarDesktopReadingDirection.tsx
 #: src/features/reader/settings/layout/components/ReaderSettingReadingDirection.tsx
@@ -3165,6 +3290,7 @@ msgid "Red"
 msgstr "Red"
 
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Refresh"
 msgstr "Refresh"
@@ -3222,6 +3348,10 @@ msgstr "Remove selected from the library"
 msgid "Removed non library manga from categories"
 msgstr "Removed non library manga from categories"
 
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Rereading"
+msgstr "Rereading"
+
 #: src/base/components/buttons/ResetButton.tsx
 #: src/base/components/settings/CheckboxListSetting.tsx
 #: src/features/reader/hotkeys/settings/components/RecordHotkey.tsx
@@ -3265,7 +3395,9 @@ msgstr "Resume"
 #: src/features/chapter/components/buttons/ChapterDownloadRetryButton.tsx
 #: src/features/manga/hooks/useManageMangaLibraryState.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
+#: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
+#: src/features/tsuji/seen/components/MyListNotice.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Retry"
 msgstr "Retry"
@@ -4041,6 +4173,10 @@ msgstr "This will remove the tracking locally."
 msgid "Tiny"
 msgstr "Tiny"
 
+#: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
+msgid "Titles on this public list are badged, and hidden while \"Hide what's on my AniList\" is on."
+msgstr "Titles on this public list are badged, and hidden while \"Hide what's on my AniList\" is on."
+
 #: src/base/utils/DateHelper.ts
 msgid "Today"
 msgstr "Today"
@@ -4124,6 +4260,10 @@ msgstr "Tree Frog Green"
 msgid "Trending"
 msgstr "Trending"
 
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Trending isn't available from AniList right now; showing Popular."
+msgstr "Trending isn't available from AniList right now; showing Popular."
+
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Try again"
 msgstr "Try again"
@@ -4187,6 +4327,19 @@ msgstr "Unable to load sources"
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Understood"
 msgstr "Understood"
+
+#: src/features/tsuji/seen/useSeen.tsx
+msgid "Undo"
+msgstr "Undo"
+
+#: src/features/tsuji/seen/useSeen.tsx
+msgid "Unhidden"
+msgstr "Unhidden"
+
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+#: src/features/tsuji/seen/components/SeenControls.tsx
+msgid "Unhide"
+msgstr "Unhide"
 
 #: src/features/extension/Extensions.constants.ts
 msgid "Uninstall"

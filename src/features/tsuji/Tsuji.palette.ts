@@ -16,6 +16,8 @@ export const TSUJI_PALETTE = {
     statusHiatus: '#FFCA28',
     statusCancelled: '#EF5350',
     statusUpcoming: '#BDBDBD',
+    /** Dropped / paused / not interested on the user's list. */
+    statusPaused: '#BDBDBD',
     badgeScrim: 'rgba(0, 0, 0, 0.6)',
     badgeText: '#FFFFFF',
     progressBadge: '#424242',

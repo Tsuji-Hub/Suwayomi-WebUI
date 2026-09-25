@@ -11,13 +11,20 @@ import type { HydrateResponse, SeedResponse } from '@/features/tsuji/recs/aniLis
 import { HYDRATE_QUERY, SEED_QUERY } from '@/features/tsuji/recs/aniListQueries.ts';
 import { getContentTags } from '@/features/tsuji/recs/media.ts';
 import { mergeCandidates } from '@/features/tsuji/recs/merge.ts';
-import type { RecCandidate, RecMedia, RecRef, RecSourceId, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
+import type {
+    RecCandidate,
+    RecMedia,
+    RecRef,
+    RecSource,
+    RecSourceId,
+    RecTag,
+} from '@/features/tsuji/recs/Recs.types.ts';
 import { EXTERNAL_REC_SOURCES } from '@/features/tsuji/recs/sources/JikanSource.ts';
-import { aniList } from '@/features/tsuji/services/AniListClient.ts';
+import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 
 const RECALL_TAG_COUNT = 3;
-const EXTERNAL_SOURCE_TIMEOUT_MS = 8000;
+const EXTERNAL_SOURCE_TIMEOUT_MS = ANILIST_TIMEOUT_MS.fast;
 const MAX_MAL_IDS = 25;
 /** Synopses are only shown in a tooltip / preview; keep cached entries small (TsujiCache caps localStorage). */
 const MAX_CACHED_DESCRIPTION = 500;
@@ -35,17 +42,27 @@ export type SimilarData = {
 
 const cacheKey = (anilistId: number) => `similar:v1:${anilistId}`;
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
-    new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
-        promise.then(resolve, reject).finally(() => clearTimeout(timer));
-    });
+/** Runs one external source with its own deadline; hitting it aborts the source's requests too. */
+const fetchWithDeadline = async (source: RecSource, anilistId: number, idMal: number | null, signal: AbortSignal) => {
+    const controller = new AbortController();
+    const forwardAbort = () => controller.abort(signal.reason);
+    signal.addEventListener('abort', forwardAbort, { once: true });
+    const timer = setTimeout(
+        () => controller.abort(new Error(`${source.id} timed out after ${EXTERNAL_SOURCE_TIMEOUT_MS} ms`)),
+        EXTERNAL_SOURCE_TIMEOUT_MS,
+    );
+
+    try {
+        return await source.fetchRefs({ anilistId, idMal, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', forwardAbort);
+    }
+};
 
 const collectExternalRefs = async (anilistId: number, idMal: number | null, signal: AbortSignal) => {
     const results = await Promise.allSettled(
-        EXTERNAL_REC_SOURCES.map((source) =>
-            withTimeout(source.fetchRefs({ anilistId, idMal, signal }), EXTERNAL_SOURCE_TIMEOUT_MS),
-        ),
+        EXTERNAL_REC_SOURCES.map((source) => fetchWithDeadline(source, anilistId, idMal, signal)),
     );
 
     // A failing source is skipped; the others still count.
@@ -79,7 +96,11 @@ export const loadSimilar = async ({
     }
 
     // The seed is required: without it there is nothing to rank against, so this failure propagates.
-    const { Media: seed } = await aniList.request<SeedResponse>(SEED_QUERY, { id: anilistId }, signal);
+    const { Media: seed } = await aniList.request<SeedResponse>(
+        SEED_QUERY,
+        { id: anilistId },
+        { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
+    );
     if (!seed) {
         throw new Error(`AniList media ${anilistId} not found`);
     }
@@ -99,7 +120,7 @@ export const loadSimilar = async ({
             const hydrated = await aniList.request<HydrateResponse>(
                 HYDRATE_QUERY,
                 { tags: recallTags, withTags: recallTags.length > 0, malIds, withMal: malIds.length > 0 },
-                signal,
+                { signal, timeoutMs: ANILIST_TIMEOUT_MS.fast },
             );
             recall = hydrated.recall?.media ?? [];
             malMapped = hydrated.mal?.media ?? [];

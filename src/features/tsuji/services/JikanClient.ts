@@ -9,8 +9,10 @@
 import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 
 const JIKAN_URL = 'https://api.jikan.moe/v4';
-const JIKAN_TIMEOUT_MS = 8000;
-const RETRY_DELAYS_MS = [2000, 4000];
+/** Optional source: same fast budget as optional AniList steps. */
+const JIKAN_TIMEOUT_MS = 4000;
+/** One quick retry: the whole source gets a 4 s deadline in SimilarService. */
+const RETRY_DELAYS_MS = [1000];
 
 /** Jikan allows ~1 req/s per client. */
 const jikanQueue = new SpacedQueue(1100);
