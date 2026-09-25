@@ -8,13 +8,17 @@
 
 import gql from 'graphql-tag';
 
-/** Library titles + tracker ids, for "hide in library" on Similar and Discover. */
+/** Library titles + tracker ids + read chapter count, for "Hide what I've started" on Similar and Discover. */
 export const TSUJI_LIBRARY_INDEX = gql`
     query TSUJI_LIBRARY_INDEX {
         mangas(condition: { inLibrary: true }) {
             nodes {
                 id
                 title
+                unreadCount
+                chapters {
+                    totalCount
+                }
                 trackRecords {
                     nodes {
                         id

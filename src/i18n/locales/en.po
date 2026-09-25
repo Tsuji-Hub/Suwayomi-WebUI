@@ -1326,6 +1326,10 @@ msgid "Couldn't load this list. Check the username and that the list is public."
 msgstr "Couldn't load this list. Check the username and that the list is public."
 
 #: src/features/tsuji/seen/useSeen.tsx
+msgid "Couldn't move the marks to the new format. Check the connection to the server."
+msgstr "Couldn't move the marks to the new format. Check the connection to the server."
+
+#: src/features/tsuji/seen/useSeen.tsx
 msgid "Couldn't save that. Check the connection to the server."
 msgstr "Couldn't save that. Check the connection to the server."
 
@@ -2121,8 +2125,8 @@ msgid "Hide novels and one-shots"
 msgstr "Hide novels and one-shots"
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
-msgid "Hide titles in my library"
-msgstr "Hide titles in my library"
+msgid "Hide what I've started"
+msgstr "Hide what I've started"
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Hide what's on my AniList"
@@ -4200,6 +4204,10 @@ msgstr "Toggle offset double spreads"
 #: src/features/reader/hotkeys/settings/components/ReaderSettingHotkey.tsx
 msgid "Toggle stretch image"
 msgstr "Toggle stretch image"
+
+#: src/features/tsuji/seen/useSeen.tsx
+msgid "Too many marks to store: bucket {bucket} would be {length} characters (limit {SEEN_BUCKET_MAX_CHARS}). Nothing was saved."
+msgstr "Too many marks to store: bucket {bucket} would be {length} characters (limit {SEEN_BUCKET_MAX_CHARS}). Nothing was saved."
 
 #: src/features/reader/settings/general/components/ReaderSettingSafeAreaInset.tsx
 msgid "Top"

@@ -12,8 +12,6 @@ import { parseMediaListCollection } from '@/features/tsuji/seen/myList.ts';
 import type { SeenMarks } from '@/features/tsuji/seen/seen.ts';
 import {
     applySeenPatch,
-    createSeenUpdater,
-    createUndoPatch,
     getSeenBadge,
     getSeenState,
     isHiddenBySeen,
@@ -137,91 +135,10 @@ describe('getSeenBadge', () => {
     });
 });
 
-describe('merge-on-write for tsuji_seen', () => {
+describe('applySeenPatch', () => {
     it('applies a patch: set, replace, remove', () =>
         expect(applySeenPatch({ 1: 'read', 2: 'skip' }, { 2: 'read', 1: null, 3: 'skip' })).toEqual({
             2: 'read',
             3: 'skip',
         }));
-
-    it("keeps another device's mark written between our reads", async () => {
-        let server: SeenMarks = { 1: 'read' };
-        const update = createSeenUpdater({
-            read: () => Promise.resolve({ ...server }),
-            write: (marks) => {
-                server = marks;
-                return Promise.resolve();
-            },
-        });
-
-        await update({ 2: 'skip' });
-        server = { ...server, 3: 'read' }; // the downstairs PC marks something
-        await update({ 4: 'read' });
-
-        expect(server).toEqual({ 1: 'read', 2: 'skip', 3: 'read', 4: 'read' });
-    });
-
-    it('serializes quick successive updates from the same tab', async () => {
-        let server: SeenMarks = {};
-        const update = createSeenUpdater({
-            read: async () => {
-                await new Promise((resolve) => {
-                    setTimeout(resolve, 5);
-                });
-                return { ...server };
-            },
-            write: async (marks) => {
-                server = marks;
-            },
-        });
-
-        await Promise.all([update({ 1: 'read' }), update({ 2: 'skip' }), update({ 1: null })]);
-
-        expect(server).toEqual({ 2: 'skip' });
-    });
-
-    it('undo restores the previous value only while the title still has the undone mark', async () => {
-        let server: SeenMarks = { 5: 'skip' };
-        const update = createSeenUpdater({
-            read: () => Promise.resolve({ ...server }),
-            write: (marks) => {
-                server = marks;
-                return Promise.resolve();
-            },
-        });
-
-        let previous: SeenMarks[string] | null = null;
-        await update((current) => {
-            previous = current[5] ?? null;
-            return { 5: 'read' };
-        });
-        await update(createUndoPatch('5', 'read', previous));
-        expect(server).toEqual({ 5: 'skip' });
-
-        await update({ 5: 'read' });
-        await update({ 5: null }); // a newer action (Unhide) happened before the old toast's Undo
-        await update(createUndoPatch('5', 'read', 'skip'));
-        expect(server).toEqual({});
-    });
-
-    it('supports clear-all from the fresh server value, and keeps working after a failed write', async () => {
-        let server: SeenMarks = { 1: 'read', 2: 'skip' };
-        let shouldFail = true;
-        const update = createSeenUpdater({
-            read: () => Promise.resolve({ ...server }),
-            write: (marks) => {
-                if (shouldFail) {
-                    shouldFail = false;
-                    return Promise.reject(new Error('offline'));
-                }
-                server = marks;
-                return Promise.resolve();
-            },
-        });
-
-        await expect(update({ 3: 'read' })).rejects.toThrow('offline');
-        await update((current) => Object.fromEntries(Object.keys(current).map((key) => [key, null])));
-
-        expect(server).toEqual({});
-    });
 });

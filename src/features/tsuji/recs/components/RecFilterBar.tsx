@@ -130,7 +130,7 @@ export const RecFilterBar = ({
                                 onChange={(_, checked) => update({ hideInLibrary: checked })}
                             />
                         }
-                        label={t`Hide titles in my library`}
+                        label={t`Hide what I've started`}
                     />
                     <FormControlLabel
                         control={

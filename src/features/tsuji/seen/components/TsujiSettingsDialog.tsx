@@ -20,15 +20,15 @@ import Typography from '@mui/material/Typography';
 import { plural } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react/macro';
 import { makeToast } from '@/base/utils/Toast.ts';
-import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import { DEFAULT_ANILIST_USER, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
 import { setTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
-import { updateSeenMarks, useSeen } from '@/features/tsuji/seen/useSeen.tsx';
+import { updateSeenMarks, useReportSeenFailure, useSeen } from '@/features/tsuji/seen/useSeen.tsx';
 
 /** Tsuji settings for Discover/Similar: the AniList list that marks titles as read, and the manual marks. */
 export const TsujiSettingsDialog = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
     const { t } = useLingui();
     const { myList, marks } = useSeen();
+    const reportSeenFailure = useReportSeenFailure();
     const [userDraft, setUserDraft] = useState(myList.userName);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
@@ -65,10 +65,12 @@ export const TsujiSettingsDialog = ({ isOpen, onClose }: { isOpen: boolean; onCl
         setIsConfirmOpen(false);
         updateSeenMarks((current) => Object.fromEntries(Object.keys(current).map((key) => [key, null])))
             .then(() => makeToast(t`Cleared all marks`, 'success'))
-            .catch((error) => {
-                defaultPromiseErrorHandler('TsujiSettingsDialog::clearAll')(error);
-                makeToast(t`Couldn't clear the marks. Check the connection to the server.`, 'error');
-            });
+            .catch(
+                reportSeenFailure(
+                    'TsujiSettingsDialog::clearAll',
+                    t`Couldn't clear the marks. Check the connection to the server.`,
+                ),
+            );
     };
 
     return (

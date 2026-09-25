@@ -10,6 +10,7 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 | ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
 | `custom`                  | `d78289ca` (r3380)              | Stable tag `v20260726.01` (WebUI r3379) + WebUI brief #1. Deployed on the server.       |
 | `feat/anilist-seen-speed` | `39c1ca52` WIP + docs/CI commit | WebUI brief #2, built and checked against the server as r3381. **Not on `custom` yet.** |
+| `feat/anilist-seen-speed` | + brief #2.1 commit (r3383)     | "Hide what I've started" + sharded marks. Prerelease for the owner's check.             |
 | `master`                  | upstream                        | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                          |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
@@ -17,7 +18,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 
 ## Open items
 
-1. **Brief #2 is pending the owner's on-server check.** After the OK: squash or keep the WIP commit, fast-forward
+1. **Brief #2 + #2.1 are pending the owner's on-server check** (#2.1 acceptance: PLAN.md, "Brief #2.1"). After the OK: squash or keep the WIP commit, fast-forward
    `custom` to `feat/anilist-seen-speed`, push `custom`. Do not merge before that.
 2. **Deploy r3381 and verify it** (done by Cowork, not by the coding session): use the CI prerelease zip for
    `feat/anilist-seen-speed` or a local `pnpm build`; rotate the current server folder to `webUI.r3380` first.
@@ -44,7 +45,11 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
   through Lingui, MPL-2.0 header on new files, oxlint + oxfmt clean, `pnpm tsc` clean. Let the husky hook run.
 - Metadata: raw `tsuji_*` keys only (upstream migrations delete unregistered `webUI_*` keys). Global:
   `tsuji_libraryProgressBadge`, `tsuji_readerChapterProgress`, `tsuji_recFilters`, `tsuji_anilistUser`,
-  `tsuji_seen`. Manga: `tsuji_anilistId`. Write through upstream's metadata updater with `isMetadataKey: true`.
+  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga: `tsuji_anilistId`.
+  Write through upstream's metadata updater with `isMetadataKey: true`, except the marks shards: they go through
+  `writeTsujiRawGlobalMeta` (upstream's chunk cleanup would treat `tsuji_seen_<n>` as chunks of `tsuji_seen`).
+- Global meta values are capped at 4096 chars by the server. Anything that grows with use must be sharded (see
+  `seen/seenShards.ts`: bucket = mediaId % 16, refuse past 3800 chars with a visible error).
 - Ranking uses **Makimono's shipped constants** (RecommendationRanker.kt), not the brief #1 draft numbers.
 - `src/lib/graphql/generated/*` and `src/i18n/locales/*.po` are tool output: regenerate (`pnpm codegen:offline` or
   `pnpm gql:codegen`, then `oxfmt` them; `pnpm i18n:extract`), never hand-merge.

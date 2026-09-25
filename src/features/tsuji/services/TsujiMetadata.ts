@@ -28,27 +28,50 @@ const toMetadata = (meta: GqlMetaHolder['meta']): Partial<Metadata> =>
  */
 const asRawKey = (key: TsujiMetaKey) => key as unknown as AppMetadataKeys;
 
-export const useTsujiGlobalMetaQuery = (): { meta: Partial<Metadata>; isLoading: boolean } => {
+export const useTsujiGlobalMetaQuery = (): {
+    meta: Partial<Metadata>;
+    /** As stored: upstream's chunked values are not reassembled (the sharded tsuji keys need the raw keys). */
+    rawMeta: Partial<Metadata>;
+    isLoading: boolean;
+} => {
     const { data, loading } = requestManager.useGetGlobalMeta();
     const meta = useMemo(() => toMetadata(data?.metas.nodes), [data]);
+    const rawMeta = useMemo(() => convertFromGqlMeta(data?.metas.nodes) ?? {}, [data]);
 
-    return { meta, isLoading: loading && !data };
+    return { meta, rawMeta, isLoading: loading && !data };
 };
 
 export const useTsujiGlobalMeta = (): Partial<Metadata> => useTsujiGlobalMetaQuery().meta;
 
-/** Server value right now (network-only), for read-patch-write updates that must not clobber other devices. */
-export const readFreshTsujiGlobalMeta = async (key: TsujiMetaKey): Promise<string | undefined> => {
+/**
+ * All global meta on the server right now (network-only, one request), as stored (no chunk reassembly), for
+ * read-patch-write updates that must not clobber other devices.
+ */
+export const readFreshTsujiRawGlobalMeta = async (): Promise<Partial<Metadata>> => {
     const { data } = await requestManager.getGlobalMeta({
         fetchPolicy: 'network-only',
         context: { queryDeduplication: false },
     }).response;
-    return toMetadata(data?.metas.nodes)[key];
+    return convertFromGqlMeta(data?.metas.nodes) ?? {};
 };
 
-/** Like setTsujiGlobalMeta, but rejects on failure so the caller can report it. */
-export const writeTsujiGlobalMeta = (key: TsujiMetaKey, value: string): Promise<void> =>
-    requestServerMetadataUpdate({ update: [[asRawKey(key), value]], isMetadataKey: true });
+/**
+ * Sets and deletes raw keys in one request, bypassing upstream's metadata updater: its chunk cleanup treats
+ * `<key>_0`, `<key>_1`, ... as chunks of `<key>` and would delete the tsuji_seen shards together with the legacy key.
+ * Callers keep every value under the server's limit themselves. Rejects on failure.
+ */
+export const writeTsujiRawGlobalMeta = async ({
+    set,
+    delete: keys,
+}: {
+    set: [key: string, value: string][];
+    delete: string[];
+}): Promise<void> => {
+    await requestManager.updateGlobalMeta({
+        updateInput: { metas: set.map(([key, value]) => ({ key, value })) },
+        postUpdateDeleteInput: { keys },
+    }).response;
+};
 
 export const useTsujiFlag = (key: TsujiMetaKey, fallback: boolean = true): boolean => {
     const value = useTsujiGlobalMeta()[key];

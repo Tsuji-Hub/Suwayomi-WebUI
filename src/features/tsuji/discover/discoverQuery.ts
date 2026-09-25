@@ -58,7 +58,7 @@ export type DiscoverVariables = Record<string, unknown>;
 
 /**
  * AniList filter arguments. Status, score and a single country go server-side to save the 30 req/min budget. The rest
- * stays client-side: hide in library, min chapters, multi-type, Manhua (CN + TW), and novels/one-shots + adult,
+ * stays client-side: hide started, min chapters, multi-type, Manhua (CN + TW), and novels/one-shots + adult,
  * because `format_not_in` / `isAdult` made degraded AniList ~4x slower (1.6 s vs 0.37 s) and intermittently empty.
  * Empty lists are omitted because AniList treats an empty `_in` list as "match nothing".
  */

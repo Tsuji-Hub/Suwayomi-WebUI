@@ -11,7 +11,7 @@ import type { CompactList, ListStatus } from '@/features/tsuji/seen/myList.ts';
 /** Manual marks from a card: "read" behaves like COMPLETED, "skip" (not interested) like DROPPED. */
 export type SeenMark = 'read' | 'skip';
 
-/** `tsuji_seen` global meta: `{ [anilistMediaId]: "read" | "skip" }`, shared by every device. */
+/** Manual marks by AniList media id, shared by every device (stored sharded, see seenShards.ts). */
 export type SeenMarks = Record<string, SeenMark>;
 
 export type SeenState = { source: 'mark'; mark: SeenMark } | { source: 'list'; status: ListStatus; progress: number };
@@ -124,31 +124,4 @@ export const applySeenPatch = (current: SeenMarks, patch: SeenPatch): SeenMarks 
     });
 
     return next;
-};
-
-/**
- * Merge-on-write for `tsuji_seen`: every update reads the server's current value first, applies only this
- * change, then writes once, so two devices marking different titles don't clobber each other. Updates from this
- * tab are serialized so quick successive marks can't race each other either.
- */
-export const createSeenUpdater = ({
-    read,
-    write,
-}: {
-    read: () => Promise<SeenMarks>;
-    write: (marks: SeenMarks) => Promise<void>;
-}) => {
-    let queue: Promise<unknown> = Promise.resolve();
-
-    return (patch: SeenPatch | ((current: SeenMarks) => SeenPatch)): Promise<SeenMarks> => {
-        const run = queue.then(async () => {
-            const current = await read();
-            const next = applySeenPatch(current, typeof patch === 'function' ? patch(current) : patch);
-            await write(next);
-            return next;
-        });
-        queue = run.catch(() => undefined);
-
-        return run;
-    };
 };

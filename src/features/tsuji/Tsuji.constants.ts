@@ -17,7 +17,10 @@ export const TSUJI_META_KEYS = {
     anilistId: 'tsuji_anilistId',
     /** AniList user whose public manga list marks titles as already read (default DEFAULT_ANILIST_USER). */
     anilistUser: 'tsuji_anilistUser',
-    /** Manual marks, JSON `{ [anilistMediaId]: "read" | "skip" }`, merged on write across devices. */
+    /**
+     * Manual marks. Stored in the shards `tsuji_seen_0` .. `tsuji_seen_15` (seenShards.ts); the bare key is the legacy
+     * single-value JSON `{ [anilistMediaId]: "read" | "skip" }`, migrated into the shards and then deleted.
+     */
     seen: 'tsuji_seen',
 } as const;
 

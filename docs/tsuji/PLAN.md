@@ -14,6 +14,35 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #2.1: "Hide what I've started" + sharded marks
+
+Same branch, on top of brief #2. Both changes stay inside `src/features/tsuji/**`; no new upstream hook.
+
+1. **"Hide titles in my library" becomes "Hide what I've started".** Only library titles with >= 1 chapter read are
+   hidden; unread library titles show. `TSUJI_LIBRARY_INDEX` now fetches `unreadCount` + `chapters.totalCount`
+   (`MangaType.chapters` takes no condition on v2.3.2243), read = total - unread, indexed only when > 0. The persisted
+   filter key stays `hideInLibrary`, so saved filters keep working.
+2. **`tsuji_seen` sharded.** The server rejected a 9247-char value (~350 marks) against its 4096-char global meta
+   limit. Marks now live in `tsuji_seen_0` .. `tsuji_seen_15`, bucket = mediaId % 16, value `{"r":[ids],"s":[ids]}`
+   (ids ascending). All buckets are read in one global meta request; a write touches only the changed buckets
+   (read-merge-write, serialized per tab), deletes a bucket that becomes empty, and skips no-op writes. A write that
+   would push any bucket past 3800 chars is refused before anything is sent, with an error toast. Capacity: ~540
+   six-digit ids per bucket, ~8,600 marks total when evenly spread.
+3. **Migration:** the first screen that reads marks (Discover, Similar, settings) moves a legacy `tsuji_seen` value into
+   the shards in one request and deletes the legacy key. It also handles upstream's chunked layout
+   (`tsuji_seen_length` + `tsuji_seen_<i>`), whose chunk keys collide with the shard names. Shard writes bypass
+   upstream's metadata updater for that reason.
+
+## Acceptance for brief #2.1 (owner on the server)
+
+1. Discover / Similar with "Hide what I've started" on: a library title with 0 chapters read shows; one with >= 1 read
+   is hidden. Off: both show.
+2. Existing marks survive the update (legacy `tsuji_seen` gone from global meta, `tsuji_seen_<n>` keys present).
+3. Mark as read / Undo / Clear all still work, and the downstairs PC sees the same marks.
+
+Tests: started vs unread-in-library (id, MAL id, title, 0-chapter titles), 5,000 marks round-trip under the server
+limit, single-mark write touches one bucket, legacy + chunked legacy migration, 3800-char guard (write and migration).
+
 # Brief #2: "already read" filter + speed fixes
 
 Branch `feat/anilist-seen-speed` off `custom` (`d78289ca`, r3380). Same rules as brief #1. **Stop before commit.**

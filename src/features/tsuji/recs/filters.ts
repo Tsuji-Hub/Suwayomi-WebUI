@@ -20,6 +20,7 @@ export type RecSort = 'BEST' | 'SCORE' | 'POPULARITY' | 'NEWEST';
 export type TagFilterState = 'include' | 'exclude';
 
 export type RecFilters = {
+    /** "Hide what I've started": library titles with at least one read chapter (persisted key kept for old values). */
     hideInLibrary: boolean;
     /** Hide what's on the user's AniList (reading, completed, dropped, paused, rereading) and manual marks. */
     hideOnMyList: boolean;
@@ -127,19 +128,30 @@ export const countActiveFilters = (filters: RecFilters): number =>
         filters.hiddenGems !== DEFAULT_REC_FILTERS.hiddenGems,
     ].filter(Boolean).length + Object.keys(filters.tags).length;
 
+/** Library titles the user has started (>= 1 chapter read); unread library titles are not in it. */
 export type LibraryIndex = { anilistIds: Set<number>; malIds: Set<number>; titles: Set<string> };
 
 export type LibraryIndexManga = {
     title: string;
+    unreadCount: number;
+    chapters: { totalCount: number };
     trackRecords: { nodes: { trackerId: number; remoteId: string }[] };
 };
+
+export const getReadChapterCount = ({ unreadCount, chapters }: Pick<LibraryIndexManga, 'unreadCount' | 'chapters'>) =>
+    Math.max(0, chapters.totalCount - unreadCount);
 
 export const EMPTY_LIBRARY_INDEX: LibraryIndex = { anilistIds: new Set(), malIds: new Set(), titles: new Set() };
 
 export const buildLibraryIndex = (mangas: LibraryIndexManga[]): LibraryIndex => {
     const index: LibraryIndex = { anilistIds: new Set(), malIds: new Set(), titles: new Set() };
 
-    mangas.forEach(({ title, trackRecords }) => {
+    mangas.forEach((manga) => {
+        if (getReadChapterCount(manga) <= 0) {
+            return;
+        }
+
+        const { title, trackRecords } = manga;
         const titleKey = normalizeTitle(title);
         if (titleKey) {
             index.titles.add(titleKey);

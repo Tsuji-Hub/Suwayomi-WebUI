@@ -22,6 +22,8 @@ export type TsujiLibraryIndexQuery = {
             __typename: 'MangaType';
             id: number;
             title: string;
+            unreadCount: number;
+            chapters: { __typename: 'ChapterNodeList'; totalCount: number };
             trackRecords: {
                 __typename: 'TrackRecordNodeList';
                 nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
