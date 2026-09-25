@@ -6,23 +6,22 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-09-25)
 
-| Branch                    | Commit                          | What                                                                                    |
-| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
-| `custom`                  | `d78289ca` (r3380)              | Stable tag `v20260726.01` (WebUI r3379) + WebUI brief #1. Deployed on the server.       |
-| `feat/anilist-seen-speed` | `39c1ca52` WIP + docs/CI commit | WebUI brief #2, built and checked against the server as r3381. **Not on `custom` yet.** |
-| `feat/anilist-seen-speed` | + brief #2.1 commit (r3383)     | "Hide what I've started" + sharded marks. Prerelease for the owner's check.             |
-| `master`                  | upstream                        | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                          |
+| Branch                    | Commit             | What                                                                                    |
+| ------------------------- | ------------------ | --------------------------------------------------------------------------------------- |
+| `custom`                  | `eb23a8e3` (r3383) | Stable tag `v20260726.01` + briefs #1, #2 and #2.1. Checked on the server by the owner. |
+| `feat/anilist-seen-speed` | `eb23a8e3`         | Merged (fast-forward) into `custom`. Next feature: new `feat/**` branch off `custom`.   |
+| `master`                  | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                          |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
 
 ## Open items
 
-1. **Brief #2 + #2.1 are pending the owner's on-server check** (#2.1 acceptance: PLAN.md, "Brief #2.1"). After the OK: squash or keep the WIP commit, fast-forward
-   `custom` to `feat/anilist-seen-speed`, push `custom`. Do not merge before that.
-2. **Deploy r3381 and verify it** (done by Cowork, not by the coding session): use the CI prerelease zip for
-   `feat/anilist-seen-speed` or a local `pnpm build`; rotate the current server folder to `webUI.r3380` first.
-   Acceptance list: PLAN.md, "Acceptance".
+1. Shipped 2026-09-25: briefs #2 + #2.1 on `custom` (r3383). Release `r3383-eb23a8e3`: its zip was replaced by a
+   rebuild when `custom` was pushed (identical files, new zip timestamps), so the sha256 in its notes (`b4072398...`)
+   is stale; the `.sha256` asset (`d6fec84e...`) matches the zip. Fixed in the workflow since (see CI and releases).
+2. The server runs the r3383 build (deployed by Cowork from the prerelease, checked by the owner). Later deploys:
+   see Deploy below.
 3. Brief #3: **For You** tab (taste profile + weekly rotation). A stub tab exists in Discover.
 4. **Blocker before any HTTPS / secure-context setup:** Firefox with a secure-context allowlist for the server
    registers the PWA service worker, and upstream's `image-cache-manga-thumbnails` CacheFirst route then fails
@@ -95,7 +94,9 @@ the server is upgraded (and keep custom-scalar descriptions out of it, or the ge
 
 `.github/workflows/tsuji-release.yml` runs on every push to `custom` and `feat/**`: install, lint, tsc, `test:tsuji`,
 build, zip `build/` like `pnpm build-zip` (with a `revision` file), then publishes a GitHub release tagged
-`r<commit count>-<short sha>` with the zip and a `.sha256` file. `feat/**` builds are prereleases.
+`r<commit count>-<short sha>` with the zip and a `.sha256` file. `feat/**` builds are prereleases. If the tag already
+exists (a checked feat prerelease fast-forwarded to `custom`), the run skips build and zip and, on `custom`, only
+promotes that prerelease to a full release, so the deployed zip and its sha256 stay the ones that were checked.
 
 ## Deploy (Cowork, not the coding session)
 

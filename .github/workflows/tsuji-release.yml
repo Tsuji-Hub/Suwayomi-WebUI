@@ -26,6 +26,22 @@ jobs:
           # Full history: the revision number is the commit count, like `pnpm build-zip`.
           fetch-depth: 0
 
+      # A commit already released from another branch (a feat/** prerelease fast-forwarded to `custom`) keeps its
+      # zip: a rebuild differs in zip timestamps, so its sha256 would no longer match what was checked and deployed.
+      - name: Release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="r$(git rev-list HEAD --count)-$(git rev-parse --short HEAD)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${tag} exists: its zip is kept, no rebuild."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Version comes from package.json "packageManager".
       - uses: pnpm/action-setup@v4
 
@@ -47,10 +63,12 @@ jobs:
         run: pnpm test:tsuji
 
       - name: Build
+        if: steps.tag.outputs.exists != 'true'
         run: pnpm build
 
       - name: Zip build (same layout as pnpm build-zip)
         id: zip
+        if: steps.tag.outputs.exists != 'true'
         run: |
           rev=$(git rev-list HEAD --count)
           short=$(git rev-parse --short HEAD)
@@ -64,10 +82,18 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.zip.outputs.tag }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          EXISTS: ${{ steps.tag.outputs.exists }}
           ZIP: ${{ steps.zip.outputs.zip }}
           BRANCH: ${{ github.ref_name }}
         run: |
+          if [ "$EXISTS" = "true" ]; then
+            # Same commit already released: on `custom`, promote the checked prerelease as is (zip + notes untouched).
+            if [ "$BRANCH" = "custom" ]; then
+              gh release edit "$TAG" --prerelease=false --latest --title "$TAG (custom)"
+            fi
+            exit 0
+          fi
           prerelease=""
           if [ "$BRANCH" != "custom" ]; then
             prerelease="--prerelease"
@@ -75,10 +101,5 @@ jobs:
           sha256=$(cut -d ' ' -f 1 "${ZIP}.sha256")
           notes=$(printf 'Tsuji WebUI build from `%s` at %s.\n\nSHA-256 (%s): `%s`\n\nDeploy: copy the zip contents into the server webUI folder (flavor Custom) and restart the server.' \
             "$BRANCH" "$GITHUB_SHA" "$(basename "$ZIP")" "$sha256")
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            # Re-run of the same commit: refresh the assets.
-            gh release upload "$TAG" "$ZIP" "${ZIP}.sha256" --clobber
-          else
-            gh release create "$TAG" "$ZIP" "${ZIP}.sha256" \
-              --target "$GITHUB_SHA" --title "$TAG ($BRANCH)" --notes "$notes" $prerelease
-          fi
+          gh release create "$TAG" "$ZIP" "${ZIP}.sha256" \
+            --target "$GITHUB_SHA" --title "$TAG ($BRANCH)" --notes "$notes" $prerelease
