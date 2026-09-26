@@ -56,7 +56,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (14 files)
+## Upstream touch list (15 files)
 
 | File                                                                     | Hook                                                                        |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
@@ -74,8 +74,10 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 | `src/features/app-updates/components/WebUIUpdateChecker.tsx`             | wrapper: mount only after server settings load, never for Custom (brief #2) |
 | `src/features/reader/viewer/ReaderChapterViewer.tsx`                     | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)         |
 | `src/features/reader/services/ReaderControls.ts`                         | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write          |
+| `src/features/reader/viewer/ReaderViewer.tsx`                            | route resume mode via `useTsujiRouteResumeMode` (no state: last read)       |
 
-Also changed: `package.json` (vitest devDependency, `test:tsuji`, `codegen:offline`), `pnpm-lock.yaml`. Added at the
+Also changed: `package.json` (vitest + playwright-core devDependencies, `test:tsuji`, `test:tsuji:e2e`,
+`codegen:offline`), `pnpm-lock.yaml`. Added at the
 root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji-release.yml`.
 
 ## Commands
@@ -84,6 +86,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
+pnpm test:tsuji:e2e        # after pnpm build: Chrome + mocked Suwayomi, webtoon resume on direct load / F5
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only
@@ -96,7 +99,7 @@ the server is upgraded (and keep custom-scalar descriptions out of it, or the ge
 ## CI and releases
 
 `.github/workflows/tsuji-release.yml` runs on every push to `custom` and `feat/**`: install, lint, tsc, `test:tsuji`,
-build, zip `build/` like `pnpm build-zip` (with a `revision` file), then publishes a GitHub release tagged
+build, `test:tsuji:e2e`, zip `build/` like `pnpm build-zip` (with a `revision` file), then publishes a GitHub release tagged
 `r<commit count>-<short sha>` with the zip and a `.sha256` file. `feat/**` builds are prereleases. If the tag already
 exists (a checked feat prerelease fast-forwarded to `custom`), the run skips build and zip and, on `custom`, only
 promotes that prerelease to a full release, so the deployed zip and its sha256 stay the ones that were checked.

@@ -66,6 +66,11 @@ jobs:
         if: steps.tag.outputs.exists != 'true'
         run: pnpm build
 
+      # The built app in Chrome against an in-memory Suwayomi: webtoon resume on a direct load / F5.
+      - name: Browser test (tsuji)
+        if: steps.tag.outputs.exists != 'true'
+        run: pnpm test:tsuji:e2e
+
       - name: Zip build (same layout as pnpm build-zip)
         id: zip
         if: steps.tag.outputs.exists != 'true'

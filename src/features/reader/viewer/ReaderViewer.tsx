@@ -53,6 +53,7 @@ import {
 } from '@/features/reader/stores/ReaderStore.ts';
 import { STABLE_EMPTY_OBJECT } from '@/base/Base.constants.ts';
 import { getPage } from '@/features/reader/overlay/progress-bar/ReaderProgressBar.utils.tsx';
+import { useTsujiRouteResumeMode } from '@/features/tsuji/reader/routeResumeMode.ts';
 
 const READING_MODE_TO_IN_VIEWPORT_TYPE: Record<ReadingMode, PageInViewportType> = {
     [ReadingMode.SINGLE_PAGE]: PageInViewportType.X,
@@ -114,7 +115,8 @@ const BaseReaderViewer = ({
         shouldShowTransitionPage: state.shouldShowTransitionPage,
     }));
     const safeAreaInset = useReaderSettingsStore('safeAreaInset');
-    const { resumeMode = ReaderResumeMode.START } = useLocation<RouteStateReader>().state ?? STABLE_EMPTY_OBJECT;
+    const { resumeMode: routeResumeMode } = useLocation<RouteStateReader>().state ?? STABLE_EMPTY_OBJECT;
+    const resumeMode = useTsujiRouteResumeMode(routeResumeMode, initialChapter, ReaderResumeMode.START);
 
     const scrollElementRef = useRef<HTMLDivElement | null>(null);
     const mergedRef = useMergedRef(ref, scrollElementRef);

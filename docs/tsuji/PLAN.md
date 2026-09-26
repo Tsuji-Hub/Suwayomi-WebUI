@@ -29,7 +29,24 @@ have no height yet (images not loaded), so it lands short, and the next scroll s
 - **In-page offset** (`pageOffsets.ts`): 0-1 offset inside the current page, per chapter, in localStorage
   `tsuji_readerPageOffsets` (200 most recent chapters), saved on scroll (one per frame) when not restoring, applied only
   when saved on the same page as lastPageRead. Per browser: another device resumes at the page start.
-- Upstream hooks: `ReaderChapterViewer.tsx` (hook call), `ReaderControls.ts` (write guard).
+- Upstream hooks: `ReaderChapterViewer.tsx` (hook call), `ReaderControls.ts` (write guard), `ReaderViewer.tsx`
+  (route resume mode).
+
+**r3385 failed live** (2026-09-26, owner: /manga/450/chapter/1, chapter 52950, lastPageRead 4, offset 0.1316):
+a hard reload stayed at the top of page 0 (scrollTop 957, below the 957 px chapter-transition block). Cause: a direct
+URL load or F5 has no route state, upstream then uses resume mode START, so the pin (which requires "last read")
+never ran. The write guard held (lastPageRead stayed 4). The earlier Chromium check mounted the pin directly and
+missed the route entry.
+
+- **Route resume mode** (`routeResumeMode.ts`, r3386): without route state, an unread chapter with lastPageRead > 0
+  resumes at lastPageRead (like opening it from the chapter list); read or untouched chapters still start at the top;
+  explicit state from in-app navigation wins. Decided once per initial chapter. Applies to every reading mode (paged
+  modes resume on the page; the pin is webtoon / continuous vertical only).
+- **Browser test through the real route entry** (`tools/scripts/tsuji/reader-resume.e2e.mjs`, `pnpm test:tsuji:e2e`,
+  also in CI): production build in Chrome against an in-memory Suwayomi (`mockSuwayomi.mjs`, real GraphQL documents
+  executed on `docs/tsuji/schema.graphql`), slow page images, fresh `goto` of `/manga/450/chapter/1` then `reload()`.
+  On the r3385 bundle (`index-DKTl1wQu.js`) it fails like the server (stuck at the page-0 top); on r3386 it lands on
+  page 4 + 0.1316 at 3 s and 10 s, writes no lastPageRead below 4, and a wheel scroll releases the pin.
 - Tests (`resumePin.test.ts`): bug repro without the pin, restore with lazy images of unknown height in any load order,
   offset, 8 s deadline, each user intent cancels, no lower lastPageRead during and after restore, offset storage.
   Also checked in headless Chromium with a real ResizeObserver: lands at exactly 7400 px (page 5 + 0.25), no writes
