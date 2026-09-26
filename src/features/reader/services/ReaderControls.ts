@@ -58,6 +58,7 @@ import {
 } from '@/features/reader/stores/ReaderStore.ts';
 import { Confirmation } from '@/base/AppAwaitableComponent.ts';
 import { i18n } from '@/i18n';
+import { shouldSkipTsujiProgressWrite } from '@/features/tsuji/reader/resumeState.ts';
 
 const getScrollDirectionInvert = (
     scrollDirection: ScrollDirection,
@@ -485,6 +486,9 @@ class ReaderControlsClass {
                     }
 
                     const actualPageIndex = endReached ? currentChapterUpToDate.pageCount - 1 : pageIndex;
+                    if (shouldSkipTsujiProgressWrite(currentChapter.id, actualPageIndex)) {
+                        return;
+                    }
                     const isLastPage = actualPageIndex === currentChapterUpToDate.pageCount - 1;
 
                     updateChapter({

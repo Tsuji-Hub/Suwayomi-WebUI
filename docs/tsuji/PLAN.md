@@ -14,6 +14,33 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Fix: webtoon resume lands short (branch `feat/reader-resume`)
+
+Upstream bug, reproduced on the server: in continuous vertical / webtoon mode a reload resumes near the top
+(lastPageRead = 5 at ~7000 px, after reload scrollTop = 957). Upstream scrolls to the page once while the pages above
+have no height yet (images not loaded), so it lands short, and the next scroll saves a lower page.
+
+- **Pin** (`src/features/tsuji/reader/resumePin.ts`): on the initial chapter, resume mode "last read",
+  lastPageRead > 0, the target page (+ saved in-page offset) is re-anchored to the top on every size change of the
+  chapter boxes or the target page (ResizeObserver; MutationObserver adds chapters inserted later). It lets go on the
+  first wheel, touchstart, pointerdown or keydown, or after 8 s (checked on each event, no timers).
+- **No downgrade** (`resumeState.ts`): upstream's lastPageRead write is skipped while pinned, and below the restored
+  page until the user has moved (a write debounced during the restore can't land a lower page afterwards).
+- **In-page offset** (`pageOffsets.ts`): 0-1 offset inside the current page, per chapter, in localStorage
+  `tsuji_readerPageOffsets` (200 most recent chapters), saved on scroll (one per frame) when not restoring, applied only
+  when saved on the same page as lastPageRead. Per browser: another device resumes at the page start.
+- Upstream hooks: `ReaderChapterViewer.tsx` (hook call), `ReaderControls.ts` (write guard).
+- Tests (`resumePin.test.ts`): bug repro without the pin, restore with lazy images of unknown height in any load order,
+  offset, 8 s deadline, each user intent cancels, no lower lastPageRead during and after restore, offset storage.
+  Also checked in headless Chromium with a real ResizeObserver: lands at exactly 7400 px (page 5 + 0.25), no writes
+  while pinned, wheel releases it.
+
+## Acceptance (owner, on the server)
+
+1. Webtoon chapter, read to the middle of page 5+, reload: lands on the same spot, not the top.
+2. Scroll right after reload: the reader doesn't pull back.
+3. Server lastPageRead after the reload is not lower than before it.
+
 # Brief #2.1: "Hide what I've started" + sharded marks
 
 Same branch, on top of brief #2. Both changes stay inside `src/features/tsuji/**`; no new upstream hook.

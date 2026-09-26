@@ -4,13 +4,14 @@ Everything a new session needs to continue this fork. The fork adds a small set 
 the owner's Makimono Android fork) to Suwayomi-WebUI and is served by the owner's Suwayomi-Server as the **Custom**
 WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
-## State (2026-09-25)
+## State (2026-09-26)
 
-| Branch                    | Commit             | What                                                                                    |
-| ------------------------- | ------------------ | --------------------------------------------------------------------------------------- |
-| `custom`                  | `eb23a8e3` (r3383) | Stable tag `v20260726.01` + briefs #1, #2 and #2.1. Checked on the server by the owner. |
-| `feat/anilist-seen-speed` | `eb23a8e3`         | Merged (fast-forward) into `custom`. Next feature: new `feat/**` branch off `custom`.   |
-| `master`                  | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                          |
+| Branch                    | Commit             | What                                                                                  |
+| ------------------------- | ------------------ | ------------------------------------------------------------------------------------- |
+| `custom`                  | `56322bdb` (r3384) | Stable tag `v20260726.01` + briefs #1, #2 and #2.1 (app = r3383) + release CI fix.    |
+| `feat/reader-resume`      | r3385              | Webtoon resume fix (pin + in-page offset). Prerelease for the owner's check.          |
+| `feat/anilist-seen-speed` | `eb23a8e3`         | Merged (fast-forward) into `custom`. Next feature: new `feat/**` branch off `custom`. |
+| `master`                  | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                        |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
@@ -55,7 +56,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (12 files)
+## Upstream touch list (14 files)
 
 | File                                                                     | Hook                                                                        |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
@@ -71,6 +72,8 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 | `src/base/AppRoute.constants.ts`                                         | `discover` route constant                                                   |
 | `src/features/navigation-bar/NavigationBar.constants.ts`                 | Discover nav item (desktop sidebar, More on mobile)                         |
 | `src/features/app-updates/components/WebUIUpdateChecker.tsx`             | wrapper: mount only after server settings load, never for Custom (brief #2) |
+| `src/features/reader/viewer/ReaderChapterViewer.tsx`                     | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)         |
+| `src/features/reader/services/ReaderControls.ts`                         | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write          |
 
 Also changed: `package.json` (vitest devDependency, `test:tsuji`, `codegen:offline`), `pnpm-lock.yaml`. Added at the
 root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji-release.yml`.

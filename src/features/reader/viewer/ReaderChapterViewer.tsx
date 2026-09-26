@@ -45,6 +45,7 @@ import type { ChapterIdInfo } from '@/features/chapter/Chapter.types.ts';
 import { READER_DEFAULT_PAGES_STATE } from '@/features/reader/stores/ReaderPagesStore.ts';
 
 import { getReaderChaptersStore, getReaderPagesStore } from '@/features/reader/stores/ReaderStore.ts';
+import { useTsujiReaderResume } from '@/features/tsuji/reader/useTsujiReaderResume.ts';
 
 const BaseReaderChapterViewer = ({
     currentPageIndex,
@@ -305,6 +306,17 @@ const BaseReaderChapterViewer = ({
         (value) => updateState(value, noOp, updateCurrentPageIndex),
         readingMode,
     );
+    useTsujiReaderResume({
+        chapterId,
+        lastPageRead,
+        resumeMode,
+        readingMode,
+        isInitialChapter,
+        isCurrentChapter,
+        pages: actualPages,
+        imageRefs,
+        scrollElement,
+    });
 
     // for non-continuous reading modes, only the current, previous and next chapter are relevant
     // every other chapter does not need to be rendered all the time since it's not affecting the
