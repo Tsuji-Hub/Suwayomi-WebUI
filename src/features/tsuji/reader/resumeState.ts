@@ -14,6 +14,8 @@ type ResumeRestore = {
     chapterId: number;
     pageIndex: number;
     isPinActive: () => boolean;
+    /** The saved in-page offset waits for the target's real height. */
+    isOffsetPending: () => boolean;
     /** The user scrolled, swiped, clicked or pressed a key since the restore started. */
     hasUserMoved: boolean;
 };
@@ -36,8 +38,9 @@ export const clearResumeRestore = (chapterId: number) => {
     }
 };
 
-export const isResumeRestoring = (chapterId: number): boolean =>
-    restore?.chapterId === chapterId && restore.isPinActive();
+/** Pinned, or the offset is not applied yet: the in-page offset must not be saved over (it's still to be used). */
+export const isResumeSettling = (chapterId: number): boolean =>
+    restore?.chapterId === chapterId && (restore.isPinActive() || restore.isOffsetPending());
 
 /**
  * Hook for upstream's lastPageRead write: no write at all while the pin runs, and no write below the restored page

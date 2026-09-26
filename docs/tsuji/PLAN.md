@@ -52,6 +52,21 @@ missed the route entry.
   Also checked in headless Chromium with a real ResizeObserver: lands at exactly 7400 px (page 5 + 0.25), no writes
   while pinned, wheel releases it.
 
+**r3386 shipped (2026-09-26); the in-page offset was ignored live**: chapter 52950, saved [4, 0.1316], F5 landed on
+the exact top of page 4 (4785 px; pages 0-3 above stay unloaded 957 px placeholders; page 4 is 1213 px), stable at
+2/5/10 s. The offset needs the target's real height, which only exists once its image is loaded (a loading page's
+image is 0 px and hidden); if the pin ended first (8 s limit, or a click that doesn't scroll), nothing applied it.
+
+- **Fix (r3387, branch `feat/reader-resume-offset`)**: the pin holds the page top until the target image is loaded,
+  then applies the offset from its real height, independent of the pages above. If the pin already ended, the
+  offset is still applied once when the target loads, as long as the reader still sits at that page top (a real
+  user scroll wins). While pinned, a programmatic scroll (upstream scrolling to the page top again) re-anchors.
+  The in-page offset is not saved while it is still to be applied.
+- **e2e scenarios** (`pnpm test:tsuji:e2e`, 5 scenarios, 40 checks, each requires the target's real height): slow
+  images; instant images with unloaded placeholders above (the owner's geometry: page 4 top at 4785); auto webtoon
+  (manhwa, reading mode known late); target image after the 8 s limit; a non-scrolling click before the target
+  loads. The last two fail on r3386 with exactly the live result (scrollTop 4785 = page top) and pass on r3387.
+
 ## Acceptance (owner, on the server)
 
 1. Webtoon chapter, read to the middle of page 5+, reload: lands on the same spot, not the top.

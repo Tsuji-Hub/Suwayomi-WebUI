@@ -87,13 +87,13 @@ const CONTENT_TYPES = {
     '.woff2': 'font/woff2',
 };
 
-const createServer = () => {
+const createServer = ({ genre = [], globalMeta = { webUI_readingMode: WEBTOON } } = {}) => {
     const manga = {
         id: MANGA_ID,
         title: 'Resume Test',
         sourceId: '1',
         inLibrary: true,
-        genre: [],
+        genre,
         source: { id: '1', name: 'Local source', displayName: 'Local source' },
         chapters: { totalCount: 1 },
     };
@@ -117,7 +117,7 @@ const createServer = () => {
         manga,
         chapters: [chapter],
         pageCount: PAGE_COUNT,
-        globalMeta: { webUI_readingMode: WEBTOON },
+        globalMeta,
     });
 };
 
@@ -179,10 +179,14 @@ const check = (label, ok, detail) => {
     }
 };
 
-const run = async () => {
-    const server = createServer();
-    const browser = await launch();
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+/**
+ * One fresh browser context (empty cache, saved offset in localStorage, server lastPageRead = 4): direct URL load,
+ * then F5, then a wheel scroll. `imageDelayMs(index)` is how long page `index` takes to arrive.
+ */
+const runScenario = async (browser, name, { imageDelayMs, viewport, serverOptions, onLoadStart }) => {
+    const server = createServer(serverOptions);
+    const context = await browser.newContext({ viewport });
+    const requestedPages = new Set();
 
     await context.route('**/*', async (route) => {
         const url = new URL(route.request().url());
@@ -196,9 +200,9 @@ const run = async () => {
         const pageMatch = url.pathname.match(/\/chapter\/\d+\/page\/(\d+)$/);
         if (pageMatch) {
             const index = Number(pageMatch[1]);
-            // Slow, in page order: pages above the target have no height while the reader first scrolls.
+            requestedPages.add(index);
             await new Promise((done) => {
-                setTimeout(done, IMAGE_DELAY_MS * (index + 1));
+                setTimeout(done, imageDelayMs(index));
             });
             return route.fulfill({ status: 200, contentType: 'image/png', body: pageImages[index] });
         }
@@ -221,54 +225,119 @@ const run = async () => {
     );
 
     const page = await context.newPage();
-    page.on('pageerror', (error) => console.log('pageerror:', error.message));
+    page.on('pageerror', (error) => console.log(`[${name}] pageerror:`, error.message));
 
     const checkPosition = async (label) => {
         const m = await measure(page);
         const expected = m ? Math.round(m.pageTop + m.pageHeight * OFFSET) : null;
+        // The target must be the loaded image (real height), else the offset check would be trivially true.
+        const hasRealHeight = !!m && m.pageHeight > 100;
         check(
-            `${label}: scrollTop is page ${LAST_PAGE_READ} + ${OFFSET}`,
-            !!m && Math.abs(m.scrollTop - expected) <= 2,
-            {
-                ...m,
-                expected,
-            },
+            `[${name}] ${label}: scrollTop is page ${LAST_PAGE_READ} + ${OFFSET} of its real height`,
+            hasRealHeight && Math.abs(m.scrollTop - expected) <= 2,
+            { ...m, expected },
         );
     };
 
-    const verifyResume = async (label) => {
-        // All page images are in by then; the second look is after the pin's 8 s limit.
-        await page.waitForTimeout(Math.max(2000, IMAGE_DELAY_MS * (PAGE_COUNT + 2)));
-        await checkPosition(`${label} at ~3s`);
-        await page.waitForTimeout(7000);
-        await checkPosition(`${label} at ~10s`);
+    const waitForTarget = () =>
+        page.waitForFunction(
+            (index) => {
+                const image = document.querySelector(`img[alt="Page #${index + 1}"]`);
+                return !!image && image.complete && image.naturalHeight > 0 && image.getBoundingClientRect().height > 0;
+            },
+            LAST_PAGE_READ,
+            { timeout: 20_000, polling: 100 },
+        );
+
+    const verifyResume = async (label, { beforeTargetLoads } = {}) => {
+        await beforeTargetLoads?.();
+        await waitForTarget();
+        await page.waitForTimeout(500);
+        await checkPosition(`${label}, target loaded`);
+        await page.waitForTimeout(8000);
+        await checkPosition(`${label}, 8 s later`);
         const lowest = Math.min(
             ...server.chapterWrites
                 .filter((write) => write.lastPageRead !== undefined)
                 .map((write) => write.lastPageRead),
         );
-        check(`${label}: no lastPageRead below ${LAST_PAGE_READ} written`, !(lowest < LAST_PAGE_READ), {
+        check(`[${name}] ${label}: no lastPageRead below ${LAST_PAGE_READ} written`, !(lowest < LAST_PAGE_READ), {
             writes: server.chapterWrites,
         });
     };
 
     // Direct URL load: no navigation state, like a bookmark or typing the address.
     await page.goto(`${ORIGIN}/manga/${MANGA_ID}/chapter/1`);
-    await verifyResume('direct load');
+    await verifyResume('direct load', { beforeTargetLoads: onLoadStart && (() => onLoadStart(page)) });
 
     // Hard reload of that tab (F5).
     await page.reload();
-    await verifyResume('reload');
+    await verifyResume('reload', { beforeTargetLoads: onLoadStart && (() => onLoadStart(page)) });
+
+    const abovePlaceholders = await page.evaluate(
+        (target) =>
+            Array.from({ length: target }, (_, index) =>
+                document.querySelector(`img[alt="Page #${index + 1}"]`),
+            ).filter(
+                (image) =>
+                    image && image.complete && image.naturalHeight > 0 && image.getBoundingClientRect().height > 0,
+            ).length,
+        LAST_PAGE_READ,
+    );
+    console.log(
+        `[${name}] pages above the target shown as loaded images: ${abovePlaceholders} of ${LAST_PAGE_READ}; requested pages: ${[...requestedPages].sort((a, b) => a - b).join(',')}`,
+    );
 
     // The user takes over: a wheel scroll up must not be pulled back.
     const before = await measure(page);
-    await page.mouse.move(640, 450);
+    await page.mouse.move(viewport.width / 2, viewport.height / 2);
     await page.mouse.wheel(0, -600);
     await page.waitForTimeout(800);
     const after = await measure(page);
-    check('wheel releases the pin', !!after && after.scrollTop < before.scrollTop - 300, {
+    check(`[${name}] wheel releases the pin`, !!after && after.scrollTop < before.scrollTop - 300, {
         before: before?.scrollTop,
         after: after?.scrollTop,
+    });
+
+    await context.close();
+};
+
+const run = async () => {
+    const browser = await launch();
+
+    // Slow network, pages in order: everything around the target arrives after the first scroll.
+    await runScenario(browser, 'slow images', {
+        imageDelayMs: (index) => IMAGE_DELAY_MS * (index + 1),
+        viewport: { width: 1280, height: 900 },
+    });
+    // The owner's server: images arrive at once (LAN / cache), the pages above the target stay unloaded
+    // placeholders, so the layout settles before upstream's own scroll to the page top.
+    await runScenario(browser, 'instant images, unloaded placeholders above', {
+        imageDelayMs: () => 0,
+        viewport: { width: 1280, height: 957 },
+    });
+
+    // Webtoon mode from the manga (auto webtoon for a manhwa), not from a global setting: the reading mode is only
+    // known once the manga is loaded.
+    await runScenario(browser, 'auto webtoon (manhwa), instant images', {
+        imageDelayMs: () => 0,
+        viewport: { width: 1280, height: 957 },
+        serverOptions: { genre: ['Manhwa'], globalMeta: {} },
+    });
+
+    // The target image arrives after the pin's 8 s limit: the offset still has to apply once it has its height.
+    await runScenario(browser, 'target image after the 8 s limit', {
+        imageDelayMs: (index) => (index === LAST_PAGE_READ ? 9500 : 0),
+        viewport: { width: 1280, height: 957 },
+    });
+    // A click that doesn't scroll (focus, opening the reader menu) before the target image arrives.
+    await runScenario(browser, 'click before the target image loads', {
+        imageDelayMs: (index) => (index === LAST_PAGE_READ ? 3000 : 0),
+        viewport: { width: 1280, height: 957 },
+        onLoadStart: async (page) => {
+            await page.waitForTimeout(1500);
+            await page.mouse.click(640, 478);
+        },
     });
 
     await browser.close();

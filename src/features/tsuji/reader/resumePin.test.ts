@@ -10,7 +10,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { getPageOffset, readPageOffset, writePageOffset } from '@/features/tsuji/reader/pageOffsets.ts';
 import type { ResumePinDeps } from '@/features/tsuji/reader/resumePin.ts';
 import { RESUME_PIN_MAX_MS, startResumePin } from '@/features/tsuji/reader/resumePin.ts';
-import { clearResumeRestore, shouldSkipTsujiProgressWrite } from '@/features/tsuji/reader/resumeState.ts';
+import {
+    clearResumeRestore,
+    isResumeSettling,
+    shouldSkipTsujiProgressWrite,
+} from '@/features/tsuji/reader/resumeState.ts';
 
 const CHAPTER_ID = 42;
 const VIEWPORT = 900;
@@ -18,6 +22,8 @@ const VIEWPORT = 900;
 const TARGET = 5;
 const LOADED_HEIGHTS = [1400, 1400, 1400, 1400, 1400, 1600, 1500, 1500];
 const GAP = 0;
+/** Height of a page's loading placeholder (the reader uses the viewport height); its image reports 0 px meanwhile. */
+const PLACEHOLDER = 900;
 
 const rect = (top: number, height: number) => ({ top, height }) as DOMRect;
 
@@ -27,11 +33,13 @@ const rect = (top: number, height: number) => ({ top, height }) as DOMRect;
  * upstream's scroll handler that picks the first visible page and "writes" lastPageRead unless the guard skips it.
  */
 const createReader = () => {
-    const heights = LOADED_HEIGHTS.map(() => 0);
+    const loaded = LOADED_HEIGHTS.map(() => false);
+    const heights = LOADED_HEIGHTS.map(() => PLACEHOLDER);
     let scrollTop = 0;
     let time = 0;
     const writes: number[] = [];
     const resizeCallbacks: (() => void)[] = [];
+    const scrollCallbacks: (() => void)[] = [];
     const intentTarget = new EventTarget();
 
     const pageTop = (index: number) => heights.slice(0, index).reduce((sum, height) => sum + height + GAP, 0);
@@ -54,13 +62,20 @@ const createReader = () => {
     };
 
     const setScrollTop = (top: number) => {
-        scrollTop = Math.max(0, Math.min(top, Math.max(0, contentHeight() - VIEWPORT)));
+        const next = Math.max(0, Math.min(top, Math.max(0, contentHeight() - VIEWPORT)));
+        if (next === scrollTop) {
+            return;
+        }
+        scrollTop = next;
         onScroll();
+        [...scrollCallbacks].forEach((callback) => callback());
     };
 
     const pageElements = heights.map(
         (_, index) =>
-            ({ getBoundingClientRect: () => rect(pageTop(index) - scrollTop, heights[index]) }) as HTMLElement,
+            ({
+                getBoundingClientRect: () => rect(pageTop(index) - scrollTop, loaded[index] ? heights[index] : 0),
+            }) as HTMLElement,
     );
     const chapterBox = { getBoundingClientRect: () => rect(-scrollTop, contentHeight()) } as Element;
     const scrollElement = {
@@ -83,6 +98,10 @@ const createReader = () => {
             };
         },
         watchChildren: null,
+        watchScrollAndLoads: (_, callback) => {
+            scrollCallbacks.push(callback);
+            return () => scrollCallbacks.splice(scrollCallbacks.indexOf(callback), 1);
+        },
         intentTarget,
         now: () => time,
     };
@@ -96,9 +115,13 @@ const createReader = () => {
         /** Upstream's one-shot scrollIntoView on the target, while the pages above still have no height. */
         upstreamInitialScroll: () => setScrollTop(pageTop(TARGET)),
         loadPage: (index: number) => {
+            loaded[index] = true;
             heights[index] = LOADED_HEIGHTS[index];
             resizeCallbacks.forEach((callback) => callback());
         },
+        /** Upstream scrolling to the page top on its own (e.g. a pageToScrollToIndex after settings load). */
+        upstreamScrollToTarget: () => setScrollTop(pageTop(TARGET)),
+        intent: (type: string) => intentTarget.dispatchEvent(new Event(type)),
         userScrollTo: (top: number, intent = 'wheel') => {
             intentTarget.dispatchEvent(new Event(intent));
             setScrollTop(top);
@@ -166,6 +189,74 @@ describe('resume pin with lazy images of unknown height', () => {
         expect(pin.isActive).toBe(false);
         expect(pin.endedBy).toBe('deadline');
         expect(reader.scrollTop).toBe(before);
+    });
+});
+
+describe("in-page offset needs the target's real height", () => {
+    // Pages above the target stay unloaded placeholders, like on the owner's server.
+    it('holds the page top until the target loads, then applies the offset, whatever is above', () => {
+        const reader = createReader();
+        reader.start(0.25);
+        expect(reader.scrollTop).toBe(5 * PLACEHOLDER);
+
+        reader.loadPage(5);
+        expect(reader.scrollTop).toBe(5 * PLACEHOLDER + 0.25 * 1600);
+
+        [0, 1, 2, 3, 4].forEach(reader.loadPage);
+        expect(reader.scrollTop).toBe(7000 + 0.25 * 1600);
+    });
+
+    it('re-anchors when upstream scrolls back to the page top while pinned', () => {
+        const reader = createReader();
+        reader.start(0.25);
+        reader.loadPage(5);
+
+        reader.upstreamScrollToTarget();
+
+        expect(reader.scrollTop).toBe(5 * PLACEHOLDER + 0.25 * 1600);
+    });
+
+    it('applies the offset once when the target loads after the 8 s limit', () => {
+        const reader = createReader();
+        const { pin } = reader.start(0.25);
+        reader.advance(RESUME_PIN_MAX_MS);
+        expect(reader.scrollTop).toBe(5 * PLACEHOLDER);
+
+        reader.loadPage(5);
+
+        expect(pin.endedBy).toBe('deadline');
+        expect(reader.scrollTop).toBe(5 * PLACEHOLDER + 0.25 * 1600);
+    });
+
+    it('applies the offset after a click that did not scroll', () => {
+        const reader = createReader();
+        reader.start(0.25);
+
+        reader.intent('pointerdown');
+        reader.loadPage(5);
+
+        expect(reader.scrollTop).toBe(5 * PLACEHOLDER + 0.25 * 1600);
+    });
+
+    it('leaves the reader alone if the user scrolled before the target loaded', () => {
+        const reader = createReader();
+        reader.start(0.25);
+
+        reader.userScrollTo(3000);
+        reader.loadPage(5);
+        reader.loadPage(6);
+
+        expect(reader.scrollTop).toBe(3000);
+    });
+
+    it('does not save over the offset while it is pending', () => {
+        const reader = createReader();
+        reader.start(0.25);
+        reader.advance(RESUME_PIN_MAX_MS);
+
+        expect(isResumeSettling(CHAPTER_ID)).toBe(true);
+        reader.loadPage(5);
+        expect(isResumeSettling(CHAPTER_ID)).toBe(false);
     });
 });
 

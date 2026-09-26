@@ -14,7 +14,7 @@ import { isContinuousVerticalReadingMode } from '@/features/reader/settings/Read
 import { getReaderPagesStore } from '@/features/reader/stores/ReaderStore.ts';
 import { getPageOffset, readPageOffset, writePageOffset } from '@/features/tsuji/reader/pageOffsets.ts';
 import { startResumePin } from '@/features/tsuji/reader/resumePin.ts';
-import { shouldSkipTsujiProgressWrite } from '@/features/tsuji/reader/resumeState.ts';
+import { isResumeSettling, shouldSkipTsujiProgressWrite } from '@/features/tsuji/reader/resumeState.ts';
 
 const getStorage = (): Storage | null => {
     try {
@@ -110,7 +110,7 @@ export const useTsujiReaderResume = ({
         const save = () => {
             frame = null;
             const { currentPageIndex } = getReaderPagesStore();
-            if (shouldSkipTsujiProgressWrite(chapterId, currentPageIndex)) {
+            if (isResumeSettling(chapterId) || shouldSkipTsujiProgressWrite(chapterId, currentPageIndex)) {
                 return;
             }
 
