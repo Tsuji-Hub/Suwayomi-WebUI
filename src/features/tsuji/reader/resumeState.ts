@@ -48,6 +48,25 @@ export const clearResumeRestore = (chapterId: number) => {
     }
 };
 
+/** The chapter this page load is a reload of while it was being read (see isReloadWhileReading), if any. */
+let reloadChapterId: number | null = null;
+
+export const setTsujiReloadChapter = (chapterId: number | null) => {
+    reloadChapterId = chapterId;
+};
+
+export const isTsujiReloadOf = (chapterId: number): boolean => reloadChapterId === chapterId;
+
+/** Plain snapshot of the restore, for the saver's readout. */
+export const describeResumeRestore = () =>
+    restore && {
+        chapterId: restore.chapterId,
+        pageIndex: restore.pageIndex,
+        isPinActive: restore.isPinActive(),
+        isOffsetPending: restore.isOffsetPending(),
+        hasUserMoved: restore.hasUserMoved,
+    };
+
 /** Pinned, or the offset is not applied yet: the in-page offset must not be saved over (it's still to be used). */
 export const isResumeSettling = (chapterId: number): boolean =>
     restore?.chapterId === chapterId && (restore.isPinActive() || restore.isOffsetPending());

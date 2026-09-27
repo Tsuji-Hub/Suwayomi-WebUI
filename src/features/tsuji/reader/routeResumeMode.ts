@@ -9,7 +9,7 @@
 import { useEffect, useMemo } from 'react';
 import { ReaderResumeMode } from '@/features/reader/Reader.types.ts';
 import { USER_INTENT_EVENTS } from '@/features/tsuji/reader/resumePin.ts';
-import { setTsujiReaderUserInput } from '@/features/tsuji/reader/resumeState.ts';
+import { setTsujiReaderUserInput, setTsujiReloadChapter } from '@/features/tsuji/reader/resumeState.ts';
 
 type ResumeChapter = { id: number; isRead: boolean; lastPageRead: number };
 
@@ -153,17 +153,18 @@ export const useTsujiRouteResumeMode = (
             USER_INTENT_EVENTS.forEach((type) => window.removeEventListener(type, onUserInput, { capture: true }));
     }, [initialChapterId]);
 
-    const isReload = useMemo(
-        () =>
-            isReloadWhileReading({
-                marker: readReadingMarker(getSessionStorage()),
-                chapterId: initialChapterId,
-                pageLoadId: PAGE_LOAD_ID,
-                pageLoadPath: getPageLoadPath(),
-                currentPath: window.location.pathname,
-            }),
-        [initialChapterId],
-    );
+    const isReload = useMemo(() => {
+        const isReloadOfChapter = isReloadWhileReading({
+            marker: readReadingMarker(getSessionStorage()),
+            chapterId: initialChapterId,
+            pageLoadId: PAGE_LOAD_ID,
+            pageLoadPath: getPageLoadPath(),
+            currentPath: window.location.pathname,
+        });
+        // Set here, not in an effect: the chapter viewers' effects (the restore) run before this component's.
+        setTsujiReloadChapter(isReloadOfChapter ? (initialChapterId ?? null) : null);
+        return isReloadOfChapter;
+    }, [initialChapterId]);
 
     // Used once: a later in-app open of this chapter in the same page load follows its route state again.
     useEffect(() => {

@@ -24,6 +24,18 @@ type OffsetStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
+/** How close to a page top the viewport top has to be to count as sitting on it. */
+const PAGE_TOP_TOLERANCE_PX = 2;
+
+/**
+ * Before the user's first scroll, swipe, click or key, a viewport top sitting on a page top is the reader's own
+ * position (upstream's scroll to a page, a restore without in-page offset) and must not overwrite a saved spot.
+ * Anywhere else the view was moved by the user, whatever the means (wheel, keys, scrollbar, assistive tech), and is
+ * saved.
+ */
+export const isReaderOwnPosition = (hasUserInput: boolean, scrollTop: number, pageTop: number): boolean =>
+    !hasUserInput && Math.abs(scrollTop - pageTop) <= PAGE_TOP_TOLERANCE_PX;
+
 /** Offset of `scrollTop` inside a page starting at `pageTop`, rounded to 4 decimals; 0 for a page without height. */
 export const getPageOffset = (scrollTop: number, pageTop: number, pageHeight: number): number =>
     pageHeight > 0 ? Math.round(clamp01((scrollTop - pageTop) / pageHeight) * 10_000) / 10_000 : 0;
@@ -47,12 +59,49 @@ export const readPageOffset = (storage: OffsetStorage, chapterId: number, pageIn
     return clamp01(entry[1]);
 };
 
-export const writePageOffset = (storage: OffsetStorage, chapterId: number, pageIndex: number, offset: number) => {
+/** The saved spot for this chapter, whatever its page. */
+export const readSavedSpot = (
+    storage: OffsetStorage,
+    chapterId: number,
+): [pageIndex: number, offset: number] | null => {
+    const entry = readAll(storage)[toKey(chapterId)];
+    return Array.isArray(entry) && Number.isInteger(entry[0]) && typeof entry[1] === 'number'
+        ? [entry[0], clamp01(entry[1])]
+        : null;
+};
+
+/**
+ * Where to resume: lastPageRead plus the offset saved on that page. On a reload while reading, this tab's saved spot
+ * wins when it is on or past lastPageRead: upstream writes lastPageRead 1 s after a page change, so an F5 right after
+ * scrolling into the next page would otherwise land on the previous page's top. A spot before it never lowers the
+ * server's progress.
+ */
+export const getResumeSpot = (
+    storage: OffsetStorage | null,
+    chapterId: number,
+    lastPageRead: number,
+    isReloadWhileReading: boolean,
+): [pageIndex: number, offset: number] => {
+    const saved = storage ? readSavedSpot(storage, chapterId) : null;
+    if (isReloadWhileReading && saved && saved[0] >= lastPageRead) {
+        return saved;
+    }
+
+    return [lastPageRead, storage ? readPageOffset(storage, chapterId, lastPageRead) : 0];
+};
+
+/** `isWritten` is false when storage refused the write (full or blocked); the stored value is then unchanged. */
+export const writePageOffset = (
+    storage: OffsetStorage,
+    chapterId: number,
+    pageIndex: number,
+    offset: number,
+): { isWritten: boolean; error: string | null } => {
     const all = readAll(storage);
     const key = toKey(chapterId);
     const previous = all[key];
     if (previous && previous[0] === pageIndex && previous[1] === offset) {
-        return;
+        return { isWritten: true, error: null };
     }
 
     // Re-insert so key order is least to most recently written, then drop the oldest over the cap.
@@ -63,7 +112,8 @@ export const writePageOffset = (storage: OffsetStorage, chapterId: number, pageI
 
     try {
         storage.setItem(PAGE_OFFSETS_STORAGE_KEY, JSON.stringify(all));
-    } catch {
-        // Storage full or blocked: resume falls back to the page start.
+        return { isWritten: true, error: null };
+    } catch (error) {
+        return { isWritten: false, error: error instanceof Error ? `${error.name}: ${error.message}` : String(error) };
     }
 };

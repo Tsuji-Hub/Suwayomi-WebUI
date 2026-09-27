@@ -66,10 +66,15 @@ jobs:
         if: steps.tag.outputs.exists != 'true'
         run: pnpm build
 
-      # The built app in Chrome against an in-memory Suwayomi: webtoon resume on a direct load / F5.
+      # The built app against an in-memory Suwayomi: webtoon resume on a direct load / F5, in Chrome, plus the offset
+      # saving and F5 scenarios in Firefox (the owner's browser).
       - name: Browser test (tsuji)
         if: steps.tag.outputs.exists != 'true'
-        run: pnpm test:tsuji:e2e
+        env:
+          E2E_BROWSERS: chrome,firefox
+        run: |
+          pnpm exec playwright-core install --with-deps firefox
+          pnpm test:tsuji:e2e
 
       - name: Zip build (same layout as pnpm build-zip)
         id: zip

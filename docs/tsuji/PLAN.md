@@ -105,6 +105,30 @@ saves upstream's own scroll as [0, 0].
   (`ReaderPager.utils.tsx`, `getPageIndexesToLoad`), so nothing above the target loads until the user scrolls up.
 - Not covered: paged reading modes still follow the route state on F5 (the marker is written by the vertical saver).
 
+**r3388 live: page-level resume held, but the offset was never saved** (Cowork in Chrome, the owner in Firefox):
+`tsuji_readerPageOffsets` c52952 stayed at the stale [0, 0] through real wheel scrolls, so F5 landed on the page top,
+135 px short. With a clean profile the same bundle saves on wheel in Chrome and Firefox, against the live server too
+(writes blocked). r3388 had two ways to never save that its tests didn't cover: the saver only ran after a wheel /
+touchstart / pointerdown / keydown event (a scroll without one - scrollbar drag, assistive tech, a script - never
+opened it; the new e2e step fails on r3388 in both browsers), and a refused localStorage write was swallowed without
+a trace. A full localStorage is unlikely (in a test it stopped the reader from rendering at all).
+
+- **Saver** (`useTsujiReaderResume.ts`, `pageOffsets.ts`): no longer depends on input events. Nothing is saved while
+  the restore runs; before the user's first input only a viewport top sitting on a page top (within 2 px: upstream's
+  scroll to a page, a restore without offset) is skipped as the reader's own; any other position is saved. rAF only
+  paces saves (it doesn't run in hidden tabs; both reports were visible tabs).
+- **Readout** `window.tsujiReaderResume` (console): scroll events seen, saves, refused writes with the error, skips by
+  reason (restoring / noPage / readerPosition), the user-input flag and the restore state. Scroll events without
+  attempts would mean no animation frames ran.
+- **F5 within 1 s of a page change**: upstream writes lastPageRead 1 s after the page changes, so the saved spot could
+  be on a page the server doesn't know yet and was ignored (previous page's top). On a reload while reading, this
+  tab's saved spot now wins when it is on or past lastPageRead (never lower).
+- **e2e**: new "saves follow every kind of scroll" scenario (old spot kept through the reader's own first scroll; script
+  scroll without input events, wheel, arrow key; readout; F5 0.3 s after crossing into the next page; F5 after
+  lastPageRead lands). Runs in Chrome and Firefox (`E2E_BROWSERS=chrome,firefox`, CI installs Playwright's Firefox),
+  with the START wheel-then-F5 scenario in Firefox too: 85 checks. Live server (writes blocked, stale [0, 0] seeded):
+  landing keeps [0, 0], wheel to 5300 saves [4, 0.7022], F5 -> 5300.
+
 ## Acceptance (owner, on the server)
 
 1. Webtoon chapter, read to the middle of page 5+, reload: lands on the same spot, not the top.

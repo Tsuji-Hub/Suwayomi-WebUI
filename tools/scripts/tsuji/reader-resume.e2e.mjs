@@ -13,11 +13,13 @@
 //
 // Usage: pnpm build && pnpm test:tsuji:e2e
 // Browser: CHROMIUM_PATH, else Playwright's bundled Chromium (/opt/pw-browsers), else the installed Chrome.
+// E2E_BROWSERS=chrome,firefox also runs the saving and F5 scenarios in Playwright's Firefox (install it first with
+// `pnpm exec playwright-core install firefox`).
 
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 import { createMockSuwayomi } from './mockSuwayomi.mjs';
 
 const BUILD_DIR = resolve(process.env.BUILD_DIR ?? 'build');
@@ -492,58 +494,190 @@ const runWheelReloadScenario = async (browser, name, { routeState, clearOffsetBe
     await context.close();
 };
 
-const run = async () => {
-    const browser = await launch();
+/** Scrolls the reader by script: no wheel, touch, pointer or key event (like a scrollbar drag or assistive tech). */
+const scrollWithoutInputEvents = (page, dy) =>
+    page.evaluate((delta) => {
+        let element = document.querySelector('img[alt^="Page #"]')?.parentElement ?? null;
+        while (element && getComputedStyle(element).overflowY !== 'auto') {
+            element = element.parentElement;
+        }
+        element?.scrollBy(0, delta);
+    }, dy);
 
-    // Read with the wheel, then F5: the owner's live repro. The history entry keeps the route state of the in-app open.
-    await runWheelReloadScenario(browser, 'wheel then F5, opened in-app with START', {
-        routeState: ROUTE_STATE_START,
-    });
-    await runWheelReloadScenario(browser, 'wheel then F5, opened in-app with LAST_READ', {
-        routeState: ROUTE_STATE_LAST_READ,
-    });
-    await runWheelReloadScenario(browser, 'wheel then F5, typed URL (no route state)', { routeState: null });
-    await runWheelReloadScenario(browser, 'wheel then F5, no saved offset: page top of lastPageRead', {
-        routeState: ROUTE_STATE_START,
-        clearOffsetBeforeReload: true,
-    });
-
-    // Slow network, pages in order: everything around the target arrives after the first scroll.
-    await runScenario(browser, 'slow images', {
-        imageDelayMs: (index) => IMAGE_DELAY_MS * (index + 1),
-        viewport: { width: 1280, height: 900 },
-    });
-    // The owner's server: images arrive at once (LAN / cache), the pages above the target stay unloaded
-    // placeholders, so the layout settles before upstream's own scroll to the page top.
-    await runScenario(browser, 'instant images, unloaded placeholders above', {
-        imageDelayMs: () => 0,
-        viewport: { width: 1280, height: 957 },
-    });
-
-    // Webtoon mode from the manga (auto webtoon for a manhwa), not from a global setting: the reading mode is only
-    // known once the manga is loaded.
-    await runScenario(browser, 'auto webtoon (manhwa), instant images', {
-        imageDelayMs: () => 0,
-        viewport: { width: 1280, height: 957 },
-        serverOptions: { genre: ['Manhwa'], globalMeta: {} },
-    });
-
-    // The target image arrives after the pin's 10 s limit: the offset still has to apply once it has its height.
-    await runScenario(browser, 'target image after the 10 s limit', {
-        imageDelayMs: (index) => (index === LAST_PAGE_READ ? 11_000 : 0),
-        viewport: { width: 1280, height: 957 },
-    });
-    // A click that doesn't scroll (focus, opening the reader menu) before the target image arrives.
-    await runScenario(browser, 'click before the target image loads', {
-        imageDelayMs: (index) => (index === LAST_PAGE_READ ? 3000 : 0),
-        viewport: { width: 1280, height: 957 },
-        onLoadStart: async (page) => {
-            await page.waitForTimeout(1500);
-            await page.mouse.click(640, 478);
+/**
+ * The saved offset has to follow the view however the user scrolls, not only land right after F5. Live, r3388 never
+ * saved (the stored spot stayed at an old [0, 0]) while every landing check passed. Each step scrolls one way, then
+ * checks that the stored [page, fraction] points at the viewport top; the reader's own first scroll must not
+ * overwrite the old spot.
+ */
+const runSaveFollowsScrollScenario = async (browser, name) => {
+    if (!isSelected(name)) {
+        return;
+    }
+    const OLD_SPOT = [7, 0.5];
+    const server = createLiveServer();
+    const context = await browser.newContext({ viewport: LIVE_VIEWPORT });
+    await routeMockSuwayomi(context, server, { images: livePageImages, imageDelayMs: () => 30 });
+    await context.addInitScript(
+        ([id, spot]) => {
+            if (!sessionStorage.getItem('e2e-seeded')) {
+                localStorage.setItem('tsuji_readerPageOffsets', JSON.stringify({ [`c${id}`]: spot }));
+                sessionStorage.setItem('e2e-seeded', '1');
+            }
         },
+        [LIVE_CHAPTER_ID, OLD_SPOT],
+    );
+    const page = await context.newPage();
+    page.on('pageerror', (error) => console.log(`[${name}] pageerror:`, error.message));
+
+    const checkStoredFollowsView = async (label, before) => {
+        await page.waitForTimeout(600);
+        const stored = await readStoredOffset(page);
+        const m = stored ? await measure(page, stored[0]) : null;
+        const expected = m ? Math.round(m.pageTop + m.pageHeight * stored[1]) : null;
+        check(
+            `[${name}] ${label}: the stored offset points at the viewport top`,
+            !!m &&
+                m.pageHeight > 100 &&
+                Math.abs(m.scrollTop - expected) <= TOLERANCE_PX &&
+                (before === undefined || m.scrollTop !== before),
+            { stored, scrollTop: m?.scrollTop, before, expected },
+        );
+        return m?.scrollTop;
+    };
+    const viewTop = async () => (await measure(page, 0))?.scrollTop;
+
+    // lastPageRead 0: upstream scrolls to the top of page 0 by itself.
+    await page.goto(`${ORIGIN}/manga/${MANGA_ID}/chapter/${LIVE_SOURCE_ORDER}`);
+    await waitForPageImage(page, 2);
+    await page.waitForTimeout(1500);
+    const kept = await readStoredOffset(page);
+    check(
+        `[${name}] the reader's own first scroll keeps the old spot`,
+        JSON.stringify(kept) === JSON.stringify(OLD_SPOT),
+        {
+            kept,
+        },
+    );
+
+    let top = await viewTop();
+    await scrollWithoutInputEvents(page, 1250);
+    top = await checkStoredFollowsView('scroll without wheel/touch/pointer/key events', top);
+
+    await page.mouse.move(LIVE_VIEWPORT.width / 2, LIVE_VIEWPORT.height / 2);
+    await page.mouse.wheel(0, 700);
+    top = await checkStoredFollowsView('wheel', top);
+
+    await page.keyboard.press('ArrowDown');
+    top = await checkStoredFollowsView('arrow key', top);
+
+    await scrollWithoutInputEvents(page, 450);
+    await checkStoredFollowsView('scroll without input events after reading', top);
+    const readout = await page.evaluate(() => structuredClone(window.tsujiReaderResume ?? null));
+    check(`[${name}] readout: saves counted, none failed`, !!readout && readout.saved > 0 && readout.failed === 0, {
+        readout,
     });
 
-    await browser.close();
+    const reloadAndCheck = async (label) => {
+        const [savedPage, savedFraction] = (await readStoredOffset(page)) ?? [0, 0];
+        const serverPage = server.chapters.get(LIVE_CHAPTER_ID).lastPageRead;
+        await page.reload();
+        await waitForPageImage(page, savedPage);
+        await page.waitForTimeout(1500);
+        const m = await measure(page, savedPage);
+        const expected = m ? Math.round(m.pageTop + m.pageHeight * savedFraction) : null;
+        check(`[${name}] ${label}: lands on the saved spot`, !!m && Math.abs(m.scrollTop - expected) <= TOLERANCE_PX, {
+            ...m,
+            expected,
+            saved: [savedPage, savedFraction],
+            serverLastPageRead: serverPage,
+        });
+    };
+
+    // Upstream writes lastPageRead 1 s after a page change: F5 right after scrolling into the next page.
+    await page.waitForTimeout(1500);
+    await page.mouse.move(LIVE_VIEWPORT.width / 2, LIVE_VIEWPORT.height / 2);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(300);
+    await reloadAndCheck('F5 0.3 s after scrolling into the next page');
+
+    // And once lastPageRead has landed.
+    await page.mouse.move(LIVE_VIEWPORT.width / 2, LIVE_VIEWPORT.height / 2);
+    await page.mouse.wheel(0, 250);
+    await page.waitForTimeout(2500);
+    await reloadAndCheck('F5 after lastPageRead is written');
+
+    await context.close();
+};
+
+const launchFirefox = () => firefox.launch();
+
+const run = async () => {
+    const browserNames = (process.env.E2E_BROWSERS ?? 'chrome').split(',').map((browserName) => browserName.trim());
+    if (browserNames.includes('firefox')) {
+        // The owner reads in Firefox: the saving and F5 paths again in Gecko.
+        const firefoxBrowser = await launchFirefox();
+        await runSaveFollowsScrollScenario(firefoxBrowser, 'firefox: saves follow every kind of scroll');
+        await runWheelReloadScenario(firefoxBrowser, 'firefox: wheel then F5, opened in-app with START', {
+            routeState: ROUTE_STATE_START,
+        });
+        await firefoxBrowser.close();
+    }
+    if (browserNames.includes('chrome')) {
+        const browser = await launch();
+
+        await runSaveFollowsScrollScenario(browser, 'saves follow every kind of scroll');
+
+        // Read with the wheel, then F5: the owner's live repro. The history entry keeps the route state of the in-app open.
+        await runWheelReloadScenario(browser, 'wheel then F5, opened in-app with START', {
+            routeState: ROUTE_STATE_START,
+        });
+        await runWheelReloadScenario(browser, 'wheel then F5, opened in-app with LAST_READ', {
+            routeState: ROUTE_STATE_LAST_READ,
+        });
+        await runWheelReloadScenario(browser, 'wheel then F5, typed URL (no route state)', { routeState: null });
+        await runWheelReloadScenario(browser, 'wheel then F5, no saved offset: page top of lastPageRead', {
+            routeState: ROUTE_STATE_START,
+            clearOffsetBeforeReload: true,
+        });
+
+        // Slow network, pages in order: everything around the target arrives after the first scroll.
+        await runScenario(browser, 'slow images', {
+            imageDelayMs: (index) => IMAGE_DELAY_MS * (index + 1),
+            viewport: { width: 1280, height: 900 },
+        });
+        // The owner's server: images arrive at once (LAN / cache), the pages above the target stay unloaded
+        // placeholders, so the layout settles before upstream's own scroll to the page top.
+        await runScenario(browser, 'instant images, unloaded placeholders above', {
+            imageDelayMs: () => 0,
+            viewport: { width: 1280, height: 957 },
+        });
+
+        // Webtoon mode from the manga (auto webtoon for a manhwa), not from a global setting: the reading mode is only
+        // known once the manga is loaded.
+        await runScenario(browser, 'auto webtoon (manhwa), instant images', {
+            imageDelayMs: () => 0,
+            viewport: { width: 1280, height: 957 },
+            serverOptions: { genre: ['Manhwa'], globalMeta: {} },
+        });
+
+        // The target image arrives after the pin's 10 s limit: the offset still has to apply once it has its height.
+        await runScenario(browser, 'target image after the 10 s limit', {
+            imageDelayMs: (index) => (index === LAST_PAGE_READ ? 11_000 : 0),
+            viewport: { width: 1280, height: 957 },
+        });
+        // A click that doesn't scroll (focus, opening the reader menu) before the target image arrives.
+        await runScenario(browser, 'click before the target image loads', {
+            imageDelayMs: (index) => (index === LAST_PAGE_READ ? 3000 : 0),
+            viewport: { width: 1280, height: 957 },
+            onLoadStart: async (page) => {
+                await page.waitForTimeout(1500);
+                await page.mouse.click(640, 478);
+            },
+        });
+
+        await browser.close();
+    }
 
     if (failures.length) {
         console.log(`\n${failures.length} check(s) failed`);

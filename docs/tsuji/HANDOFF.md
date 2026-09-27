@@ -9,7 +9,7 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 | Branch                       | Commit             | What                                                                                |
 | ---------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
 | `custom`                     | `ff5d040a` (r3387) | Briefs #1, #2, #2.1 + webtoon resume. Deployed; F5 after an in-app open fails live. |
-| `feat/reader-resume-restore` | r3388              | F5 after reading resumes whatever the route state; no saves before user input.      |
+| `feat/reader-resume-restore` | r3389              | F5 resume whatever the route state; offset saved on any scroll (r3388 never saved). |
 | `master`                     | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                      |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
@@ -85,7 +85,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
-pnpm test:tsuji:e2e        # after pnpm build: Chrome + mocked Suwayomi, webtoon resume on direct load / F5
+pnpm test:tsuji:e2e        # after pnpm build: Chrome + mocked Suwayomi, webtoon resume / offset saving (E2E_BROWSERS=chrome,firefox adds Firefox)
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only

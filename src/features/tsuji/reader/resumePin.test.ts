@@ -7,7 +7,13 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { getPageOffset, readPageOffset, writePageOffset } from '@/features/tsuji/reader/pageOffsets.ts';
+import {
+    getPageOffset,
+    getResumeSpot,
+    isReaderOwnPosition,
+    readPageOffset,
+    writePageOffset,
+} from '@/features/tsuji/reader/pageOffsets.ts';
 import type { ResumePinDeps } from '@/features/tsuji/reader/resumePin.ts';
 import { RESUME_PIN_MAX_MS, RESUME_PIN_STABLE_MS, startResumePin } from '@/features/tsuji/reader/resumePin.ts';
 import {
@@ -434,6 +440,21 @@ describe('in-page offset storage', () => {
         expect(readPageOffset(storage, 206, 1)).toBe(0.5);
     });
 
+    it('reports a refused write (storage full) and keeps the stored value', () => {
+        const storage = createStorage();
+        writePageOffset(storage, 42, 5, 0.25);
+        const full = {
+            getItem: storage.getItem,
+            setItem: () => {
+                throw new DOMException('quota', 'QuotaExceededError');
+            },
+        };
+
+        expect(writePageOffset(full, 42, 6, 0.5)).toEqual({ isWritten: false, error: 'QuotaExceededError: quota' });
+        expect(readPageOffset(storage, 42, 5)).toBe(0.25);
+        expect(writePageOffset(storage, 42, 6, 0.5)).toEqual({ isWritten: true, error: null });
+    });
+
     it('survives a corrupt value', () => {
         const storage = createStorage();
         storage.setItem('tsuji_readerPageOffsets', '{oops');
@@ -441,4 +462,39 @@ describe('in-page offset storage', () => {
         writePageOffset(storage, 1, 0, 0.5);
         expect(readPageOffset(storage, 1, 0)).toBe(0.5);
     });
+});
+
+describe("what counts as the reader's own position", () => {
+    it('before any user input: a viewport top on a page top (upstream scroll, restore without offset)', () => {
+        expect(isReaderOwnPosition(false, 957, 957)).toBe(true);
+        expect(isReaderOwnPosition(false, 958.5, 957)).toBe(true);
+    });
+
+    it('anything else was moved by the user, whatever the input (scrollbar, assistive tech, script)', () => {
+        expect(isReaderOwnPosition(false, 1092, 957)).toBe(false);
+        expect(isReaderOwnPosition(false, 900, 957)).toBe(false);
+    });
+
+    it("after user input, no position is the reader's own", () =>
+        expect(isReaderOwnPosition(true, 957, 957)).toBe(false));
+});
+
+describe('resume spot', () => {
+    const saved = (spot: [number, number]) => {
+        const storage = createStorage();
+        writePageOffset(storage, 42, spot[0], spot[1]);
+        return storage;
+    };
+
+    it('lastPageRead plus the offset saved on that page, else its top', () => {
+        expect(getResumeSpot(saved([5, 0.25]), 42, 5, false)).toEqual([5, 0.25]);
+        expect(getResumeSpot(saved([6, 0.25]), 42, 5, false)).toEqual([5, 0]);
+        expect(getResumeSpot(null, 42, 5, true)).toEqual([5, 0]);
+    });
+
+    it("F5 right after a page change: this tab's spot, ahead of the server's lastPageRead", () =>
+        expect(getResumeSpot(saved([6, 0.25]), 42, 5, true)).toEqual([6, 0.25]));
+
+    it('never resumes before lastPageRead (no lower progress)', () =>
+        expect(getResumeSpot(saved([4, 0.5]), 42, 5, true)).toEqual([5, 0]));
 });

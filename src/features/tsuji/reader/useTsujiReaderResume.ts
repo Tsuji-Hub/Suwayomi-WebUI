@@ -12,12 +12,19 @@ import type { PageData, ReadingMode } from '@/features/reader/Reader.types.ts';
 import { ReaderResumeMode } from '@/features/reader/Reader.types.ts';
 import { isContinuousVerticalReadingMode } from '@/features/reader/settings/ReaderSettings.utils.tsx';
 import { getReaderPagesStore, useReaderPagesStore } from '@/features/reader/stores/ReaderStore.ts';
-import { getPageOffset, readPageOffset, writePageOffset } from '@/features/tsuji/reader/pageOffsets.ts';
+import {
+    getPageOffset,
+    getResumeSpot,
+    isReaderOwnPosition,
+    writePageOffset,
+} from '@/features/tsuji/reader/pageOffsets.ts';
 import { startResumePin } from '@/features/tsuji/reader/resumePin.ts';
 import { markTsujiReading } from '@/features/tsuji/reader/routeResumeMode.ts';
 import {
+    describeResumeRestore,
     hasTsujiReaderUserInput,
     isResumeSettling,
+    isTsujiReloadOf,
     shouldSkipTsujiProgressWrite,
 } from '@/features/tsuji/reader/resumeState.ts';
 
@@ -31,6 +38,51 @@ const getStorage = (): Storage | null => {
 
 const getPagesIndex = (pages: PageData[], pageIndex: number) =>
     pages.findIndex(({ primary }) => primary.index === pageIndex);
+
+type SkipReason = 'restoring' | 'noPage' | 'readerPosition';
+
+/**
+ * Readout for checks on a real browser (`window.tsujiReaderResume` in the console): why offsets were or weren't
+ * saved in this page load. `scrollEvents` counts what reached the saver; every save attempt (one per frame) ends up
+ * in `saved`, `failed` or `skipped`, so scroll events without attempts mean no animation frames ran.
+ */
+const saverStats = {
+    scrollEvents: 0,
+    saved: 0,
+    failed: 0,
+    lastError: null as string | null,
+    last: null as [chapterId: number, pageIndex: number, offset: number] | null,
+    skipped: { restoring: 0, noPage: 0, readerPosition: 0 } satisfies Record<SkipReason, number>,
+    get hasUserInput() {
+        return hasTsujiReaderUserInput();
+    },
+    get restore() {
+        return describeResumeRestore();
+    },
+};
+
+try {
+    Object.defineProperty(window, 'tsujiReaderResume', { value: saverStats, configurable: true });
+} catch {
+    // Readout only.
+}
+
+const countSkip = (reason: SkipReason) => {
+    saverStats.skipped[reason] += 1;
+};
+
+const recordSave = (
+    { isWritten, error }: ReturnType<typeof writePageOffset>,
+    entry: [chapterId: number, pageIndex: number, offset: number],
+) => {
+    if (isWritten) {
+        saverStats.saved += 1;
+        saverStats.last = entry;
+        return;
+    }
+    saverStats.failed += 1;
+    saverStats.lastError = error;
+};
 
 /** Scroll-coordinate top and height of a page element inside the scroll element. */
 const measure = (element: HTMLElement, scrollElement: HTMLElement) => {
@@ -47,9 +99,9 @@ const measure = (element: HTMLElement, scrollElement: HTMLElement) => {
  * saves the in-page offset of the current chapter while the user reads.
  *
  * The pin starts once upstream has done its own initial scroll to the page (pageToScrollToIndex consumed), so it
- * refines that position instead of racing it. Nothing is saved before the user's first scroll, swipe, click or key:
- * until then every scroll is the reader's own (initial scroll, restore, layout shifts) and would overwrite the spot
- * the restore is still using.
+ * refines that position instead of racing it. On a reload while reading it resumes at this tab's saved spot (see
+ * getResumeSpot). Nothing is saved while the restore runs, nor a page top the reader scrolled to by itself before the
+ * user's first input (see isReaderOwnPosition); any other position is the user's and is saved.
  */
 export const useTsujiReaderResume = ({
     chapterId,
@@ -95,19 +147,21 @@ export const useTsujiReaderResume = ({
         }
 
         hasStartedRef.current = true;
-        const storage = getStorage();
         // No saved offset for lastPageRead: its page top.
-        const offset = storage ? readPageOffset(storage, chapterId, lastPageRead) : 0;
-        if (lastPageRead === 0 && offset === 0) {
+        const spot = getResumeSpot(getStorage(), chapterId, lastPageRead, isTsujiReloadOf(chapterId));
+        const spotPagesIndex = getPagesIndex(pages, spot[0]);
+        const [pageIndex, offset] = spotPagesIndex >= 0 ? spot : [lastPageRead, 0];
+        if (pageIndex === 0 && offset === 0) {
             return;
         }
 
+        const pinPagesIndex = spotPagesIndex >= 0 ? spotPagesIndex : targetPagesIndex;
         stopPinRef.current = startResumePin({
             chapterId,
-            pageIndex: lastPageRead,
+            pageIndex,
             offset,
             scrollElement,
-            getTargetElement: () => imageRefs.current[targetPagesIndex] ?? null,
+            getTargetElement: () => imageRefs.current[pinPagesIndex] ?? null,
         }).stop;
     }, [
         isInitialChapter,
@@ -118,6 +172,7 @@ export const useTsujiReaderResume = ({
         isUpstreamScrollPending,
         scrollElement,
         chapterId,
+        pages,
     ]);
 
     useEffect(
@@ -139,24 +194,32 @@ export const useTsujiReaderResume = ({
         const save = () => {
             frame = null;
             const { currentPageIndex } = getReaderPagesStore();
-            if (
-                !hasTsujiReaderUserInput() ||
-                isResumeSettling(chapterId) ||
-                shouldSkipTsujiProgressWrite(chapterId, currentPageIndex)
-            ) {
+            if (isResumeSettling(chapterId) || shouldSkipTsujiProgressWrite(chapterId, currentPageIndex)) {
+                countSkip('restoring');
                 return;
             }
 
             const element = imageRefs.current[getPagesIndex(pages, currentPageIndex)];
             if (!element) {
+                countSkip('noPage');
                 return;
             }
 
             const { top, height } = measure(element, scrollElement);
-            writePageOffset(storage, chapterId, currentPageIndex, getPageOffset(scrollElement.scrollTop, top, height));
-            markTsujiReading(chapterId);
+            if (isReaderOwnPosition(hasTsujiReaderUserInput(), scrollElement.scrollTop, top)) {
+                countSkip('readerPosition');
+                return;
+            }
+
+            const offset = getPageOffset(scrollElement.scrollTop, top, height);
+            const result = writePageOffset(storage, chapterId, currentPageIndex, offset);
+            recordSave(result, [chapterId, currentPageIndex, offset]);
+            if (result.isWritten) {
+                markTsujiReading(chapterId);
+            }
         };
         const onScroll = () => {
+            saverStats.scrollEvents += 1;
             frame ??= requestAnimationFrame(save);
         };
 
