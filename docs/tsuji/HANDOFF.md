@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-09-26)
 
-| Branch                      | Commit             | What                                                                                  |
-| --------------------------- | ------------------ | ------------------------------------------------------------------------------------- |
-| `custom`                    | `4f46762a` (r3386) | Briefs #1, #2, #2.1 + webtoon resume (route resume mode, pin). Deployed, checked.     |
-| `feat/reader-resume-offset` | r3387              | In-page offset applied once the target has its real height. Prerelease for the check. |
-| `master`                    | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                        |
+| Branch                       | Commit             | What                                                                                |
+| ---------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
+| `custom`                     | `ff5d040a` (r3387) | Briefs #1, #2, #2.1 + webtoon resume. Deployed; F5 after an in-app open fails live. |
+| `feat/reader-resume-restore` | r3388              | F5 after reading resumes whatever the route state; no saves before user input.      |
+| `master`                     | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                      |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.

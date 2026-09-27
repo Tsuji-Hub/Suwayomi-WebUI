@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getPageOffset, readPageOffset, writePageOffset } from '@/features/tsuji/reader/pageOffsets.ts';
 import type { ResumePinDeps } from '@/features/tsuji/reader/resumePin.ts';
-import { RESUME_PIN_MAX_MS, startResumePin } from '@/features/tsuji/reader/resumePin.ts';
+import { RESUME_PIN_MAX_MS, RESUME_PIN_STABLE_MS, startResumePin } from '@/features/tsuji/reader/resumePin.ts';
 import {
     clearResumeRestore,
     isResumeSettling,
@@ -41,6 +41,7 @@ const createReader = () => {
     const resizeCallbacks: (() => void)[] = [];
     const scrollCallbacks: (() => void)[] = [];
     const intentTarget = new EventTarget();
+    const timers: { at: number; callback: () => void; isDone: boolean }[] = [];
 
     const pageTop = (index: number) => heights.slice(0, index).reduce((sum, height) => sum + height + GAP, 0);
     const contentHeight = () => pageTop(heights.length);
@@ -104,6 +105,13 @@ const createReader = () => {
         },
         intentTarget,
         now: () => time,
+        setTimer: (callback, ms) => {
+            const timer = { at: time + ms, callback, isDone: false };
+            timers.push(timer);
+            return () => {
+                timer.isDone = true;
+            };
+        },
     };
 
     return {
@@ -127,8 +135,19 @@ const createReader = () => {
             setScrollTop(top);
         },
         flush,
+        /** Moves the clock, firing due timers in order. */
         advance: (ms: number) => {
-            time += ms;
+            const end = time + ms;
+            for (;;) {
+                const [due] = timers.filter((timer) => !timer.isDone && timer.at <= end).sort((a, b) => a.at - b.at);
+                if (!due) {
+                    break;
+                }
+                time = due.at;
+                due.isDone = true;
+                due.callback();
+            }
+            time = end;
         },
         start: (offset = 0) =>
             startResumePin(
@@ -178,7 +197,7 @@ describe('resume pin with lazy images of unknown height', () => {
         expect(reader.scrollTop).toBe(7000 + 0.25 * 1600);
     });
 
-    it('lets go after 8 s without any timer', () => {
+    it('lets go after 10 s even if the target never loads', () => {
         const reader = createReader();
         const { pin } = reader.start();
         [0, 1, 2].forEach(reader.loadPage);
@@ -189,6 +208,50 @@ describe('resume pin with lazy images of unknown height', () => {
         expect(pin.isActive).toBe(false);
         expect(pin.endedBy).toBe('deadline');
         expect(reader.scrollTop).toBe(before);
+    });
+});
+
+describe('settling', () => {
+    it(`ends ${RESUME_PIN_STABLE_MS} ms after the last layout change once the target has loaded`, () => {
+        const reader = createReader();
+        const { pin } = reader.start(0.25);
+        [0, 1, 2, 3, 4, 5, 6, 7].forEach(reader.loadPage);
+
+        reader.advance(RESUME_PIN_STABLE_MS - 1);
+        expect(pin.isActive).toBe(true);
+        reader.advance(1);
+        expect(pin.endedBy).toBe('settled');
+        expect(reader.scrollTop).toBe(7000 + 0.25 * 1600);
+        expect(isResumeSettling(CHAPTER_ID)).toBe(false);
+    });
+
+    it('restarts the quiet window on every layout change', () => {
+        const reader = createReader();
+        const { pin } = reader.start(0.25);
+        reader.loadPage(5);
+        reader.advance(400);
+        reader.loadPage(0); // a page above loads: the target moves down, the pin follows
+
+        reader.advance(400);
+        expect(pin.isActive).toBe(true);
+        reader.advance(100);
+        expect(pin.endedBy).toBe('settled');
+        expect(reader.scrollTop).toBe(1400 + 4 * PLACEHOLDER + 0.25 * 1600);
+    });
+
+    it('keeps holding while the target is still loading', () => {
+        const reader = createReader();
+        const { pin } = reader.start(0.25);
+        [0, 1, 2, 3, 4].forEach(reader.loadPage);
+
+        reader.advance(3000);
+        expect(pin.isActive).toBe(true);
+        expect(reader.scrollTop).toBe(7000); // page top: the offset waits for the target's height
+
+        reader.loadPage(5);
+        reader.advance(RESUME_PIN_STABLE_MS);
+        expect(pin.endedBy).toBe('settled');
+        expect(reader.scrollTop).toBe(7000 + 0.25 * 1600);
     });
 });
 

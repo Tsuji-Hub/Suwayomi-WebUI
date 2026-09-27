@@ -11,10 +11,15 @@ import { useEffect, useRef } from 'react';
 import type { PageData, ReadingMode } from '@/features/reader/Reader.types.ts';
 import { ReaderResumeMode } from '@/features/reader/Reader.types.ts';
 import { isContinuousVerticalReadingMode } from '@/features/reader/settings/ReaderSettings.utils.tsx';
-import { getReaderPagesStore } from '@/features/reader/stores/ReaderStore.ts';
+import { getReaderPagesStore, useReaderPagesStore } from '@/features/reader/stores/ReaderStore.ts';
 import { getPageOffset, readPageOffset, writePageOffset } from '@/features/tsuji/reader/pageOffsets.ts';
 import { startResumePin } from '@/features/tsuji/reader/resumePin.ts';
-import { isResumeSettling, shouldSkipTsujiProgressWrite } from '@/features/tsuji/reader/resumeState.ts';
+import { markTsujiReading } from '@/features/tsuji/reader/routeResumeMode.ts';
+import {
+    hasTsujiReaderUserInput,
+    isResumeSettling,
+    shouldSkipTsujiProgressWrite,
+} from '@/features/tsuji/reader/resumeState.ts';
 
 const getStorage = (): Storage | null => {
     try {
@@ -39,7 +44,12 @@ const measure = (element: HTMLElement, scrollElement: HTMLElement) => {
 /**
  * Exact resume for the continuous vertical reader (mounted from upstream's ReaderChapterViewer, one line):
  * pins the initial chapter's lastPageRead (+ saved in-page offset) until the layout settles or the user moves, and
- * saves the in-page offset of the current chapter while reading.
+ * saves the in-page offset of the current chapter while the user reads.
+ *
+ * The pin starts once upstream has done its own initial scroll to the page (pageToScrollToIndex consumed), so it
+ * refines that position instead of racing it. Nothing is saved before the user's first scroll, swipe, click or key:
+ * until then every scroll is the reader's own (initial scroll, restore, layout shifts) and would overwrite the spot
+ * the restore is still using.
  */
 export const useTsujiReaderResume = ({
     chapterId,
@@ -66,30 +76,49 @@ export const useTsujiReaderResume = ({
     const targetPagesIndex = getPagesIndex(pages, lastPageRead);
     const stopPinRef = useRef<(() => void) | null>(null);
     const hasStartedRef = useRef(false);
+    // Only the initial chapter, until its pin starts, re-renders on upstream's scroll requests.
+    const isUpstreamScrollPending = useReaderPagesStore(
+        (state) => isInitialChapter && !hasStartedRef.current && state.pageToScrollToIndex !== null,
+    );
 
     useEffect(() => {
-        const shouldPin =
+        const canPin =
             !hasStartedRef.current &&
             isInitialChapter &&
             isVertical &&
             resumeMode === ReaderResumeMode.LAST_READ &&
-            lastPageRead > 0 &&
             targetPagesIndex >= 0 &&
+            !isUpstreamScrollPending &&
             !!scrollElement;
-        if (!shouldPin) {
+        if (!canPin) {
             return;
         }
 
         hasStartedRef.current = true;
         const storage = getStorage();
+        // No saved offset for lastPageRead: its page top.
+        const offset = storage ? readPageOffset(storage, chapterId, lastPageRead) : 0;
+        if (lastPageRead === 0 && offset === 0) {
+            return;
+        }
+
         stopPinRef.current = startResumePin({
             chapterId,
             pageIndex: lastPageRead,
-            offset: storage ? readPageOffset(storage, chapterId, lastPageRead) : 0,
+            offset,
             scrollElement,
             getTargetElement: () => imageRefs.current[targetPagesIndex] ?? null,
         }).stop;
-    }, [isInitialChapter, isVertical, resumeMode, lastPageRead, targetPagesIndex, scrollElement, chapterId]);
+    }, [
+        isInitialChapter,
+        isVertical,
+        resumeMode,
+        lastPageRead,
+        targetPagesIndex,
+        isUpstreamScrollPending,
+        scrollElement,
+        chapterId,
+    ]);
 
     useEffect(
         () => () => {
@@ -110,7 +139,11 @@ export const useTsujiReaderResume = ({
         const save = () => {
             frame = null;
             const { currentPageIndex } = getReaderPagesStore();
-            if (isResumeSettling(chapterId) || shouldSkipTsujiProgressWrite(chapterId, currentPageIndex)) {
+            if (
+                !hasTsujiReaderUserInput() ||
+                isResumeSettling(chapterId) ||
+                shouldSkipTsujiProgressWrite(chapterId, currentPageIndex)
+            ) {
                 return;
             }
 
@@ -121,6 +154,7 @@ export const useTsujiReaderResume = ({
 
             const { top, height } = measure(element, scrollElement);
             writePageOffset(storage, chapterId, currentPageIndex, getPageOffset(scrollElement.scrollTop, top, height));
+            markTsujiReading(chapterId);
         };
         const onScroll = () => {
             frame ??= requestAnimationFrame(save);

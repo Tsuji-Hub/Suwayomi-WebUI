@@ -145,7 +145,35 @@ const launch = () => {
     );
 };
 
-const measure = (page) =>
+/** Serves the build and an in-memory Suwayomi to the context; page `index` arrives after `imageDelayMs(index)`. */
+const routeMockSuwayomi = async (context, server, { images, imageDelayMs, requestedPages = new Set() }) => {
+    await context.route('**/*', async (route) => {
+        const url = new URL(route.request().url());
+        if (url.origin !== ORIGIN) {
+            return route.abort();
+        }
+        if (url.pathname.startsWith('/api/graphql')) {
+            const result = await server.handle(route.request().postDataJSON());
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
+        }
+        const pageMatch = url.pathname.match(/\/chapter\/\d+\/page\/(\d+)$/);
+        if (pageMatch) {
+            const index = Number(pageMatch[1]);
+            requestedPages.add(index);
+            await new Promise((done) => {
+                setTimeout(done, imageDelayMs(index));
+            });
+            return route.fulfill({ status: 200, contentType: 'image/png', body: images[index] });
+        }
+        if (url.pathname.startsWith('/api/')) {
+            return route.fulfill({ status: 404, body: '' });
+        }
+        return route.fulfill(serveFile(url.pathname));
+    });
+    await context.routeWebSocket(/.*/, (ws) => ws.close());
+};
+
+const measure = (page, pageIndex = LAST_PAGE_READ) =>
     page.evaluate((index) => {
         const image = document.querySelector(`img[alt="Page #${index + 1}"]`);
         const scroller = image
@@ -169,7 +197,10 @@ const measure = (page) =>
         const imageRect = image.getBoundingClientRect();
         const top = imageRect.top - scroller.getBoundingClientRect().top + scroller.scrollTop;
         return { scrollTop: scroller.scrollTop, pageTop: top, pageHeight: imageRect.height };
-    }, LAST_PAGE_READ);
+    }, pageIndex);
+
+/** `E2E_ONLY=<part of a scenario name>` runs just the matching scenarios. */
+const isSelected = (name) => !process.env.E2E_ONLY || name.includes(process.env.E2E_ONLY);
 
 const failures = [];
 const check = (label, ok, detail) => {
@@ -184,34 +215,14 @@ const check = (label, ok, detail) => {
  * then F5, then a wheel scroll. `imageDelayMs(index)` is how long page `index` takes to arrive.
  */
 const runScenario = async (browser, name, { imageDelayMs, viewport, serverOptions, onLoadStart }) => {
+    if (!isSelected(name)) {
+        return;
+    }
     const server = createServer(serverOptions);
     const context = await browser.newContext({ viewport });
     const requestedPages = new Set();
 
-    await context.route('**/*', async (route) => {
-        const url = new URL(route.request().url());
-        if (url.origin !== ORIGIN) {
-            return route.abort();
-        }
-        if (url.pathname.startsWith('/api/graphql')) {
-            const result = await server.handle(route.request().postDataJSON());
-            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
-        }
-        const pageMatch = url.pathname.match(/\/chapter\/\d+\/page\/(\d+)$/);
-        if (pageMatch) {
-            const index = Number(pageMatch[1]);
-            requestedPages.add(index);
-            await new Promise((done) => {
-                setTimeout(done, imageDelayMs(index));
-            });
-            return route.fulfill({ status: 200, contentType: 'image/png', body: pageImages[index] });
-        }
-        if (url.pathname.startsWith('/api/')) {
-            return route.fulfill({ status: 404, body: '' });
-        }
-        return route.fulfill(serveFile(url.pathname));
-    });
-    await context.routeWebSocket(/.*/, (ws) => ws.close());
+    await routeMockSuwayomi(context, server, { images: pageImages, imageDelayMs, requestedPages });
     await context.addInitScript(
         ([chapterId, pageIndex, offset]) => {
             if (!localStorage.getItem('tsuji_readerPageOffsets')) {
@@ -302,8 +313,200 @@ const runScenario = async (browser, name, { imageDelayMs, viewport, serverOption
     await context.close();
 };
 
+/*
+ * The owner's live repro: read into a page with the mouse wheel, then F5. Shaped like the owner's setup: chapter 3 of
+ * 5 (chapters before and after it), 60 pages of two heights, a 957 px viewport (the transition spacer above page 0 is
+ * one viewport high) and the owner's webtoon settings (reader width 43 %, stretched pages).
+ */
+const LIVE_CHAPTER_ID = 52952;
+const LIVE_SOURCE_ORDER = 3;
+const LIVE_PAGE_COUNT = 60;
+const LIVE_VIEWPORT = { width: 1280, height: 957 };
+const LIVE_GLOBAL_META = {
+    webUI_readingMode: WEBTOON,
+    webUI_4_pageScaleMode: '0',
+    webUI_4_readerWidth: JSON.stringify({ value: 43, enabled: true }),
+    webUI_4_shouldStretchPage: 'true',
+};
+const livePageImages = Array.from({ length: LIVE_PAGE_COUNT }, (_, index) =>
+    png(300, index % 3 === 0 ? 560 : 400, [60 + (index % 10) * 15, 100, 150]),
+);
+/** Where the wheel stops: inside page 3, a bit below its top (the owner's case saved [3, 0.2875]). */
+const WHEEL_PAGE = 3;
+const WHEEL_FRACTION = 0.3;
+const TOLERANCE_PX = 50;
+const ROUTE_STATE_START = { resumeMode: 0 }; // ReaderResumeMode.START
+const ROUTE_STATE_LAST_READ = { resumeMode: 2 }; // ReaderResumeMode.LAST_READ
+
+const createLiveServer = () => {
+    const manga = {
+        id: MANGA_ID,
+        title: 'Resume Test',
+        sourceId: '1',
+        inLibrary: true,
+        genre: ['Manhua'],
+        source: { id: '1', name: 'Local source', displayName: 'Local source' },
+        chapters: { totalCount: 5 },
+    };
+    // Newest first, like the server's chapter list.
+    const chapters = [5, 4, 3, 2, 1].map((sourceOrder) => ({
+        id: LIVE_CHAPTER_ID - LIVE_SOURCE_ORDER + sourceOrder,
+        mangaId: MANGA_ID,
+        name: `Chapter ${sourceOrder}`,
+        chapterNumber: sourceOrder,
+        sourceOrder,
+        isRead: sourceOrder < LIVE_SOURCE_ORDER,
+        isBookmarked: false,
+        isDownloaded: false,
+        lastPageRead: sourceOrder < LIVE_SOURCE_ORDER ? LIVE_PAGE_COUNT - 1 : 0,
+        pageCount: LIVE_PAGE_COUNT,
+        uploadDate: '0',
+        fetchedAt: '0',
+        lastReadAt: '0',
+        url: '',
+    }));
+    return createMockSuwayomi({ manga, chapters, pageCount: LIVE_PAGE_COUNT, globalMeta: LIVE_GLOBAL_META });
+};
+
+const readStoredOffset = (page) =>
+    page.evaluate(
+        (id) => JSON.parse(localStorage.getItem('tsuji_readerPageOffsets') ?? '{}')[`c${id}`] ?? null,
+        LIVE_CHAPTER_ID,
+    );
+
+const waitForPageImage = (page, index) =>
+    page.waitForFunction(
+        (i) => {
+            const image = document.querySelector(`img[alt="Page #${i + 1}"]`);
+            return !!image && image.complete && image.naturalHeight > 0 && image.getBoundingClientRect().height > 0;
+        },
+        index,
+        { timeout: 20_000, polling: 100 },
+    );
+
+/** Real wheel events (no scrollTop writes) until the viewport top sits WHEEL_FRACTION into WHEEL_PAGE. */
+const wheelIntoPage = async (page) => {
+    await page.mouse.move(LIVE_VIEWPORT.width / 2, LIVE_VIEWPORT.height / 2);
+    for (let step = 0; step < 80; step += 1) {
+        // oxlint-disable-next-line no-await-in-loop
+        const m = await measure(page, WHEEL_PAGE);
+        const delta = Math.round(m.pageTop + m.pageHeight * WHEEL_FRACTION - m.scrollTop);
+        if (Math.abs(delta) <= 2) {
+            return;
+        }
+        // oxlint-disable-next-line no-await-in-loop
+        await page.mouse.wheel(0, Math.max(-300, Math.min(300, delta)));
+        // oxlint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(120);
+    }
+};
+
+/**
+ * Direct load of chapter 3 (lastPageRead 0), wheel into page 3, then F5 with `routeState` in the history entry: the
+ * state an in-app open leaves there (chapter list, Continue, the reader's own chapter navigation), which the browser
+ * keeps across a reload. After the reload the reader must sit on the saved spot (within TOLERANCE_PX), stay there, and
+ * keep the saved offset until the user scrolls again.
+ */
+const runWheelReloadScenario = async (browser, name, { routeState, clearOffsetBeforeReload = false }) => {
+    if (!isSelected(name)) {
+        return;
+    }
+    const server = createLiveServer();
+    const context = await browser.newContext({ viewport: LIVE_VIEWPORT });
+    await routeMockSuwayomi(context, server, { images: livePageImages, imageDelayMs: () => 30 });
+    const page = await context.newPage();
+    page.on('pageerror', (error) => console.log(`[${name}] pageerror:`, error.message));
+
+    await page.goto(`${ORIGIN}/manga/${MANGA_ID}/chapter/${LIVE_SOURCE_ORDER}`);
+    await waitForPageImage(page, WHEEL_PAGE);
+    await page.waitForTimeout(1000);
+    await wheelIntoPage(page);
+    // The offset save and upstream's lastPageRead write (debounced) land.
+    await page.waitForTimeout(2500);
+
+    const saved = await readStoredOffset(page);
+    const serverPage = server.chapters.get(LIVE_CHAPTER_ID).lastPageRead;
+    check(`[${name}] wheel saved an offset inside page ${WHEEL_PAGE}`, !!saved && saved[0] === WHEEL_PAGE, {
+        saved,
+        serverLastPageRead: serverPage,
+    });
+    if (!saved) {
+        await context.close();
+        return;
+    }
+
+    if (routeState) {
+        await page.evaluate((usr) => window.history.replaceState({ ...window.history.state, usr }, ''), routeState);
+    }
+    if (clearOffsetBeforeReload) {
+        await page.evaluate(() => localStorage.removeItem('tsuji_readerPageOffsets'));
+    }
+    const writesBeforeReload = server.chapterWrites.length;
+    const [targetPage, targetFraction] = clearOffsetBeforeReload ? [serverPage, 0] : saved;
+
+    await page.reload();
+    await waitForPageImage(page, targetPage);
+
+    const checkSpot = async (label) => {
+        const m = await measure(page, targetPage);
+        const expected = m ? Math.round(m.pageTop + m.pageHeight * targetFraction) : null;
+        check(
+            `[${name}] ${label}: scrollTop within ${TOLERANCE_PX} px of page ${targetPage} + ${targetFraction}`,
+            !!m && m.pageHeight > 100 && Math.abs(m.scrollTop - expected) <= TOLERANCE_PX,
+            { ...m, expected },
+        );
+    };
+    await page.waitForTimeout(1000);
+    await checkSpot('after F5');
+    await page.waitForTimeout(3000);
+    await checkSpot('4 s after F5');
+
+    if (!clearOffsetBeforeReload) {
+        const kept = await readStoredOffset(page);
+        check(`[${name}] saved offset kept through the reload`, JSON.stringify(kept) === JSON.stringify(saved), {
+            saved,
+            kept,
+        });
+    }
+    // F5 again without touching anything: still a reload of the chapter being read.
+    await page.reload();
+    await waitForPageImage(page, targetPage);
+    await page.waitForTimeout(1000);
+    await checkSpot('second F5 without scrolling');
+
+    const lowerWrites = server.chapterWrites
+        .slice(writesBeforeReload)
+        .filter((write) => write.ids.map(Number).includes(LIVE_CHAPTER_ID) && write.lastPageRead < targetPage);
+    check(`[${name}] no lastPageRead below ${targetPage} written after F5`, lowerWrites.length === 0, { lowerWrites });
+
+    // The user reads on: the saver follows again.
+    await page.mouse.move(LIVE_VIEWPORT.width / 2, LIVE_VIEWPORT.height / 2);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(1000);
+    const moved = await readStoredOffset(page);
+    check(`[${name}] offset saved again after the user scrolls`, JSON.stringify(moved) !== JSON.stringify(saved), {
+        saved,
+        moved,
+    });
+
+    await context.close();
+};
+
 const run = async () => {
     const browser = await launch();
+
+    // Read with the wheel, then F5: the owner's live repro. The history entry keeps the route state of the in-app open.
+    await runWheelReloadScenario(browser, 'wheel then F5, opened in-app with START', {
+        routeState: ROUTE_STATE_START,
+    });
+    await runWheelReloadScenario(browser, 'wheel then F5, opened in-app with LAST_READ', {
+        routeState: ROUTE_STATE_LAST_READ,
+    });
+    await runWheelReloadScenario(browser, 'wheel then F5, typed URL (no route state)', { routeState: null });
+    await runWheelReloadScenario(browser, 'wheel then F5, no saved offset: page top of lastPageRead', {
+        routeState: ROUTE_STATE_START,
+        clearOffsetBeforeReload: true,
+    });
 
     // Slow network, pages in order: everything around the target arrives after the first scroll.
     await runScenario(browser, 'slow images', {
@@ -325,9 +528,9 @@ const run = async () => {
         serverOptions: { genre: ['Manhwa'], globalMeta: {} },
     });
 
-    // The target image arrives after the pin's 8 s limit: the offset still has to apply once it has its height.
-    await runScenario(browser, 'target image after the 8 s limit', {
-        imageDelayMs: (index) => (index === LAST_PAGE_READ ? 9500 : 0),
+    // The target image arrives after the pin's 10 s limit: the offset still has to apply once it has its height.
+    await runScenario(browser, 'target image after the 10 s limit', {
+        imageDelayMs: (index) => (index === LAST_PAGE_READ ? 11_000 : 0),
         viewport: { width: 1280, height: 957 },
     });
     // A click that doesn't scroll (focus, opening the reader menu) before the target image arrives.

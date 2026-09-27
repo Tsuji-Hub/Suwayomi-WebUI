@@ -13,19 +13,23 @@ import { clearResumeRestore, markResumeUserMoved, setResumeRestore } from '@/fea
  *
  * Upstream scrolls to lastPageRead once, while the pages above it still have no height (their images aren't loaded),
  * so the reader lands short and the next scroll saves a lower page. The pin keeps the target page (plus the saved
- * offset inside it) anchored to the top: every size change of the content re-anchors it, until the user scrolls,
- * swipes, clicks or presses a key, or RESUME_PIN_MAX_MS pass. Driven by ResizeObserver, no timers.
+ * offset inside it) anchored to the top: every size change of the content (ResizeObserver), image load and foreign
+ * scroll re-anchors it, until the layout has been stable for RESUME_PIN_STABLE_MS with the target loaded, the user
+ * scrolls, swipes, clicks or presses a key, or RESUME_PIN_MAX_MS pass.
  *
  * The in-page offset needs the target's real height, so it only applies once the target image is loaded; until
- * then the pin holds the page top. If the pin ends first (8 s limit, a click that doesn't scroll), the offset is
+ * then the pin holds the page top. If the pin ends first (time limit, a click that doesn't scroll), the offset is
  * still applied once when the target loads, as long as the reader still sits at that page top.
  */
-export const RESUME_PIN_MAX_MS = 8000;
+export const RESUME_PIN_MAX_MS = 10_000;
+
+/** Quiet time (no resize, load or foreign scroll) after which a pin whose target has loaded is done. */
+export const RESUME_PIN_STABLE_MS = 500;
 
 /** Anything that means "the user is moving now": the pin lets go on the first one. */
 export const USER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 
-export type ResumePinEndReason = 'user' | 'deadline' | 'stopped';
+export type ResumePinEndReason = 'user' | 'settled' | 'deadline' | 'stopped';
 
 export type ResumePinLayout = {
     /** Top of the target page in scroll coordinates, null while it isn't rendered. */
@@ -57,6 +61,11 @@ export class ResumePin {
     /** The saved offset is still to be applied (the target hasn't loaded yet). */
     get isOffsetPending(): boolean {
         return !this.isOffsetSettled && this.endReason !== 'stopped';
+    }
+
+    /** The target shows its real image, so its height (and the offset inside it) is final. */
+    get isTargetLoaded(): boolean {
+        return this.layout.isTargetLoaded();
     }
 
     get isActive(): boolean {
@@ -141,6 +150,8 @@ export type ResumePinDeps = {
     watchScrollAndLoads: ((element: Element, callback: () => void) => () => void) | null;
     intentTarget: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
     now: () => number;
+    /** Runs `callback` after `ms`; returns the cancel function. */
+    setTimer: (callback: () => void, ms: number) => () => void;
 };
 
 const browserDeps = (): ResumePinDeps => ({
@@ -160,6 +171,10 @@ const browserDeps = (): ResumePinDeps => ({
     },
     intentTarget: window,
     now: () => performance.now(),
+    setTimer: (callback, ms) => {
+        const id = window.setTimeout(callback, ms);
+        return () => window.clearTimeout(id);
+    },
 });
 
 const isImageLoaded = (element: HTMLElement): boolean =>
@@ -219,6 +234,8 @@ export const startResumePin = (
     const observed = new Set<Element>();
     let stopWatchingChildren: (() => void) | null = null;
     let stopWatchingScrollAndLoads: (() => void) | null = null;
+    let cancelStableTimer: (() => void) | null = null;
+    let cancelDeadline: (() => void) | null = null;
     let isObserving = true;
 
     const resizeObserver = deps.createResizeObserver(() => onLayoutChange());
@@ -229,6 +246,8 @@ export const startResumePin = (
             resizeObserver.disconnect();
             stopWatchingChildren?.();
             stopWatchingScrollAndLoads?.();
+            cancelStableTimer?.();
+            cancelDeadline?.();
         }
     }
 
@@ -243,18 +262,42 @@ export const startResumePin = (
             });
     }
 
+    // Pinned with the target loaded (offset applied): done once nothing has moved for RESUME_PIN_STABLE_MS.
+    function restartStableTimer() {
+        cancelStableTimer?.();
+        cancelStableTimer =
+            pin.isOffsetPending || !pin.isTargetLoaded
+                ? null
+                : deps.setTimer(() => {
+                      pin.end('settled');
+                      onLayoutChange();
+                  }, RESUME_PIN_STABLE_MS);
+    }
+
     // While pinned: re-anchor. After the pin: only wait for the target's real height to apply the offset once.
     function onLayoutChange() {
         if (!isObserving) {
             return;
         }
-        const isDone = pin.isActive ? !pin.anchor() : pin.settleOffset();
+        const wasActive = pin.isActive;
+        const isDone = wasActive ? !pin.anchor() : pin.settleOffset();
         if (isDone) {
             disconnectObservers();
             return;
         }
+        if (wasActive) {
+            restartStableTimer();
+        } else {
+            cancelStableTimer?.();
+            cancelStableTimer = null;
+        }
         observeAll();
     }
+
+    cancelDeadline = deps.setTimer(() => {
+        pin.end('deadline');
+        onLayoutChange();
+    }, RESUME_PIN_MAX_MS);
 
     function removeIntentListeners() {
         USER_INTENT_EVENTS.forEach((type) =>
@@ -278,7 +321,7 @@ export const startResumePin = (
 
     // ResizeObserver also reports each element once when it starts observing it, which re-anchors after layout.
     observeAll();
-    pin.anchor();
+    onLayoutChange();
 
     return {
         pin,

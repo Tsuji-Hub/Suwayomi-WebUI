@@ -8,7 +8,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { ReaderResumeMode } from '@/features/reader/Reader.types.ts';
-import { getTsujiRouteResumeMode } from '@/features/tsuji/reader/routeResumeMode.ts';
+import {
+    getTsujiRouteResumeMode,
+    isReloadWhileReading,
+    markTsujiReading,
+    readReadingMarker,
+} from '@/features/tsuji/reader/routeResumeMode.ts';
 
 const LAST_PAGE = 9;
 const chapter = (overrides: Partial<{ isRead: boolean; lastPageRead: number }> = {}) => ({
@@ -60,4 +65,61 @@ describe('route resume mode (hard reload / direct URL)', () => {
 
     it('waits for the chapter: no initial chapter yet means the upstream default', () =>
         expect(getTsujiRouteResumeMode(undefined, undefined, ReaderResumeMode.START)).toBe(ReaderResumeMode.START));
+});
+
+describe('reload while reading (F5 keeps the route state of the history entry)', () => {
+    const PAGE_LOAD = 'load-2';
+    const PATH = '/manga/450/chapter/3';
+    const reload = (overrides: Partial<Parameters<typeof isReloadWhileReading>[0]> = {}) =>
+        isReloadWhileReading({
+            marker: { chapterId: 52950, pageLoadId: 'load-1' },
+            chapterId: 52950,
+            pageLoadId: PAGE_LOAD,
+            pageLoadPath: PATH,
+            currentPath: PATH,
+            ...overrides,
+        });
+
+    it('resumes at lastPageRead whatever the route state says', () => {
+        [ReaderResumeMode.START, ReaderResumeMode.END, undefined].forEach((routeMode) =>
+            expect(getTsujiRouteResumeMode(routeMode, chapter({ isRead: true }), ReaderResumeMode.START, true)).toBe(
+                ReaderResumeMode.LAST_READ,
+            ),
+        );
+    });
+
+    it('is a reload of this chapter when the tab was reading it before this page load, which started here', () =>
+        expect(reload()).toBe(true));
+
+    it('is not when the marker is from this page load (opened again in-app, or the reload was already used)', () =>
+        expect(reload({ marker: { chapterId: 52950, pageLoadId: PAGE_LOAD } })).toBe(false));
+
+    it('is not for another chapter, without a marker, or when the page load started elsewhere', () => {
+        expect(reload({ chapterId: 52951 })).toBe(false);
+        expect(reload({ marker: null })).toBe(false);
+        expect(reload({ pageLoadPath: '/library' })).toBe(false);
+        expect(reload({ pageLoadPath: null })).toBe(false);
+    });
+
+    it('writes the marker once per chapter and reads it back', () => {
+        const data = new Map<string, string>();
+        const storage = {
+            getItem: (key: string) => data.get(key) ?? null,
+            setItem: (key: string, value: string) => {
+                data.set(key, value);
+            },
+        };
+        markTsujiReading(7, storage, 'load-1');
+        const first = readReadingMarker(storage);
+        markTsujiReading(7, storage, 'load-1');
+
+        expect(first).toEqual({ chapterId: 7, pageLoadId: 'load-1' });
+        expect(readReadingMarker(storage)).toEqual(first);
+        markTsujiReading(8, storage, 'load-1');
+        expect(readReadingMarker(storage)).toEqual({ chapterId: 8, pageLoadId: 'load-1' });
+        storage.setItem('tsuji_readerReading', JSON.stringify({ chapterId: 8, at: 1 })); // earlier draft format
+        expect(readReadingMarker(storage)).toBeNull();
+        storage.setItem('tsuji_readerReading', '{oops');
+        expect(readReadingMarker(storage)).toBeNull();
+    });
 });

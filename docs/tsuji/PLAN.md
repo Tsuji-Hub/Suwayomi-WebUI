@@ -67,11 +67,50 @@ image is 0 px and hidden); if the pin ended first (8 s limit, or a click that do
   (manhwa, reading mode known late); target image after the 8 s limit; a non-scrolling click before the target
   loads. The last two fail on r3386 with exactly the live result (scrollTop 4785 = page top) and pass on r3387.
 
+**r3387 failed live** (2026-09-26, Cowork in Chrome, the owner in Firefox; manga 450, chapter 52952, 60 pages): a
+real wheel scroll to 4957 saved [3, 0.2875] and lastPageRead 3; F5 left the reader at scrollTop 957 (page 0 top) and
+the offset was then overwritten with [0, 0]. Reproduced with the r3387 build against the live server (all writes
+blocked): a fresh load or a reload without route state resumes correctly; a reload of a tab whose history entry
+holds `resumeMode: START` fails exactly like the report. Cause: an in-app open puts the resume mode in the history
+entry's route state (START for the reader's own chapter navigation, which also replaces the URL), and the browser
+keeps history.state across F5. Upstream then scrolls to page 0, the pin (LAST_READ only) never starts, and the saver
+saves upstream's own scroll as [0, 0].
+
+- **Reload while reading** (`routeResumeMode.ts`): once the user reads, the saver writes a per-tab marker
+  (sessionStorage `tsuji_readerReading`: chapter id + a random id of the page load; not a time, since Date.now()
+  and performance.timeOrigin drift apart across system sleep). A page load that started on the reader URL now open,
+  with a marker for the same chapter from an earlier page load, resumes at lastPageRead whatever the route state
+  says. The override is used once (the chapter is then marked for this page load, so a second F5 works too), and a
+  later in-app open in the same page load follows its route state as before.
+- **No saves before the user moves** (`useTsujiReaderResume.ts`): the offset is only saved after a wheel, touch,
+  pointer or key event since the initial chapter opened (tracked from the ReaderViewer hook, reset when an in-app
+  open changes the initial chapter); the reader's own scrolls (initial scroll, restore, layout shifts) never
+  overwrite the saved spot.
+- **Pin after upstream's scroll** (`useTsujiReaderResume.ts`): starts once upstream's `pageToScrollToIndex` has been
+  consumed, then re-anchors on ResizeObserver, image load (capture), scroll and child-list changes. It ends on user
+  input, after 500 ms without layout change once the target image has loaded, or at 10 s (a timer now, was a lazy
+  8 s check). Anchor = target top in scroll coordinates + offset x target height (measured with bounding rects
+  relative to the scroll element, the same quantity as offsetTop + frac x offsetHeight when the scroller is the
+  offset parent). No saved offset: the lastPageRead page top. A saved offset on page 0 is restored too.
+- **e2e** (`reader-resume.e2e.mjs`, now 9 scenarios / 62 checks): four new scenarios shaped like the live repro
+  (chapter 3 of 5, 60 pages of two heights, 957 px viewport, reader width 43 %, stretched pages): real wheel scroll
+  into page 3, then F5 with route state START / LAST_READ / none, and with no saved offset. Each checks scrollTop
+  within 50 px of the saved spot 1 s and 4 s after F5 and after a second F5, the offset kept, no lower lastPageRead,
+  and saves resuming after the next wheel. On r3387 the START and no-offset scenarios fail exactly like live (957,
+  [0, 0]); all pass with the fix. Also checked against the live server (writes blocked, server state unchanged):
+  START state, wheel to 4250, F5 -> 4250, offset kept.
+- Review (independent agent): fixed the two-clock comparison (now a page-load id), the override applying again to a
+  later in-app open, and the input flag surviving an in-app chapter switch. Not changed: "settled can let go before
+  pages above load" - upstream never loads pages above the current one in continuous modes
+  (`ReaderPager.utils.tsx`, `getPageIndexesToLoad`), so nothing above the target loads until the user scrolls up.
+- Not covered: paged reading modes still follow the route state on F5 (the marker is written by the vertical saver).
+
 ## Acceptance (owner, on the server)
 
 1. Webtoon chapter, read to the middle of page 5+, reload: lands on the same spot, not the top.
 2. Scroll right after reload: the reader doesn't pull back.
 3. Server lastPageRead after the reload is not lower than before it.
+4. Same after opening the chapter from inside the reader (chapter picker / next chapter), reading, then F5.
 
 # Brief #2.1: "Hide what I've started" + sharded marks
 

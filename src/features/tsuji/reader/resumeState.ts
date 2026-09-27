@@ -22,6 +22,16 @@ type ResumeRestore = {
 
 let restore: ResumeRestore | null = null;
 
+/** The user scrolled, swiped, clicked or pressed a key since the reader opened (reset on every reader mount). */
+let hasReaderUserInput = false;
+
+export const setTsujiReaderUserInput = (value: boolean) => {
+    hasReaderUserInput = value;
+};
+
+/** Scroll positions before the first user input are the reader's own (initial scroll, restore, layout), not reading. */
+export const hasTsujiReaderUserInput = (): boolean => hasReaderUserInput;
+
 export const setResumeRestore = (next: ResumeRestore) => {
     restore = next;
 };
