@@ -34,6 +34,7 @@ import type { LandingSource } from '@/features/tsuji/discover/landing.ts';
 import { pickLandingSource } from '@/features/tsuji/discover/landing.ts';
 import { useDiscoverFeed, useTagCatalog } from '@/features/tsuji/discover/useDiscoverFeed.ts';
 import { TagPicker } from '@/features/tsuji/discover/components/TagPicker.tsx';
+import { ForYouTab } from '@/features/tsuji/forYou/components/ForYouTab.tsx';
 import type { RecFilters } from '@/features/tsuji/recs/filters.ts';
 import { passesFilters } from '@/features/tsuji/recs/filters.ts';
 import { rerankByIncludeTags } from '@/features/tsuji/recs/rank.ts';
@@ -335,13 +336,7 @@ export const Discover = () => {
                     </IconButton>
                 </CustomTooltip>
             </Stack>
-            {tab === 'discover' ? (
-                <DiscoverBrowse />
-            ) : (
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    {t`For You arrives in a later update.`}
-                </Typography>
-            )}
+            {tab === 'discover' ? <DiscoverBrowse /> : <ForYouTab />}
             <TsujiSettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </Stack>
     );

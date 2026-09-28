@@ -14,6 +14,58 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #3: For You (branch `feat/for-you`)
+
+Discover's second tab. No spec beyond "taste profile + weekly rotation"; decisions below are Tsuji's (Makimono has
+no For You ranker to port), the ranking reuses Makimono's shipped RecommendationRanker constants (`rank.ts`).
+
+## Decisions
+
+1. **Taste profile** (`forYou/tasteProfile.ts`): the configured AniList user's list (CURRENT, COMPLETED, REPEATING,
+   PAUSED, DROPPED; Planned says nothing) with score, progress, last update and each title's tags, one request,
+   cached a day. Entry weight = status (Rereading 1.2, Completed 1, Reading 0.8, Paused 0.3, Dropped -0.6) x progress
+   (Reading/Paused ramp to full at 20 chapters) x score (80 = 1, 50 = 0, 95 = 1.5, 35 = -0.5; unscored = 1) x recency
+   (half-life 180 days, floor 0.5). Profile = the 30 strongest liked content tags (no spoilers, no Technical);
+   seed pool = the 30 strongest liked titles.
+2. **Weekly rotation** (`forYou/weeklyRotation.ts`): everything that varies is drawn from a PRNG seeded with
+   user + ISO week (local time, Monday start), so For You is stable within a week, identical on every device, and new
+   every Monday: 4 seeds sampled by weight from the pool, 3 core tags (strongest) + 3 rotating tags (sampled from
+   the next 12).
+3. **Candidates** (`forYou/ForYouService.ts`): 3 AniList requests per week: the list, all 4 seeds'
+   recommendations in one aliased request (20 edges each; if AniList rejects it, one request per seed with Similar's
+   seed query), taste recall (40 popular titles with the core tags + 40 best-scored with the rotating tags). Edge
+   signal = seeds' ratings summed, each scaled by how much the user liked that seed. Titles on the list and the seeds
+   are never recommended. Cached until next Monday (1 h if half of AniList's answer is missing).
+4. **Ranking** (`forYou/forYouCandidates.ts`): `rankCandidates` with the taste profile as the seed tags (edge 0.5 /
+   tag cosine 0.3 / Bayesian quality 0.2, agreement blend, MMR), then this browser's top 12 of last week x 0.85
+   (localStorage `tsuji_forYouShown`, 3 weeks), so the head changes weekly even when seeds overlap.
+5. **UI** (`forYou/components/ForYouTab.tsx`): caption (week, list size, "New picks every Monday"), taste chips,
+   Refresh (refetches list + week, same seeds), the shared filter bar (Hide what's on my AniList, Hide what I've
+   started, types, statuses, ...; hidden gems and tag filters are Similar-only), Top picks (24), then "Because you
+   read {seed}" rows (12 each, by that seed's rating). Cards, marks, badges and the preview are Discover's.
+6. **No upstream change**: the tab replaces the stub inside `Discover.tsx` (a tsuji file).
+
+## Verification
+
+- Unit: taste weights, profile tags / seed pool, list parsing, ISO weeks (year boundary), per-week determinism and
+  rotation over 52 weeks, tag picks, merge / exclusion / edge sums, ranking + last-week demotion, seed rows, history,
+  service (3 requests, week cache TTL to Monday, partial answers, per-seed fallback, empty list, refresh).
+- Browser (`tools/scripts/tsuji/for-you.e2e.mjs`, in `pnpm test:tsuji:e2e`): production build, mocked Suwayomi and
+  a fixture AniList; the tab renders top picks + 4 seed rows from 3 requests, the shared title leads, listed titles
+  never appear, the Planned badge shows, a reload is served from the week cache, Refresh refetches, no page errors.
+  First run caught untranslated Lingui ids in a build made before `i18n:extract` (the commit hook runs it).
+- AniList itself is not reachable from the coding container (network allowlist), so the three new queries were not
+  run against the real API here: Cowork's browser check is their first live run.
+- Harness fix: `reader-resume.e2e.mjs` waited 20 s for the target image in the "after the 10 s limit" scenario,
+  which needs ~22.5 s on a slow machine (fails the same way on the shipped r3389 build); now 60 s.
+
+## Acceptance (owner / Cowork, real browser)
+
+1. Discover > For You shows the week's caption, taste chips that look like ejustice's taste, Top picks and 4
+   "Because you read ..." rows within a few seconds (3 AniList calls; later visits this week: none).
+2. Nothing on the AniList list as Reading / Completed / Dropped / Paused shows; Mark as read hides a card.
+3. Same picks on another device this week; Refresh keeps the same seeds.
+
 # Fix: webtoon resume lands short (branch `feat/reader-resume`)
 
 Upstream bug, reproduced on the server: in continuous vertical / webtoon mode a reload resumes near the top

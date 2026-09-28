@@ -351,6 +351,10 @@ msgstr "{ttl, plural, one {Delete backups that are older than # day} other {Dele
 msgid "{ttl, plural, one {Delete log files that are older than # day} other {Delete log files that are older than # days}}"
 msgstr "{ttl, plural, one {Delete log files that are older than # day} other {Delete log files that are older than # days}}"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "{userName}'s AniList list has no manga being read or finished. For You builds on that list; the username is in Discover settings."
+msgstr "{userName}'s AniList list has no manga being read or finished. For You builds on that list; the username is in Discover settings."
+
 #: src/features/reader/settings/components/DefaultSettingFootnote.tsx
 msgid "*: Active setting"
 msgstr "*: Active setting"
@@ -667,6 +671,11 @@ msgstr "Badges"
 #: src/features/settings/Settings.constants.ts
 msgid "Basic Authentication"
 msgstr "Basic Authentication"
+
+#. placeholder {0}: seed.title
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Because you read {0}"
+msgstr "Because you read {0}"
 
 #: src/features/reader/settings/ReaderSettings.constants.tsx
 msgid "Behaviour"
@@ -1300,6 +1309,10 @@ msgstr "Could not update WebUI"
 #: src/features/backup/screens/Backup.tsx
 msgid "Could not validate backup"
 msgstr "Could not validate backup"
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Couldn't build your picks: AniList didn't answer in time."
+msgstr "Couldn't build your picks: AniList didn't answer in time."
 
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Couldn't clear the marks. Check the connection to the server."
@@ -2017,10 +2030,6 @@ msgstr "Flavor"
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "For You"
 msgstr "For You"
-
-#: src/features/tsuji/discover/screens/Discover.tsx
-msgid "For You arrives in a later update."
-msgstr "For You arrives in a later update."
 
 #: src/features/theme/Themes.ts
 msgid "Forest Dew"
@@ -2931,6 +2940,10 @@ msgstr "No titles match these tags and filters."
 msgid "None"
 msgstr "None"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Not enough to go on yet: {userName}'s AniList list has no titles liked enough to build picks from. Rate or finish a few, then refresh."
+msgstr "Not enough to go on yet: {userName}'s AniList list has no titles liked enough to build picks from. Rate or finish a few, then refresh."
+
 #: src/features/tsuji/recs/components/RecPreviewDialog.tsx
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Not interested"
@@ -2944,6 +2957,7 @@ msgstr "Not yet published"
 msgid "Not yet released"
 msgstr "Not yet released"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Nothing left after filters."
 msgstr "Nothing left after filters."
@@ -3117,6 +3131,10 @@ msgstr "Page gap"
 msgid "Parallel source requests"
 msgstr "Parallel source requests"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Part of AniList's answer is missing this time, so the picks are thinner. Refresh to try again."
+msgstr "Part of AniList's answer is missing this time, so the picks are thinner. Refresh to try again."
+
 #: src/base/components/inputs/PasswordTextField.tsx
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Password"
@@ -3137,6 +3155,15 @@ msgstr "Pending…"
 #: src/features/settings/components/koreaderSync/KoreaderSyncSettings.tsx
 msgid "Percentage Tolerance"
 msgstr "Percentage Tolerance"
+
+#. placeholder {0}: data.entryCount
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Picks for the week of {weekStartLabel}, from {0, plural, one {# title} other {# titles}} on {userName}'s AniList. New picks every Monday."
+msgstr "Picks for the week of {weekStartLabel}, from {0, plural, one {# title} other {# titles}} on {userName}'s AniList. New picks every Monday."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Picks from {userName}'s AniList. New picks every Monday."
+msgstr "Picks from {userName}'s AniList. New picks every Monday."
 
 #: src/features/browse/sources/components/SourceCard.tsx
 msgid "Pin source"
@@ -3294,6 +3321,7 @@ msgid "Red"
 msgstr "Red"
 
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Refresh"
@@ -3401,6 +3429,7 @@ msgstr "Resume"
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
 #: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
 #: src/features/tsuji/seen/components/MyListNotice.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Retry"
@@ -4213,6 +4242,10 @@ msgstr "Too many marks to store: bucket {bucket} would be {length} characters (l
 msgid "Top"
 msgstr "Top"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Top picks"
+msgstr "Top picks"
+
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Top rated"
 msgstr "Top rated"
@@ -4658,3 +4691,7 @@ msgstr "Your library is empty"
 #: src/features/settings/Settings.constants.ts
 msgid "Your library will be accessible. Use this only on private networks or when otherwise securing access."
 msgstr "Your library will be accessible. Use this only on private networks or when otherwise securing access."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Your taste"
+msgstr "Your taste"

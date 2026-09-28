@@ -259,7 +259,8 @@ const runScenario = async (browser, name, { imageDelayMs, viewport, serverOption
                 return !!image && image.complete && image.naturalHeight > 0 && image.getBoundingClientRect().height > 0;
             },
             LAST_PAGE_READ,
-            { timeout: 20_000, polling: 100 },
+            // Generous: the "after the 10 s limit" scenario needs ~22 s on a slow machine (image delay + boot + retry).
+            { timeout: 60_000, polling: 100 },
         );
 
     const verifyResume = async (label, { beforeTargetLoads } = {}) => {

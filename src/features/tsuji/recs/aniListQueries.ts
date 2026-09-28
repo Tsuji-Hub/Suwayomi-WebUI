@@ -13,7 +13,7 @@ import type { RecMedia, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
  * Every media list selects MEDIA_FIELDS so Similar and Discover share one card shape (RecMedia).
  */
 
-const MEDIA_FIELDS = `
+export const MEDIA_FIELDS = `
     fragment TsujiMedia on Media {
         id
         idMal
