@@ -4,25 +4,26 @@ Everything a new session needs to continue this fork. The fork adds a small set 
 the owner's Makimono Android fork) to Suwayomi-WebUI and is served by the owner's Suwayomi-Server as the **Custom**
 WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
-## State (2026-09-26)
+## State (2026-09-27)
 
-| Branch                       | Commit             | What                                                                                |
-| ---------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
-| `custom`                     | `ff5d040a` (r3387) | Briefs #1, #2, #2.1 + webtoon resume. Deployed; F5 after an in-app open fails live. |
-| `feat/reader-resume-restore` | r3389              | F5 resume whatever the route state; offset saved on any scroll (r3388 never saved). |
-| `master`                     | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                      |
+| Branch         | Commit             | What                                                                       |
+| -------------- | ------------------ | -------------------------------------------------------------------------- |
+| `custom`       | `8280aafa` (r3389) | Briefs #1, #2, #2.1 + reader resume. Deployed and verified live by Cowork. |
+| `feat/for-you` | r3390+             | Brief #3, For You tab. Prerelease for Cowork's browser check before ship.  |
+| `master`       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.             |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
 
 ## Open items
 
-1. Shipped 2026-09-25: briefs #2 + #2.1 on `custom` (r3383). Release `r3383-eb23a8e3`: its zip was replaced by a
-   rebuild when `custom` was pushed (identical files, new zip timestamps), so the sha256 in its notes (`b4072398...`)
-   is stale; the `.sha256` asset (`d6fec84e...`) matches the zip. Fixed in the workflow since (see CI and releases).
-2. The server runs the r3383 build (deployed by Cowork from the prerelease, checked by the owner). Later deploys:
-   see Deploy below.
-3. Brief #3: **For You** tab (taste profile + weekly rotation). A stub tab exists in Discover.
+1. **Reader resume: done** (r3389, verified live 2026-09-27: offset [5, 0.557], F5 and double F5 land within ~4 px
+   on the same page, no pull-back, lastPageRead only rises). Webtoon / continuous vertical only: paged modes resume
+   on the lastPageRead page but follow the route state on F5 and have no in-page offset. r3388/r3389 came from a
+   second thread; this thread owns the fork again. History: PLAN.md, "Fix: webtoon resume lands short".
+2. The server runs r3389 (`Suwayomi-WebUI-r3389.zip`, sha256 `9cfa0297...`). Older note: release `r3383-eb23a8e3`
+   has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
+3. Brief #3: **For You** tab, built on `feat/for-you` (PLAN.md, "Brief #3"); waiting for Cowork's browser check.
 4. **Blocker before any HTTPS / secure-context setup:** Firefox with a secure-context allowlist for the server
    registers the PWA service worker, and upstream's `image-cache-manga-thumbnails` CacheFirst route then fails
    library covers with `NS_ERROR_INTERCEPTION_FAILED`. Fix or scope the SW image routes (`vite.config.ts`
@@ -85,7 +86,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
-pnpm test:tsuji:e2e        # after pnpm build: Chrome + mocked Suwayomi, webtoon resume / offset saving (E2E_BROWSERS=chrome,firefox adds Firefox)
+pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You (E2E_BROWSERS=chrome,firefox adds Firefox)
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only
