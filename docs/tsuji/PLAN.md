@@ -14,6 +14,60 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #4: duplicate chapters (branch `feat/duplicate-chapters`)
+
+One source entry per scanlator for the same chapter (246 of Ethan's library series). Copies = chapters of the same
+manga with the same chapterNumber >= 0; -1 (unparsed number) chapters are never copies of each other.
+
+## What upstream already did, and what changed
+
+Upstream's reader setting "Skip duplicate chapters" (default on) already (a) dropped copies from the reader's
+next/previous list, preferring the scanlator the reader was opened with, else the lowest source order, and (b) sent
+reader progress (lastPageRead, isRead at the end) to every copy. Gaps against the brief, now fixed
+(`src/features/tsuji/duplicates/`):
+
+1. **-1 chapters**: upstream grouped every -1 chapter as copies of one another, so reading one extra marked all
+   extras read (and the delete-while-reading option would delete them all). Now each -1 chapter stands alone
+   (`tsujiAddDuplicates`, `tsujiRemoveDuplicates` at upstream's three call sites).
+2. **Manual marks** (chapter list, menus, "mark previous as read": everything through `Chapters.markAsRead`) now
+   also mark the unread copies of the same numbers read: one fresh read of those mangas' chapters
+   (`TSUJI_CHAPTER_COPIES`), then one update. Unmarking never touches copies. If the read fails, the chosen chapters
+   are still marked.
+3. **Resume** (manga screen FAB): the first chapter number with no read copy (server `firstUnreadChapter` would
+   resume at the unread copy of a number already read on another scanlator). Copy choice: the scanlator last
+   finished in the reader (manga meta `tsuji_readScanlator`, written by the reader when a chapter is marked read;
+   needed because copies marked together get the same lastReadAt), else the furthest read chapter's scanlator,
+   else the lowest source order. -1 chapters count alone. Scanlators excluded in the chapter list filter still count
+   as read but are never picked (a number only they have is skipped).
+4. Reader next/previous keeps upstream's reference (the chapter the reader was opened with), so after a detour to
+   another scanlator for a missing number, the next numbers return to the opening scanlator.
+
+Still tied to "Skip duplicate chapters" (upstream's setting, left as the owner set it): the reader's skip and its
+progress-to-copies. Manual marks and Resume apply always. Not changed: the library card's Continue button uses the
+server's `firstUnreadChapter` (cards don't load chapter lists); new reads keep copies in step, so it drifts only on
+titles read before this change.
+
+## Verification
+
+- Unit (`duplicateChapters.test.ts`, 19): sibling marking (copies only, never another number, never -1, already
+  read skipped), upstream-path grouping, reader list (current scanlator, else lowest source order; the current copy
+  kept; -1 kept; a missing number just absent), resume (nothing read, first number without a read copy, a read copy
+  counts, -1 alone, missing scanlator, lastReadAt tie, stored scanlator wins, excluded scanlators, JSON parsing, list
+  not loaded yet).
+- Browser (`tools/scripts/tsuji/duplicates.e2e.mjs`, in `test:tsuji:e2e`): read 1 on A to the end in webtoon mode ->
+  the reader moves to 2 on A, 1 on B is read on the server, nothing else; Resume -> 2 on A; `tsuji_readScanlator` =
+  "A"; manual "Mark as read" on 3 on A -> 3 on B read, nothing else; reading a -1 chapter leaves the other -1
+  chapter unread. 9 checks pass; on the r3391 build 4 fail (Resume, stored scanlator, manual copy, -1 chapters): the
+  reader skip and copy marking already passed there (upstream).
+- Mock fixes (`mockSuwayomi.mjs`): chapter / manga `meta` are lists on v2.3.2243, manga meta stored, `chapters`
+  honours `filter.id.in`, a chapter's manga lists the chapters.
+
+## Acceptance (Cowork, live)
+
+1. A series with two scanlators: finish chapter N on A in the reader -> next opens N+1 on A; N on B shows read.
+2. Chapter list: mark a chapter read -> its other-scanlator copy shows read; mark it unread -> the copy stays read.
+3. Manga page Resume: first number with no read copy, on the scanlator last read.
+
 # Brief #3: For You (branch `feat/for-you`)
 
 Discover's second tab. No spec beyond "taste profile + weekly rotation"; decisions below are Tsuji's (Makimono has

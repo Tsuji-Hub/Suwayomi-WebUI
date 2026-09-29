@@ -32,6 +32,29 @@ export type TsujiLibraryIndexQuery = {
     };
 };
 
+export type TsujiChapterCopiesQueryVariables = Exact<{
+    ids: Array<number> | number;
+}>;
+
+export type TsujiChapterCopiesQuery = {
+    __typename: 'Query';
+    chapters: {
+        __typename: 'ChapterNodeList';
+        nodes: Array<{
+            __typename: 'ChapterType';
+            id: number;
+            manga: {
+                __typename: 'MangaType';
+                id: number;
+                chapters: {
+                    __typename: 'ChapterNodeList';
+                    nodes: Array<{ __typename: 'ChapterType'; id: number; chapterNumber: number; isRead: boolean }>;
+                };
+            };
+        }>;
+    };
+};
+
 export type CreateBackupMutationVariables = Exact<{
     input: Types.CreateBackupInput;
 }>;

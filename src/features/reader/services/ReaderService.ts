@@ -58,6 +58,7 @@ import type {
     MetadataHolderType,
 } from '@/features/metadata/Metadata.types.ts';
 import type { MangaIdInfo } from '@/features/manga/Manga.types.ts';
+import { getTsujiReaderUpdateChapters } from '@/features/tsuji/duplicates/DuplicateChaptersService.ts';
 
 const DIRECTION_TO_INVERTED: Record<Direction, Direction> = {
     ltr: 'rtl',
@@ -175,9 +176,7 @@ export class ReaderService {
 
                 const update = async () => {
                     const chapterIdsToUpdate = Chapters.getIds(
-                        shouldSkipDupChapters
-                            ? Chapters.addDuplicates([currentChapter], mangaChapters)
-                            : [currentChapter],
+                        getTsujiReaderUpdateChapters(currentChapter, mangaChapters, patch, shouldSkipDupChapters),
                     );
 
                     const chapterIdsToDelete = getChapterIdsToDeleteForChapterUpdate(

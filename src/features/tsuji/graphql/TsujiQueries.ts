@@ -30,3 +30,24 @@ export const TSUJI_LIBRARY_INDEX = gql`
         }
     }
 `;
+
+/** Every chapter of the mangas the given chapters belong to, for marking duplicate copies read. */
+export const TSUJI_CHAPTER_COPIES = gql`
+    query TSUJI_CHAPTER_COPIES($ids: [Int!]!) {
+        chapters(filter: { id: { in: $ids } }) {
+            nodes {
+                id
+                manga {
+                    id
+                    chapters {
+                        nodes {
+                            id
+                            chapterNumber
+                            isRead
+                        }
+                    }
+                }
+            }
+        }
+    }
+`;

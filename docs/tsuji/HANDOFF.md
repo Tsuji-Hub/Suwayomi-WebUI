@@ -4,13 +4,13 @@ Everything a new session needs to continue this fork. The fork adds a small set 
 the owner's Makimono Android fork) to Suwayomi-WebUI and is served by the owner's Suwayomi-Server as the **Custom**
 WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
-## State (2026-09-27)
+## State (2026-09-29)
 
-| Branch         | Commit             | What                                                                       |
-| -------------- | ------------------ | -------------------------------------------------------------------------- |
-| `custom`       | `8280aafa` (r3389) | Briefs #1, #2, #2.1 + reader resume. Deployed and verified live by Cowork. |
-| `feat/for-you` | r3390+             | Brief #3, For You tab. Prerelease for Cowork's browser check before ship.  |
-| `master`       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.             |
+| Branch                    | Commit             | What                                                                                   |
+| ------------------------- | ------------------ | -------------------------------------------------------------------------------------- |
+| `custom`                  | `7a1ea34a` (r3391) | Briefs #1-#3 + reader resume. For You deployed and verified live by Cowork.            |
+| `feat/duplicate-chapters` | r3392+             | Brief #4, duplicate chapters (one entry per scanlator). Prerelease for Cowork's check. |
+| `master`                  | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                         |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
@@ -18,19 +18,21 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 ## Open items
 
 1. **Reader resume: done** (r3389, verified live 2026-09-27: offset [5, 0.557], F5 and double F5 land within ~4 px
-   on the same page, no pull-back, lastPageRead only rises). Webtoon / continuous vertical only: paged modes resume
-   on the lastPageRead page but follow the route state on F5 and have no in-page offset. r3388/r3389 came from a
-   second thread; this thread owns the fork again. History: PLAN.md, "Fix: webtoon resume lands short".
-2. The server runs r3389 (`Suwayomi-WebUI-r3389.zip`, sha256 `9cfa0297...`). Older note: release `r3383-eb23a8e3`
+   on the same page, no pull-back, lastPageRead only rises). Webtoon / continuous vertical only. History: PLAN.md,
+   "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
+2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
+   without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
+3. The server runs r3391 (`Suwayomi-WebUI-r3391.zip`, sha256 `5ffa54cd...`). Older note: release `r3383-eb23a8e3`
    has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
-3. Brief #3: **For You** tab, built on `feat/for-you` (PLAN.md, "Brief #3"); waiting for Cowork's browser check.
-4. **Blocker before any HTTPS / secure-context setup:** Firefox with a secure-context allowlist for the server
-   registers the PWA service worker, and upstream's `image-cache-manga-thumbnails` CacheFirst route then fails
-   library covers with `NS_ERROR_INTERCEPTION_FAILED`. Fix or scope the SW image routes (`vite.config.ts`
-   `runtimeCaching`) first. Not changed so far on purpose.
-5. Later option: write marks to AniList (status/progress) instead of `tsuji_seen`. Needs AniList OAuth in the
+4. Brief #4: **duplicate chapters**, built on `feat/duplicate-chapters` (PLAN.md, "Brief #4"); waiting for Cowork.
+5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
+   the service-worker image cache below. **The SW item is still a blocker before any HTTPS / secure-context
+   setup:** Firefox with a secure-context allowlist for the server registers the PWA service worker, and upstream's
+   `image-cache-manga-thumbnails` CacheFirst route then fails library covers with `NS_ERROR_INTERCEPTION_FAILED`.
+   Fix or scope the SW image routes (`vite.config.ts` `runtimeCaching`) first.
+6. Later option: write marks to AniList (status/progress) instead of `tsuji_seen`. Needs AniList OAuth in the
    browser.
-6. External APIs: Jikan (MAL) returned 504 through 2026-09-24/25 (Similar degrades to AniList-only). AniList runs
+7. External APIs: Jikan (MAL) returned 504 through 2026-09-24/25 (Similar degrades to AniList-only). AniList runs
    in a degraded mode (30 req/min; latency 0.3-10 s; TRENDING_DESC / START_DATE_DESC and `format_not_in` /
    `isAdult` intermittently return empty pages). The client handles all of it; see PLAN.md.
 
@@ -45,7 +47,8 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
   through Lingui, MPL-2.0 header on new files, oxlint + oxfmt clean, `pnpm tsc` clean. Let the husky hook run.
 - Metadata: raw `tsuji_*` keys only (upstream migrations delete unregistered `webUI_*` keys). Global:
   `tsuji_libraryProgressBadge`, `tsuji_readerChapterProgress`, `tsuji_recFilters`, `tsuji_anilistUser`,
-  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga: `tsuji_anilistId`.
+  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga: `tsuji_anilistId`,
+  `tsuji_readScanlator` (JSON scanlator last finished in the reader: duplicate chapters' Resume copy).
   Write through upstream's metadata updater with `isMetadataKey: true`, except the marks shards: they go through
   `writeTsujiRawGlobalMeta` (upstream's chunk cleanup would treat `tsuji_seen_<n>` as chunks of `tsuji_seen`).
 - Global meta values are capped at 4096 chars by the server. Anything that grows with use must be sharded (see
@@ -56,7 +59,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (15 files)
+## Upstream touch list (20 files)
 
 | File                                                                     | Hook                                                                        |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
@@ -75,6 +78,11 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 | `src/features/reader/viewer/ReaderChapterViewer.tsx`                     | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)         |
 | `src/features/reader/services/ReaderControls.ts`                         | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write          |
 | `src/features/reader/viewer/ReaderViewer.tsx`                            | route resume mode via `useTsujiRouteResumeMode` (no state: last read)       |
+| `src/features/reader/services/ReaderService.ts`                          | progress update targets via `getTsujiReaderUpdateChapters` (copies)         |
+| `src/features/reader/hooks/useReaderSetChaptersState.ts`                 | reader chapter list via `tsujiRemoveDuplicates`                             |
+| `src/features/reader/Reader.utils.ts`                                    | delete-while-reading copies via `tsujiAddDuplicates`                        |
+| `src/features/chapter/services/Chapters.ts`                              | `markAsRead` ids via `withTsujiReadCopies` (manual marks reach copies)      |
+| `src/features/chapter/components/ChapterList.tsx`                        | Resume FAB chapter via `getTsujiResumeChapter`                              |
 
 Also changed: `package.json` (vitest + playwright-core devDependencies, `test:tsuji`, `test:tsuji:e2e`,
 `codegen:offline`), `pnpm-lock.yaml`. Added at the
@@ -86,7 +94,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
-pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You (E2E_BROWSERS=chrome,firefox adds Firefox)
+pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You, duplicates (E2E_BROWSERS=chrome,firefox adds Firefox)
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only

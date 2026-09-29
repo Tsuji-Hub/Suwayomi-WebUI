@@ -50,12 +50,29 @@ const connection = (nodes) => ({
 export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {} }) => {
     const schema = buildSchema(readFileSync(new URL('../../../docs/tsuji/schema.graphql', import.meta.url), 'utf8'));
     const meta = new Map(Object.entries(globalMeta));
+    /** Manga meta of the (single) manga, e.g. tsuji_readScanlator. */
+    const mangaMeta = new Map();
+    Object.defineProperty(manga, 'meta', {
+        enumerable: true,
+        get: () =>
+            [...mangaMeta.entries()].map(([key, value]) => ({
+                key,
+                value,
+                mangaId: manga.id,
+                __typename: 'MangaMetaType',
+            })),
+    });
     const chapterById = new Map(chapters.map((chapter) => [chapter.id, chapter]));
     /** Every chapter progress write the app sends: `{ ids, lastPageRead, isRead }`. */
     const chapterWrites = [];
 
     const metaNodes = () => [...meta.entries()].map(([key, value]) => ({ key, value, __typename: 'GlobalMetaType' }));
-    const chapterNode = (chapter) => ({ ...chapter, manga, meta: { nodes: [] } });
+    // The manga as seen from a chapter lists every chapter (plain objects: no manga inside, so no cycle).
+    const chapterNode = (chapter) => ({
+        ...chapter,
+        manga: { ...manga, chapters: connection(chapters.map((each) => ({ ...each }))) },
+        meta: [],
+    });
     const pageUrl = (chapter, index) => `/api/v1/manga/${manga.id}/chapter/${chapter.sourceOrder}/page/${index}`;
 
     const applyChapterPatch = (ids, patch) => {
@@ -95,7 +112,10 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
         'Query.manga': ({ id }) => (Number(id) === manga.id ? manga : null),
         'Query.mangas': () => connection([manga]),
         'Query.chapter': ({ id }) => chapterNode(chapterById.get(Number(id))),
-        'Query.chapters': () => connection(chapters.map(chapterNode)),
+        'Query.chapters': ({ filter }) =>
+            connection(
+                chapters.filter((chapter) => !filter?.id?.in || filter.id.in.includes(chapter.id)).map(chapterNode),
+            ),
         'Query.metas': () => connection(metaNodes()),
         'Query.meta': ({ key }) => (meta.has(key) ? { key, value: meta.get(key) } : null),
         'Mutation.fetchChapterPages': ({ input }) => {
@@ -109,6 +129,20 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
         'Mutation.fetchManga': () => ({ manga }),
         'Mutation.updateChapter': ({ input }) => ({ chapter: applyChapterPatch([input.id], input.patch)[0] }),
         'Mutation.updateChapters': ({ input }) => ({ chapters: applyChapterPatch(input.ids, input.patch) }),
+        'Mutation.setMangaMeta': ({ input }) => {
+            mangaMeta.set(input.meta.key, input.meta.value);
+            return { meta: { ...input.meta, manga } };
+        },
+        'Mutation.setMangaMetas': ({ input }) => {
+            const metas = input.items.flatMap(({ metas: itemMetas }) => itemMetas);
+            metas.forEach(({ key, value }) => mangaMeta.set(key, value));
+            return { mangas: [manga], metas: metas.map((item) => ({ ...item, mangaId: manga.id, manga })) };
+        },
+        'Mutation.deleteMangaMetas': ({ input }) => {
+            const keys = input.items.flatMap(({ keys: itemKeys = [] }) => itemKeys);
+            keys.forEach((key) => mangaMeta.delete(key));
+            return { mangas: [manga], metas: keys.map((key) => ({ key, value: '', mangaId: manga.id, manga })) };
+        },
         'Mutation.setGlobalMeta': ({ input }) => ({ meta: setMetas([input.meta]).metas[0] }),
         'Mutation.setGlobalMetas': ({ input }) => setMetas(input.metas),
         'Mutation.deleteGlobalMeta': ({ input }) => deleteMetas({ keys: [input.key] }),
@@ -143,5 +177,5 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
         return Array.isArray(body) ? Promise.all(body.map(run)) : run(body);
     };
 
-    return { handle, meta, chapters: chapterById, chapterWrites };
+    return { handle, meta, mangaMeta, chapters: chapterById, chapterWrites };
 };

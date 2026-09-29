@@ -43,6 +43,7 @@ import { assertIsDefined } from '@/base/Asserts.ts';
 import { DirectionOffset } from '@/base/Base.types.ts';
 import { Confirmation } from '@/base/AppAwaitableComponent.ts';
 import { i18n } from '@/i18n';
+import { withTsujiReadCopies } from '@/features/tsuji/duplicates/DuplicateChaptersService.ts';
 
 export class Chapters {
     static getIds(chapters: { id: number }[]): number[] {
@@ -221,8 +222,8 @@ export class Chapters {
         return Chapters.executeAction(
             'mark_as_read',
             chapters.length,
-            () =>
-                requestManager.updateChapters(Chapters.getIds(chapters), {
+            async () =>
+                requestManager.updateChapters(await withTsujiReadCopies(Chapters.getIds(chapters)), {
                     isRead: true,
                     lastPageRead: 0,
                     chapterIdsToDelete,

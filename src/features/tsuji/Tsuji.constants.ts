@@ -15,6 +15,8 @@ export const TSUJI_META_KEYS = {
     readerChapterProgress: 'tsuji_readerChapterProgress',
     recFilters: 'tsuji_recFilters',
     anilistId: 'tsuji_anilistId',
+    /** Manga meta: JSON scanlator of the last chapter finished in the reader (duplicate chapters: Resume copy). */
+    readScanlator: 'tsuji_readScanlator',
     /** AniList user whose public manga list marks titles as already read (default DEFAULT_ANILIST_USER). */
     anilistUser: 'tsuji_anilistUser',
     /**
