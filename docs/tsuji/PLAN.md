@@ -39,6 +39,15 @@ Order: B (small, own prerelease) then A.
    grid on `(pointer: coarse)`, row otherwise. Grid: `repeat(auto-fill, 140px)`, first 24 (at most 4 rows on a
    phone) + More.
 
+**B, done** (r3393): `recs/scrollRow.ts` + `recs/components/ScrollRow.tsx` (Similar, For You seed rows, Discover's
+Popular row) and `recs/components/CardGrid.tsx`. Snap scrolling only on coarse pointers (with a wheel it pulled
+small steps back to the same card). Unit (9): wheel decision incl. end passthrough and Firefox line units, edges,
+page step, layout default, grid cap. Browser (`similar-scroll.e2e.mjs`, 12 checks): wheel moves the row and not the
+page, arrows per edge, at the end the wheel is not cancelled (no trap) while wheel-up still moves the row, ArrowLeft
+pages back, Show all -> grid stored in global meta and kept after reload, a touch screen gets the capped grid with
+More. (The mock manga screen is shorter than the window, so "the page scrolls" is checked as "the wheel event is
+not cancelled".)
+
 **A. Comments** (`tsuji/comments/`):
 
 1. `CommentSource` interface (resolveSeries, thread, comments, replies) so Webtoon / MangaDex can be added later;

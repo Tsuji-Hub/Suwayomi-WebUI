@@ -4,13 +4,14 @@ Everything a new session needs to continue this fork. The fork adds a small set 
 the owner's Makimono Android fork) to Suwayomi-WebUI and is served by the owner's Suwayomi-Server as the **Custom**
 WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
-## State (2026-09-27)
+## State (2026-10-14)
 
-| Branch         | Commit             | What                                                                       |
-| -------------- | ------------------ | -------------------------------------------------------------------------- |
-| `custom`       | `8280aafa` (r3389) | Briefs #1, #2, #2.1 + reader resume. Deployed and verified live by Cowork. |
-| `feat/for-you` | r3390+             | Brief #3, For You tab. Prerelease for Cowork's browser check before ship.  |
-| `master`       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.             |
+| Branch                         | Commit             | What                                                                                |
+| ------------------------------ | ------------------ | ----------------------------------------------------------------------------------- |
+| `custom`                       | `7a1ea34a` (r3391) | Briefs #1-#3 + reader resume. For You verified live.                                |
+| `feat/duplicate-chapters`      | `3d686cb6` (r3392) | Brief #4, deployed 2026-09-30, waiting for the owner's checks. Merged here on ship. |
+| `feat/comments-similar-scroll` | r3393+             | Brief #5 (Similar row scrolling first, then Comick comments) + download ahead.      |
+| `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                      |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
@@ -56,7 +57,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (15 files)
+## Upstream touch list (16 files)
 
 | File                                                                     | Hook                                                                        |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
@@ -75,6 +76,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 | `src/features/reader/viewer/ReaderChapterViewer.tsx`                     | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)         |
 | `src/features/reader/services/ReaderControls.ts`                         | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write          |
 | `src/features/reader/viewer/ReaderViewer.tsx`                            | route resume mode via `useTsujiRouteResumeMode` (no state: last read)       |
+| `src/features/reader/services/ReaderService.ts`                          | download ahead via `getTsujiChapterIdsForDownloadAhead` (no on-disk rule)   |
 
 Also changed: `package.json` (vitest + playwright-core devDependencies, `test:tsuji`, `test:tsuji:e2e`,
 `codegen:offline`), `pnpm-lock.yaml`. Added at the
@@ -86,7 +88,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
-pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You (E2E_BROWSERS=chrome,firefox adds Firefox)
+pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You, Similar row (E2E_BROWSERS=chrome,firefox adds Firefox)
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only

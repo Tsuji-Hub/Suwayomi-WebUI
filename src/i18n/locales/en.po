@@ -2814,6 +2814,10 @@ msgstr "Modern"
 msgid "More"
 msgstr "More"
 
+#: src/features/tsuji/recs/components/CardGrid.tsx
+msgid "More ({hiddenCount})"
+msgstr "More ({hiddenCount})"
+
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "More actions"
 msgstr "More actions"
@@ -3517,6 +3521,14 @@ msgstr "Scroll backward"
 msgid "Scroll forward"
 msgstr "Scroll forward"
 
+#: src/features/tsuji/recs/components/ScrollRow.tsx
+msgid "Scroll left"
+msgstr "Scroll left"
+
+#: src/features/tsuji/recs/components/ScrollRow.tsx
+msgid "Scroll right"
+msgstr "Scroll right"
+
 #: src/base/components/AppbarSearch.tsx
 #: src/features/migration/components/MigrationBulkSearchOptionsDialog.tsx
 msgid "Search"
@@ -3714,9 +3726,17 @@ msgstr "Show"
 msgid "Show adult titles"
 msgstr "Show adult titles"
 
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Show all"
+msgstr "Show all"
+
 #: src/features/library/screens/LibrarySettings.tsx
 msgid "Show all duplicated entries in your library"
 msgstr "Show all duplicated entries in your library"
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Show as row"
+msgstr "Show as row"
 
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Show continue reading button"
@@ -3801,6 +3821,10 @@ msgstr "Shows a dialog in case the version of the server has changed"
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Similar"
 msgstr "Similar"
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Similar titles"
+msgstr "Similar titles"
 
 #: src/features/settings/Settings.constants.ts
 msgid "Simple Login"

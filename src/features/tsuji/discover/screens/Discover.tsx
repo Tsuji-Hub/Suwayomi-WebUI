@@ -48,6 +48,7 @@ import { MyListNotice } from '@/features/tsuji/seen/components/MyListNotice.tsx'
 import { TsujiSettingsDialog } from '@/features/tsuji/seen/components/TsujiSettingsDialog.tsx';
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { useSessionState } from '@/features/tsuji/services/useSessionState.ts';
+import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
 
 /**
  * Stop auto-loading after this many consecutive pages that client filters leave (nearly) empty; the user continues
@@ -63,15 +64,6 @@ const CardGrid = styled('div')(({ theme }) => ({
     display: 'grid',
     gridTemplateColumns: `repeat(auto-fill, minmax(${REC_CARD_WIDTH + 10}px, 1fr))`,
     gap: theme.spacing(2),
-}));
-
-const CardRow = styled('div')(({ theme }) => ({
-    display: 'grid',
-    gridAutoFlow: 'column',
-    gridAutoColumns: `${REC_CARD_WIDTH}px`,
-    gap: theme.spacing(1.5),
-    overflowX: 'auto',
-    paddingBottom: theme.spacing(1),
 }));
 
 const getTrailingSparseStreak = (counts: number[]): number => {
@@ -261,7 +253,7 @@ const DiscoverBrowse = () => {
                     <Typography variant="h6" component="h2">
                         {t`Popular`}
                     </Typography>
-                    <CardRow>{popularRow.map(renderCard)}</CardRow>
+                    <ScrollRow label={t`Popular`}>{popularRow.map(renderCard)}</ScrollRow>
                 </Stack>
             )}
             {isLanding && !isInitialLoading && (

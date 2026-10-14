@@ -14,6 +14,8 @@ export const TSUJI_META_KEYS = {
     libraryProgressBadge: 'tsuji_libraryProgressBadge',
     readerChapterProgress: 'tsuji_readerChapterProgress',
     recFilters: 'tsuji_recFilters',
+    /** Similar on the manga screen: "row" (scrolling row) or "grid" (wrapped); unset = grid on touch screens. */
+    similarLayout: 'tsuji_similarLayout',
     anilistId: 'tsuji_anilistId',
     /** AniList user whose public manga list marks titles as already read (default DEFAULT_ANILIST_USER). */
     anilistUser: 'tsuji_anilistUser',

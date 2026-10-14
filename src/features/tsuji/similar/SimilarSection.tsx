@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
@@ -27,24 +27,42 @@ import type { SimilarManga } from '@/features/tsuji/similar/useSimilarRecs.ts';
 import { useSimilarRecs } from '@/features/tsuji/similar/useSimilarRecs.ts';
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { MyListNotice } from '@/features/tsuji/seen/components/MyListNotice.tsx';
+import { TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
+import type { SimilarLayout } from '@/features/tsuji/recs/scrollRow.ts';
+import { getSimilarLayout } from '@/features/tsuji/recs/scrollRow.ts';
+import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
+import { CappedCardGrid } from '@/features/tsuji/recs/components/CardGrid.tsx';
+import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
 
-/** One horizontally scrolling row, so the section never pushes the chapter list far down. */
-const CardRow = styled('div')(({ theme }) => ({
+/** Loading placeholder: one row of skeleton cards, the height of the row layout. */
+const SkeletonRow = styled('div')(({ theme }) => ({
     display: 'grid',
     gridAutoFlow: 'column',
     gridAutoColumns: `${REC_CARD_WIDTH}px`,
     gap: theme.spacing(1.5),
-    overflowX: 'auto',
+    overflow: 'hidden',
     paddingBottom: theme.spacing(1),
-    scrollSnapType: 'x proximity',
-    '& > *': { scrollSnapAlign: 'start' },
 }));
+
+const isCoarsePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
+/** Row or wrapped grid, shared by every device through global meta (unset: grid on touch screens). */
+const useSimilarLayout = (): [SimilarLayout, (layout: SimilarLayout) => void] => {
+    const stored = useTsujiGlobalMeta()[TSUJI_META_KEYS.similarLayout];
+    const [isCoarse] = useState(isCoarsePointer);
+    const setLayout = useCallback((layout: SimilarLayout) => {
+        setTsujiGlobalMeta(TSUJI_META_KEYS.similarLayout, layout);
+    }, []);
+
+    return [getSimilarLayout(stored, isCoarse), setLayout];
+};
 
 export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     const { t } = useLingui();
     const { state, retry, refresh } = useSimilarRecs(manga);
+    const [layout, setLayout] = useSimilarLayout();
     const [filters, setFilters] = useRecFilters();
     const libraryIndex = useLibraryIndex();
     const findToRead = useFindToRead();
@@ -80,11 +98,11 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     const body = (() => {
         if (isLoading) {
             return (
-                <CardRow aria-busy>
+                <SkeletonRow aria-busy>
                     {SKELETON_KEYS.map((key) => (
                         <RecCardSkeleton key={key} />
                     ))}
-                </CardRow>
+                </SkeletonRow>
             );
         }
 
@@ -122,20 +140,22 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
             );
         }
 
-        return (
-            <CardRow>
-                {visible.map((item) => (
-                    <RecCard
-                        key={item.id}
-                        media={item}
-                        agreement={item.agreement}
-                        onOpen={findToRead}
-                        onPreview={preview.show}
-                        seenState={seen.getSeenState(item.id)}
-                        onMark={markSeen}
-                    />
-                ))}
-            </CardRow>
+        const renderCard = (item: (typeof visible)[number]) => (
+            <RecCard
+                key={item.id}
+                media={item}
+                agreement={item.agreement}
+                onOpen={findToRead}
+                onPreview={preview.show}
+                seenState={seen.getSeenState(item.id)}
+                onMark={markSeen}
+            />
+        );
+
+        return layout === 'grid' ? (
+            <CappedCardGrid items={visible} renderItem={renderCard} />
+        ) : (
+            <ScrollRow label={t`Similar titles`}>{visible.map(renderCard)}</ScrollRow>
         );
     })();
 
@@ -150,9 +170,12 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
                         {sourceLabel}
                     </Typography>
                 )}
+                <Button size="small" onClick={() => setLayout(layout === 'grid' ? 'row' : 'grid')} sx={{ ml: 'auto' }}>
+                    {layout === 'grid' ? t`Show as row` : t`Show all`}
+                </Button>
                 <CustomTooltip title={t`Refresh`}>
                     <span>
-                        <IconButton size="small" onClick={refresh} disabled={isLoading} sx={{ ml: 'auto' }}>
+                        <IconButton size="small" onClick={refresh} disabled={isLoading}>
                             <RefreshIcon fontSize="small" />
                         </IconButton>
                     </span>

@@ -29,6 +29,7 @@ import { RecPreviewDialog, useRecPreview } from '@/features/tsuji/recs/component
 import { useFindToRead, useLibraryIndex, useRecFilters } from '@/features/tsuji/recs/useRecsData.ts';
 import { MyListNotice } from '@/features/tsuji/seen/components/MyListNotice.tsx';
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
+import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
 
 const SKELETON_KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index}`);
 const TOP_PICKS = 24;
@@ -39,15 +40,6 @@ const CardGrid = styled('div')(({ theme }) => ({
     display: 'grid',
     gridTemplateColumns: `repeat(auto-fill, minmax(${REC_CARD_WIDTH + 10}px, 1fr))`,
     gap: theme.spacing(2),
-}));
-
-const CardRow = styled('div')(({ theme }) => ({
-    display: 'grid',
-    gridAutoFlow: 'column',
-    gridAutoColumns: `${REC_CARD_WIDTH}px`,
-    gap: theme.spacing(1.5),
-    overflowX: 'auto',
-    paddingBottom: theme.spacing(1),
 }));
 
 const getStorage = (): Storage | null => {
@@ -180,7 +172,7 @@ export const ForYouTab = () => {
                         <Typography variant="h6" component="h2">
                             {t`Because you read ${seed.title}`}
                         </Typography>
-                        <CardRow>{items.map(renderCard)}</CardRow>
+                        <ScrollRow label={t`Because you read ${seed.title}`}>{items.map(renderCard)}</ScrollRow>
                     </Stack>
                 ))}
             </Stack>
