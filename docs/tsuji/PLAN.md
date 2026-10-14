@@ -14,6 +14,50 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #5: Comments (Comick) + Similar row scrolling (branch `feat/comments-similar-scroll`)
+
+Off `custom` (r3391); r3392 (duplicate chapters) is merged in once it ships. Same branch, first commits:
+
+- **Download ahead without the "already downloaded" rule** (`tsuji/reader/downloadAhead*.ts`, hook in
+  `ReaderService.downloadAhead`): upstream (the Mihon rule) only queued ahead when the current and the next chapter
+  were already downloaded, so delete-while-reading plus one failed download stopped the chain. Now the next N
+  unread chapters are queued once past 25 % of the current one. The PVE cron `suwayomi-ahead` keeps its retry role.
+- **CI** pinned to `ubuntu-24.04` (ubuntu-latest becomes Ubuntu 26 on 2026-10-19).
+
+## Plan
+
+Order: B (small, own prerelease) then A.
+
+**B. Similar row** (`tsuji/similar/`, no upstream hook):
+
+1. `scrollRow.ts` (pure): `getWheelScroll(deltaX, deltaY, scrollLeft, maxScrollLeft)` -> pixels to scroll the row
+   or null (horizontal-dominant, or the row is at its end in that direction: the page scrolls). `ScrollRow`
+   component: non-passive wheel listener (mouse only, touch pans natively), edge arrows (hover/focus, always on
+   coarse pointers, hidden at each end, scroll by `clientWidth - REC_CARD_WIDTH`), focusable with ArrowLeft/Right.
+2. Used by Similar, For You's seed rows and Discover's Popular row.
+3. "Show all" / "Show as row" in the Similar header, global meta `tsuji_similarLayout` ("row" | "grid"); unset =
+   grid on `(pointer: coarse)`, row otherwise. Grid: `repeat(auto-fill, 140px)`, first 24 (at most 4 rows on a
+   phone) + More.
+
+**A. Comments** (`tsuji/comments/`):
+
+1. `CommentSource` interface (resolveSeries, thread, comments, replies) so Webtoon / MangaDex can be added later;
+   `ComickCommentSource` via the relay (`${tsuji_commentsRelay}/comick`, default `http://192.168.5.85:4568`, from
+   global meta at runtime). One request at a time through a `RequestQueue` (20/min), 5 s timeout, TsujiCache:
+   search match 7 days, chapter map 24 h, comments 2 min.
+2. Matching: search by title, best normalized-title similarity >= 0.7 (`recs/normalize.ts`); manual override in
+   global meta `tsuji_commentsMatch` (`{ [mangaId]: "hid|id" }`, merge on write like `tsuji_seen`).
+3. Chapter map: `/comic/{hid}/chapters?lang=en&limit=100000`, grouped by `chap` (string key, "200.5" kept), most
+   viewed (`up_count`) scanlation per number. Thread = chapter 1 on the series view, the current chapter's number
+   in the reader; never later chapters.
+4. UI: Comments pill in the Similar header (manga screen) and a Comments button in the reader (desktop nav bar,
+   mobile bottom bar: 2 one-line hooks); one panel (drawer >= 900 px, bottom sheet below). Comment = author,
+   relative time, plain-text body (spoiler chip, quote block, links as text, never HTML), up count, "N replies".
+   States: loading, no match + search field, relay unreachable (one line + Retry), empty thread.
+5. Settings (Tsuji settings dialog): `tsuji_comments` master toggle, Comick toggle, relay URL, Clear comment cache.
+6. Tests: chapter-map reduction, series-key parsing, comment tokenizer, merge-on-write for `tsuji_commentsMatch`,
+   timeout; browser e2e with a fake relay.
+
 # Brief #3: For You (branch `feat/for-you`)
 
 Discover's second tab. No spec beyond "taste profile + weekly rotation"; decisions below are Tsuji's (Makimono has

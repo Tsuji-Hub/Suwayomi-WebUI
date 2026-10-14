@@ -24,7 +24,6 @@ import { GLOBAL_READER_SETTING_KEYS } from '@/features/reader/settings/ReaderSet
 import type { UpdateChapterPatchInput } from '@/lib/graphql/generated/graphql-base.types.ts';
 import { useMetadataServerSettings } from '@/features/settings/services/ServerSettingsMetadata.ts';
 import {
-    getChapterIdsForDownloadAhead,
     getChapterIdsToDeleteForChapterUpdate,
     getReaderChapterFromCache,
     isInDownloadAheadRange,
@@ -58,6 +57,7 @@ import type {
     MetadataHolderType,
 } from '@/features/metadata/Metadata.types.ts';
 import type { MangaIdInfo } from '@/features/manga/Manga.types.ts';
+import { getTsujiChapterIdsForDownloadAhead } from '@/features/tsuji/reader/downloadAhead.ts';
 
 const DIRECTION_TO_INVERTED: Record<Direction, Direction> = {
     ltr: 'rtl',
@@ -99,7 +99,7 @@ export class ReaderService {
         const key = `${currentChapter.id}_${nextChapter?.id}_${pageIndex}_${downloadAheadLimit}`;
 
         ReaderService.downloadAheadQueue.enqueue(key, async () => {
-            const chapterIdsForDownloadAhead = getChapterIdsForDownloadAhead(
+            const chapterIdsForDownloadAhead = getTsujiChapterIdsForDownloadAhead(
                 currentChapter,
                 nextChapter,
                 nextChapters,
