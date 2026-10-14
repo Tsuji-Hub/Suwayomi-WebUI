@@ -10,7 +10,7 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 | ------------------------------ | ------------------ | ----------------------------------------------------------------------------------- |
 | `custom`                       | `7a1ea34a` (r3391) | Briefs #1-#3 + reader resume. For You verified live.                                |
 | `feat/duplicate-chapters`      | `3d686cb6` (r3392) | Brief #4, deployed 2026-09-30, waiting for the owner's checks. Merged here on ship. |
-| `feat/comments-similar-scroll` | r3394              | Brief #5: Similar row scrolling (r3393), Comick comments (r3394), download ahead.   |
+| `feat/comments-similar-scroll` | r3395              | Brief #5: Similar row scrolling (r3393), Comick comments (r3395), download ahead.   |
 | `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                      |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.

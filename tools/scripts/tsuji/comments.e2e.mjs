@@ -236,7 +236,12 @@ const openContext = async (browser, { server, relay, relayMode = () => 'up', con
     const consoleNoise = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
     page.on('console', (message) => {
-        if (/CommentsRelayError|comick/i.test(message.text())) {
+        // The browser's own network log for a refused request (Chrome "Failed to load resource", Firefox "CORS
+        // request did not succeed") is not the app's: only the app logging relay errors counts as noise.
+        const isBrowserNetworkLog = /Failed to load resource|Cross-Origin Request Blocked|net::ERR_/.test(
+            message.text(),
+        );
+        if (!isBrowserNetworkLog && /CommentsRelayError|comick/i.test(message.text())) {
             consoleNoise.push(message.text());
         }
     });

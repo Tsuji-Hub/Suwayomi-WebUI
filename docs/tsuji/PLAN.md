@@ -67,7 +67,7 @@ not cancelled".)
 6. Tests: chapter-map reduction, series-key parsing, comment tokenizer, merge-on-write for `tsuji_commentsMatch`,
    timeout; browser e2e with a fake relay.
 
-**A, done** (r3394): `comments/` = `CommentSource.ts` (interface + relay error), `comick.ts` (pure: series key,
+**A, done** (r3395): `comments/` = `CommentSource.ts` (interface + relay error), `comick.ts` (pure: series key,
 Dice title similarity >= 0.7 over title and alternative titles, chapter map, comment mapping), `commentText.ts`
 (pure tokenizer), `commentsMatch.ts` (merge-on-write, refuses past 3800 chars), `comickSource.ts` (relay client:
 token bucket of 3 then one per 3 s (~20/min), 5 s timeout, 404 = none; source with the three caches),
@@ -84,6 +84,7 @@ most up-voted scanlation's thread, spoiler chip, quote block, no HTML elements, 
 3 relay requests then all from cache on reopen, reader shows the current chapter without refetching match or map,
 master switch hides the pill, no match -> search -> pick merged into `tsuji_commentsMatch` and kept after reload,
 relay refused and hanging (gives up at ~5.4 s) each after one request, Retry recovers, phone bottom sheet 85 %.
+r3394 was not published: its noise check counted Firefox's own CORS log line for the refused request.
 
 # Brief #3: For You (branch `feat/for-you`)
 
