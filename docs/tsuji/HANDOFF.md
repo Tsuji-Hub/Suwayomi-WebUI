@@ -10,7 +10,7 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 | ------------------------------ | ------------------ | ----------------------------------------------------------------------------------- |
 | `custom`                       | `7a1ea34a` (r3391) | Briefs #1-#3 + reader resume. For You verified live.                                |
 | `feat/duplicate-chapters`      | `3d686cb6` (r3392) | Brief #4, deployed 2026-09-30, waiting for the owner's checks. Merged here on ship. |
-| `feat/comments-similar-scroll` | r3393+             | Brief #5 (Similar row scrolling first, then Comick comments) + download ahead.      |
+| `feat/comments-similar-scroll` | r3394              | Brief #5: Similar row scrolling (r3393), Comick comments (r3394), download ahead.   |
 | `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                      |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
@@ -31,7 +31,9 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    `runtimeCaching`) first. Not changed so far on purpose.
 5. Later option: write marks to AniList (status/progress) instead of `tsuji_seen`. Needs AniList OAuth in the
    browser.
-6. External APIs: Jikan (MAL) returned 504 through 2026-09-24/25 (Similar degrades to AniList-only). AniList runs
+6. Comments relay: runs next to Suwayomi on CT100, port 4568 (not in this repo). The WebUI calls
+   `${tsuji_commentsRelay}/comick/...`; unset means the WebUI's own host on port 4568, so no address is in the bundle.
+7. External APIs: Jikan (MAL) returned 504 through 2026-09-24/25 (Similar degrades to AniList-only). AniList runs
    in a degraded mode (30 req/min; latency 0.3-10 s; TRENDING_DESC / START_DATE_DESC and `format_not_in` /
    `isAdult` intermittently return empty pages). The client handles all of it; see PLAN.md.
 
@@ -46,9 +48,11 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
   through Lingui, MPL-2.0 header on new files, oxlint + oxfmt clean, `pnpm tsc` clean. Let the husky hook run.
 - Metadata: raw `tsuji_*` keys only (upstream migrations delete unregistered `webUI_*` keys). Global:
   `tsuji_libraryProgressBadge`, `tsuji_readerChapterProgress`, `tsuji_recFilters`, `tsuji_anilistUser`,
-  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga: `tsuji_anilistId`.
-  Write through upstream's metadata updater with `isMetadataKey: true`, except the marks shards: they go through
-  `writeTsujiRawGlobalMeta` (upstream's chunk cleanup would treat `tsuji_seen_<n>` as chunks of `tsuji_seen`).
+  `tsuji_similarLayout`, `tsuji_comments`, `tsuji_commentsComick`, `tsuji_commentsRelay`, `tsuji_commentsMatch`,
+  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga:
+  `tsuji_anilistId`. Write through upstream's metadata updater with `isMetadataKey: true`, except read-patch-write
+  values (marks shards, `tsuji_commentsMatch`): they go through `writeTsujiRawGlobalMeta` (upstream's chunk cleanup
+  would treat `tsuji_seen_<n>` as chunks of `tsuji_seen`).
 - Global meta values are capped at 4096 chars by the server. Anything that grows with use must be sharded (see
   `seen/seenShards.ts`: bucket = mediaId % 16, refuse past 3800 chars with a visible error).
 - Ranking uses **Makimono's shipped constants** (RecommendationRanker.kt), not the brief #1 draft numbers.
@@ -57,26 +61,27 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (16 files)
+## Upstream touch list (17 files)
 
-| File                                                                     | Hook                                                                        |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `gql_codegen.ts`                                                         | documents glob includes `src/features/tsuji/graphql/**`                     |
-| `src/lib/graphql/manga/MangaFragments.ts`                                | spreads `TSUJI_MANGA_PROGRESS_FIELDS` into `MANGA_LIBRARY_FIELDS`           |
-| `src/features/manga/components/MangaBadges.tsx`                          | `children` slot after the unread badge                                      |
-| `src/features/manga/components/cards/MangaCard.tsx`                      | passes `<TsujiProgressBadge>` into `MangaBadges`                            |
-| `src/features/library/components/LibraryOptionsPanel.tsx`                | progress-badge toggle under Badges                                          |
-| `src/features/manga/components/details/MangaDetails.tsx`                 | series progress line + Similar section                                      |
-| `src/features/reader/overlay/navigation/desktop/ReaderNavBarDesktop.tsx` | "Ch. 21 / 200" under the chapter picker                                     |
-| `src/features/reader/settings/general/ReaderGeneralSettings.tsx`         | reader progress toggle                                                      |
-| `src/App.tsx`                                                            | Discover route (lazy)                                                       |
-| `src/base/AppRoute.constants.ts`                                         | `discover` route constant                                                   |
-| `src/features/navigation-bar/NavigationBar.constants.ts`                 | Discover nav item (desktop sidebar, More on mobile)                         |
-| `src/features/app-updates/components/WebUIUpdateChecker.tsx`             | wrapper: mount only after server settings load, never for Custom (brief #2) |
-| `src/features/reader/viewer/ReaderChapterViewer.tsx`                     | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)         |
-| `src/features/reader/services/ReaderControls.ts`                         | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write          |
-| `src/features/reader/viewer/ReaderViewer.tsx`                            | route resume mode via `useTsujiRouteResumeMode` (no state: last read)       |
-| `src/features/reader/services/ReaderService.ts`                          | download ahead via `getTsujiChapterIdsForDownloadAhead` (no on-disk rule)   |
+| File                                                                      | Hook                                                                        |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `gql_codegen.ts`                                                          | documents glob includes `src/features/tsuji/graphql/**`                     |
+| `src/lib/graphql/manga/MangaFragments.ts`                                 | spreads `TSUJI_MANGA_PROGRESS_FIELDS` into `MANGA_LIBRARY_FIELDS`           |
+| `src/features/manga/components/MangaBadges.tsx`                           | `children` slot after the unread badge                                      |
+| `src/features/manga/components/cards/MangaCard.tsx`                       | passes `<TsujiProgressBadge>` into `MangaBadges`                            |
+| `src/features/library/components/LibraryOptionsPanel.tsx`                 | progress-badge toggle under Badges                                          |
+| `src/features/manga/components/details/MangaDetails.tsx`                  | series progress line + Similar section                                      |
+| `src/features/reader/overlay/navigation/desktop/ReaderNavBarDesktop.tsx`  | "Ch. 21 / 200" under the chapter picker, then the Comments button           |
+| `src/features/reader/overlay/navigation/mobile/ReaderBottomBarMobile.tsx` | Comments icon button after Settings                                         |
+| `src/features/reader/settings/general/ReaderGeneralSettings.tsx`          | reader progress toggle                                                      |
+| `src/App.tsx`                                                             | Discover route (lazy)                                                       |
+| `src/base/AppRoute.constants.ts`                                          | `discover` route constant                                                   |
+| `src/features/navigation-bar/NavigationBar.constants.ts`                  | Discover nav item (desktop sidebar, More on mobile)                         |
+| `src/features/app-updates/components/WebUIUpdateChecker.tsx`              | wrapper: mount only after server settings load, never for Custom (brief #2) |
+| `src/features/reader/viewer/ReaderChapterViewer.tsx`                      | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)         |
+| `src/features/reader/services/ReaderControls.ts`                          | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write          |
+| `src/features/reader/viewer/ReaderViewer.tsx`                             | route resume mode via `useTsujiRouteResumeMode` (no state: last read)       |
+| `src/features/reader/services/ReaderService.ts`                           | download ahead via `getTsujiChapterIdsForDownloadAhead` (no on-disk rule)   |
 
 Also changed: `package.json` (vitest + playwright-core devDependencies, `test:tsuji`, `test:tsuji:e2e`,
 `codegen:offline`), `pnpm-lock.yaml`. Added at the
@@ -88,7 +93,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
-pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You, Similar row (E2E_BROWSERS=chrome,firefox adds Firefox)
+pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You, Similar row, comments (fake relay) (E2E_BROWSERS=chrome,firefox adds Firefox)
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only

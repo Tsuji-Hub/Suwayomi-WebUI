@@ -14,6 +14,14 @@ export const TSUJI_META_KEYS = {
     libraryProgressBadge: 'tsuji_libraryProgressBadge',
     readerChapterProgress: 'tsuji_readerChapterProgress',
     recFilters: 'tsuji_recFilters',
+    /** Reader comments (Comick via the relay): "false" turns them off (default on). */
+    comments: 'tsuji_comments',
+    /** Comick as a comments source: "false" turns it off (default on). */
+    commentsComick: 'tsuji_commentsComick',
+    /** Base URL of the comments relay; unset = the WebUI's own host on port 4568. */
+    commentsRelay: 'tsuji_commentsRelay',
+    /** Manual Comick matches, JSON `{ [mangaId]: "hid|id" }`, merged on write across devices. */
+    commentsMatch: 'tsuji_commentsMatch',
     /** Similar on the manga screen: "row" (scrolling row) or "grid" (wrapped); unset = grid on touch screens. */
     similarLayout: 'tsuji_similarLayout',
     anilistId: 'tsuji_anilistId',

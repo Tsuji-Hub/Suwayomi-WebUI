@@ -130,4 +130,13 @@ export const TsujiCache = {
         removeStored(key);
         writeIndex(index);
     },
+
+    /** Drops every entry whose key starts with `prefix` (e.g. "Clear comment cache"). */
+    removeByPrefix(prefix: string): void {
+        [...memoryCache.keys()].filter((key) => key.startsWith(prefix)).forEach((key) => memoryCache.delete(key));
+        const index = readIndex();
+        const doomed = Object.keys(index).filter((key) => key.startsWith(prefix));
+        doomed.forEach(removeStored);
+        writeIndex(Object.fromEntries(Object.entries(index).filter(([key]) => !doomed.includes(key))));
+    },
 };

@@ -23,8 +23,9 @@ import { makeToast } from '@/base/utils/Toast.ts';
 import { DEFAULT_ANILIST_USER, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
 import { setTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { updateSeenMarks, useReportSeenFailure, useSeen } from '@/features/tsuji/seen/useSeen.tsx';
+import { CommentsSettings } from '@/features/tsuji/comments/components/CommentsSettings.tsx';
 
-/** Tsuji settings for Discover/Similar: the AniList list that marks titles as read, and the manual marks. */
+/** Tsuji settings for Discover/Similar: the AniList list that marks titles as read, the manual marks, and comments. */
 export const TsujiSettingsDialog = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
     const { t } = useLingui();
     const { myList, marks } = useSeen();
@@ -122,6 +123,7 @@ export const TsujiSettingsDialog = ({ isOpen, onClose }: { isOpen: boolean; onCl
                                 </Button>
                             </Stack>
                         </Stack>
+                        <CommentsSettings />
                     </Stack>
                 </DialogContent>
                 <DialogActions>

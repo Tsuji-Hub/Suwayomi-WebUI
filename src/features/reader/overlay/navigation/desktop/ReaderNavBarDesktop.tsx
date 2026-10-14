@@ -35,6 +35,7 @@ import {
     useReaderStore,
 } from '@/features/reader/stores/ReaderStore.ts';
 import { TsujiReaderChapterProgress } from '@/features/tsuji/progress/components/TsujiReaderChapterProgress.tsx';
+import { TsujiReaderCommentsButton } from '@/features/tsuji/comments/components/CommentsButton.tsx';
 
 const useGetPreviousNavBarStaticValue = (isVisible: boolean, isStaticNav: boolean) => {
     const wasNavBarStaticRef = useRef(isStaticNav);
@@ -153,6 +154,7 @@ const BaseReaderNavBarDesktop = ({
                             previousChapter={previousChapter}
                         />
                         <TsujiReaderChapterProgress />
+                        <TsujiReaderCommentsButton variant="desktop" />
                     </Stack>
                     <Divider />
                     <ReaderNavBarDesktopQuickSettings openSettings={openSettings} />

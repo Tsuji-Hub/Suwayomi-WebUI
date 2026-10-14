@@ -1,0 +1,67 @@
+/*
+ * Copyright (C) Contributors to the Suwayomi project
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+import { TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
+import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
+import { readFreshTsujiRawGlobalMeta, writeTsujiRawGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
+import type { CommentsCache } from '@/features/tsuji/comments/comickSource.ts';
+import { createComickSource, createRelayClient } from '@/features/tsuji/comments/comickSource.ts';
+import { createMatchUpdater, parseCommentMatches } from '@/features/tsuji/comments/commentsMatch.ts';
+
+export const RELAY_PORT = 4568;
+
+/**
+ * The relay's base URL: `tsuji_commentsRelay`, else the host serving this WebUI on port 4568 (the relay runs next
+ * to Suwayomi on CT100), so no address is baked into the bundle.
+ */
+export const getDefaultRelayUrl = (location: Pick<Location, 'protocol' | 'hostname'> = window.location) =>
+    `${location.protocol}//${location.hostname}:${RELAY_PORT}`;
+
+export const resolveRelayUrl = (stored: string | undefined) => stored?.trim() || getDefaultRelayUrl();
+
+let relayUrl = '';
+
+export const setCommentsRelayUrl = (url: string) => {
+    relayUrl = url;
+};
+
+const memoryThreads = new Map<string, { expiresAt: number; value: unknown }>();
+
+/** Threads (can be hundreds of comments) live in memory only; matches and chapter maps in TsujiCache. */
+const cache: CommentsCache = {
+    get: <T>(key: string) => {
+        if (key.startsWith('comments:thread:')) {
+            const entry = memoryThreads.get(key);
+            return entry && entry.expiresAt > Date.now() ? (entry.value as T) : null;
+        }
+        return TsujiCache.get<T>(key);
+    },
+    set: (key, value, ttlMs) => {
+        if (key.startsWith('comments:thread:')) {
+            memoryThreads.set(key, { expiresAt: Date.now() + ttlMs, value });
+            return;
+        }
+        TsujiCache.set(key, value, ttlMs);
+    },
+};
+
+export const comickSource = createComickSource({
+    client: createRelayClient({ getBaseUrl: () => relayUrl || getDefaultRelayUrl() }),
+    cache,
+});
+
+export const clearCommentCache = () => {
+    memoryThreads.clear();
+    TsujiCache.removeByPrefix('comments:');
+};
+
+/** Manual matches, merged on write against the server's current value (two devices can't clobber each other). */
+export const updateCommentMatches = createMatchUpdater({
+    read: async () => parseCommentMatches((await readFreshTsujiRawGlobalMeta())[TSUJI_META_KEYS.commentsMatch]),
+    write: (value) => writeTsujiRawGlobalMeta({ set: [[TSUJI_META_KEYS.commentsMatch, value]], delete: [] }),
+});

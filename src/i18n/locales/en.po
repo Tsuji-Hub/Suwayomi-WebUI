@@ -30,6 +30,11 @@ msgstr "{0, plural, one {# chapter} other {# chapters}}"
 msgid "{0, plural, one {# Chapter} other {# Chapters}}"
 msgstr "{0, plural, one {# Chapter} other {# Chapters}}"
 
+#. placeholder {0}: state.comments.length
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "{0, plural, one {# comment} other {# comments}}"
+msgstr "{0, plural, one {# comment} other {# comments}}"
+
 #. placeholder {0}: backupSettings.backupInterval
 #: src/features/backup/screens/Backup.tsx
 msgid "{0, plural, one {# day} other {# days}}"
@@ -66,6 +71,11 @@ msgstr "{0, plural, one {# title} other {# titles}}"
 #: src/features/manga/components/TrackMangaButton.tsx
 msgid "{0, plural, one {# Tracker} other {# Tracker}}"
 msgstr "{0, plural, one {# Tracker} other {# Tracker}}"
+
+#. placeholder {0}: comment.upCount
+#: src/features/tsuji/comments/components/CommentItem.tsx
+msgid "{0, plural, one {# upvote} other {# upvotes}}"
+msgstr "{0, plural, one {# upvote} other {# upvotes}}"
 
 #. placeholder {0}: abortedEntries.length
 #: src/features/migration/screens/MigrationExecute.tsx
@@ -148,6 +158,11 @@ msgstr "{0} chapters"
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
 msgid "{0}% | Updating…"
 msgstr "{0}% | Updating…"
+
+#. placeholder {0}: Math.round(candidate.score * 100)
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "{0}% title match"
+msgstr "{0}% title match"
 
 #: src/features/navigation-bar/NavigationBar.constants.ts
 msgid "{availableUpdates, plural, one {# update available} other {# updates available}}"
@@ -338,6 +353,10 @@ msgstr "{otherResultsCount, plural, one {# more match} other {# more matches}}"
 #: src/features/app-updates/components/VersionInfo.tsx
 msgid "{progress}% | Updating…"
 msgstr "{progress}% | Updating…"
+
+#: src/features/tsuji/comments/components/CommentItem.tsx
+msgid "{replyCount, plural, one {# reply} other {# replies}}"
+msgstr "{replyCount, plural, one {# reply} other {# replies}}"
 
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "{titles}, synced at {time}"
@@ -817,6 +836,7 @@ msgstr "Can't migrate an entry to itself"
 #: src/features/source/configuration/components/MultiSelectListPreference.tsx
 #: src/features/theme/components/CreateThemeDialog.tsx
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Cancel"
 msgstr "Cancel"
@@ -902,6 +922,10 @@ msgstr "Channel"
 msgid "Chapter"
 msgstr "Chapter"
 
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Chapter {chapter}"
+msgstr "Chapter {chapter}"
+
 #: src/features/reader/screens/Reader.tsx
 msgid "Chapter does not exist"
 msgstr "Chapter does not exist"
@@ -975,6 +999,10 @@ msgstr "Clear all marks?"
 msgid "Clear cache"
 msgstr "Clear cache"
 
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Clear comment cache"
+msgstr "Clear comment cache"
+
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Cleared all marks"
 msgstr "Cleared all marks"
@@ -999,6 +1027,7 @@ msgstr "Client data"
 #: src/base/components/feedback/SnackbarWithDescription.tsx
 #: src/features/app-updates/components/VersionUpdateInfoDialog.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Close"
 msgstr "Close"
@@ -1021,6 +1050,50 @@ msgstr "Comfortable grid"
 #: src/features/manga/Manga.constants.ts
 msgid "entry-type-detection-comic"
 msgstr "Comic"
+
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Comick"
+msgstr "Comick"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comick results"
+msgstr "Comick results"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comick, matched by hand"
+msgstr "Comick, matched by hand"
+
+#. placeholder {0}: state.match.title
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comick: {0}"
+msgstr "Comick: {0}"
+
+#. placeholder {0}: comment.author
+#: src/features/tsuji/comments/components/CommentItem.tsx
+msgid "Comment by {0}"
+msgstr "Comment by {0}"
+
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Comment cache cleared"
+msgstr "Comment cache cleared"
+
+#: src/features/tsuji/comments/components/CommentsButton.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Comments"
+msgstr "Comments"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comments are off. Turn them on in Discover settings."
+msgstr "Comments are off. Turn them on in Discover settings."
+
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Comments relay"
+msgstr "Comments relay"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comments relay unreachable"
+msgstr "Comments relay unreachable"
 
 #: src/base/components/GridLayouts.tsx
 #: src/features/library/components/LibraryOptionsPanel.tsx
@@ -1345,6 +1418,10 @@ msgstr "Couldn't move the marks to the new format. Check the connection to the s
 #: src/features/tsuji/seen/useSeen.tsx
 msgid "Couldn't save that. Check the connection to the server."
 msgstr "Couldn't save that. Check the connection to the server."
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Couldn't save the match. Check the connection to the server."
+msgstr "Couldn't save the match. Check the connection to the server."
 
 #: src/features/category/components/CategorySelect.tsx
 #: src/features/device/screens/DeviceSetting.tsx
@@ -2133,6 +2210,10 @@ msgstr "Hide history"
 msgid "Hide novels and one-shots"
 msgstr "Hide novels and one-shots"
 
+#: src/features/tsuji/comments/components/CommentItem.tsx
+msgid "Hide replies"
+msgstr "Hide replies"
+
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Hide what I've started"
 msgstr "Hide what I've started"
@@ -2452,6 +2533,10 @@ msgstr "Lavender"
 msgid "Layout"
 msgstr "Layout"
 
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Leave empty to use this server on port 4568."
+msgstr "Leave empty to use this server on port 4568."
+
 #: src/features/reader/overlay/progress-bar/settings/components/ReaderSettingProgressBarPosition.tsx
 #: src/features/reader/settings/general/components/ReaderSettingSafeAreaInset.tsx
 msgid "Left"
@@ -2514,6 +2599,10 @@ msgstr "List"
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "Load more"
 msgstr "Load more"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Loading comments"
+msgstr "Loading comments"
 
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Loading tags"
@@ -2887,6 +2976,18 @@ msgstr "No chapters found"
 msgid "No chapters matching filter"
 msgstr "No chapters matching filter"
 
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "No Comick thread for chapter {chapter}"
+msgstr "No Comick thread for chapter {chapter}"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "No Comick thread for this series"
+msgstr "No Comick thread for this series"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "No comments yet."
+msgstr "No comments yet."
+
 #: src/features/downloads/screens/DownloadQueue.tsx
 msgid "No downloads"
 msgstr "No downloads"
@@ -2914,6 +3015,10 @@ msgstr "No matching tags."
 #: src/features/reader/viewer/ReaderChapterViewer.tsx
 msgid "No pages found"
 msgstr "No pages found"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "No results."
+msgstr "No results."
 
 #: src/features/migration/components/MigrationDestinationSourceList.tsx
 msgid "No sources available to migrate to"
@@ -3431,6 +3536,7 @@ msgstr "Resume"
 #: src/features/chapter/components/buttons/ChapterDownloadRetryButton.tsx
 #: src/features/manga/hooks/useManageMangaLibraryState.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 #: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
@@ -3531,8 +3637,13 @@ msgstr "Scroll right"
 
 #: src/base/components/AppbarSearch.tsx
 #: src/features/migration/components/MigrationBulkSearchOptionsDialog.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Search"
 msgstr "Search"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Search Comick"
+msgstr "Search Comick"
 
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
 #: src/features/migration/Migration.constants.ts
@@ -3738,6 +3849,10 @@ msgstr "Show all duplicated entries in your library"
 msgid "Show as row"
 msgstr "Show as row"
 
+#: src/features/tsuji/comments/components/CommentsSettings.tsx
+msgid "Show comments"
+msgstr "Show comments"
+
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Show continue reading button"
 msgstr "Show continue reading button"
@@ -3768,6 +3883,11 @@ msgstr "Show less"
 #: src/features/tracker/components/cards/TrackerMangaCard.tsx
 msgid "Show more"
 msgstr "Show more"
+
+#. placeholder {0}: comments.length - shown
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Show more ({0})"
+msgstr "Show more ({0})"
 
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Show number of items"
@@ -3923,6 +4043,10 @@ msgstr "Source title"
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "Sources"
 msgstr "Sources"
+
+#: src/features/tsuji/comments/components/CommentItem.tsx
+msgid "Spoiler, tap to reveal"
+msgstr "Spoiler, tap to reveal"
 
 #: src/features/settings/Settings.constants.ts
 msgid "Stable"
@@ -4258,6 +4382,10 @@ msgstr "Toggle offset double spreads"
 msgid "Toggle stretch image"
 msgstr "Toggle stretch image"
 
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Too many manual matches saved. Remove some in Discover settings."
+msgstr "Too many manual matches saved. Remove some in Discover settings."
+
 #: src/features/tsuji/seen/useSeen.tsx
 msgid "Too many marks to store: bucket {bucket} would be {length} characters (limit {SEEN_BUCKET_MAX_CHARS}). Nothing was saved."
 msgstr "Too many marks to store: bucket {bucket} would be {length} characters (limit {SEEN_BUCKET_MAX_CHARS}). Nothing was saved."
@@ -4524,6 +4652,10 @@ msgstr ""
 "Use a custom WebUI.\n"
 "To use a custom WebUI replace the content of the \"webUI\" directory in the root directory on the server with the files of the custom WebUI"
 
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Use automatic match"
+msgstr "Use automatic match"
+
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Use SOCKS proxy"
 msgstr "Use SOCKS proxy"
@@ -4653,6 +4785,10 @@ msgstr "With \"Completed\" status"
 #: src/features/settings/Settings.constants.ts
 msgid "With unread chapter(s)"
 msgstr "With unread chapter(s)"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Wrong series?"
+msgstr "Wrong series?"
 
 #: src/base/utils/DateHelper.ts
 msgid "Yesterday"

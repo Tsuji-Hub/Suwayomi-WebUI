@@ -67,6 +67,24 @@ not cancelled".)
 6. Tests: chapter-map reduction, series-key parsing, comment tokenizer, merge-on-write for `tsuji_commentsMatch`,
    timeout; browser e2e with a fake relay.
 
+**A, done** (r3394): `comments/` = `CommentSource.ts` (interface + relay error), `comick.ts` (pure: series key,
+Dice title similarity >= 0.7 over title and alternative titles, chapter map, comment mapping), `commentText.ts`
+(pure tokenizer), `commentsMatch.ts` (merge-on-write, refuses past 3800 chars), `comickSource.ts` (relay client:
+token bucket of 3 then one per 3 s (~20/min), 5 s timeout, 404 = none; source with the three caches),
+`commentsService.ts` (relay URL from meta, default `<this host>:4568`; threads cached in memory only, matches and
+chapter maps in TsujiCache; Clear comment cache), `useComments.ts`, `components/` (panel, comment, pill + reader
+button, settings section in the Tsuji settings dialog). A miss is cached too (7 days) so unmatched series don't
+search again; "Wrong series?" or the no-match search writes the override, "Use automatic match" removes it.
+Comment bodies are React text only (HTML stays literal, links become their label). Reader: desktop nav bar under
+"Ch. x / y", mobile bottom bar after Settings. Unit (19): chapter map incl. "200.5" and ties, `findChapterKey`
+(exact, "012", "7.0", -1), series keys, similarity + threshold, tokenizer (spoiler, links, images, quotes, HTML as
+text), comment mapping, match parse / merge across devices / size guard, relay timeout (one request), refused,
+5xx, 404, caller abort, source caching incl. cached misses. Browser (`comments.e2e.mjs`, 30 checks): drawer 420 px,
+most up-voted scanlation's thread, spoiler chip, quote block, no HTML elements, replies collapsed, 50 + Show more,
+3 relay requests then all from cache on reopen, reader shows the current chapter without refetching match or map,
+master switch hides the pill, no match -> search -> pick merged into `tsuji_commentsMatch` and kept after reload,
+relay refused and hanging (gives up at ~5.4 s) each after one request, Retry recovers, phone bottom sheet 85 %.
+
 # Brief #3: For You (branch `feat/for-you`)
 
 Discover's second tab. No spec beyond "taste profile + weekly rotation"; decisions below are Tsuji's (Makimono has
