@@ -14,6 +14,38 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #5.1: chapter navigation in Comments, per-chapter comment buttons (branch `feat/comments-chapter-nav`)
+
+Off `feat/comments-similar-scroll` (r3392 and r3395 not on `custom` yet). Makimono reference: CommentsScreen.kt
+(chapter selector header), MangaScreen.kt (`onChapterCommentsClicked`).
+
+**Done** (r3397):
+
+- `comments/chapterNav.ts` (pure): one entry per chapter number >= 0, ascending (numberless -1 chapters have no
+  thread to look up and are left out); twins labelled from the reference scanlator's copy (the reader: the copy being
+  read; the series page: the last read copy by `lastReadAt`; a row: that row's copy), else the first by source order.
+  r3392's `tsuji_readScanlator` is not on this branch; switch the series page reference to it after the r3392 merge.
+  Label "Ch. 75 - Title" (the number the name repeats is dropped). Steps go to the next / previous number in the list,
+  also from a number the list lacks; the picker opens on the current entry, else the last one below it.
+- Panel header: `< label >` under "Comments". Arrows 40 px, disabled at the ends. The label opens `ChapterPicker`
+  (Dialog >= 900 px, bottom sheet below; react-virtuoso, which the app already uses: react-window is not a
+  dependency), centered on the current chapter. ArrowLeft / ArrowRight step while focus is in the panel (not in the
+  search field); every key but Escape stays in the panel, so the reader's hotkeys don't turn pages behind it. The
+  selection is panel state: every open starts on the entry chapter. A number without a Comick entry shows "Comick
+  has no thread for chapter N"; only the selected chapter's thread is fetched.
+- Series page: one panel (`SeriesCommentsHost` in the Similar section) driven by `commentsPanelStore` (zustand); the
+  pill opens chapter 1, each chapter row's icon (`TsujiChapterCommentsButton`, hook in `ChapterCard`) opens its
+  chapter. The selector lists the page's chapters from the Apollo cache (`GET_CHAPTERS_MANGA`). The row icon is hidden
+  while selecting, in the reader's chapter list, for -1 chapters and while `tsuji_comments` is off; its presses don't
+  reach the row's link.
+- Reader: the selector lists `mangaChapters`; opens on the current chapter.
+- Unit (9): label, twins + reference, steps at both ends and from a missing number, picker index, label fallback,
+  last-read scanlator. Browser (`comments.e2e.mjs`, now 50 checks): selector at chapter 1, next to 2 (twins one
+  entry), 2.5 "no thread" with arrows working, ArrowRight / ArrowLeft, picker on the current chapter, pick 100,
+  picker reopens scrolled to 100, Escape closes only the picker, only selected threads fetched, reopen resets, row
+  icon on chapter 150 opens it, tapping the row still opens the reader, row height unchanged and icon hidden with
+  comments off, reader next to 2.5 then reopen back on 2, phone: 40 px arrows, picker bottom sheet, row icon fits.
+
 # Brief #5: Comments (Comick) + Similar row scrolling (branch `feat/comments-similar-scroll`)
 
 Off `custom` (r3391); r3392 (duplicate chapters) is merged in once it ships. Same branch, first commits:

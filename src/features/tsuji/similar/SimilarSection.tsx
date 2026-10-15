@@ -33,7 +33,7 @@ import { getSimilarLayout } from '@/features/tsuji/recs/scrollRow.ts';
 import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
 import { CappedCardGrid } from '@/features/tsuji/recs/components/CardGrid.tsx';
 import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
-import { CommentsPill } from '@/features/tsuji/comments/components/CommentsButton.tsx';
+import { CommentsPill, SeriesCommentsHost } from '@/features/tsuji/comments/components/CommentsButton.tsx';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
 
@@ -198,6 +198,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
                 <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
             )}
             {body}
+            <SeriesCommentsHost manga={manga} />
             <RecPreviewDialog
                 media={preview.media}
                 isOpen={preview.isOpen}

@@ -922,10 +922,6 @@ msgstr "Channel"
 msgid "Chapter"
 msgstr "Chapter"
 
-#: src/features/tsuji/comments/components/CommentsPanel.tsx
-msgid "Chapter {chapter}"
-msgstr "Chapter {chapter}"
-
 #: src/features/reader/screens/Reader.tsx
 msgid "Chapter does not exist"
 msgstr "Chapter does not exist"
@@ -951,6 +947,7 @@ msgid "Chapter transition warning"
 msgstr "Chapter transition warning"
 
 #: src/features/backup/Backup.constants.ts
+#: src/features/tsuji/comments/components/ChapterPicker.tsx
 msgid "Chapters"
 msgstr "Chapters"
 
@@ -969,6 +966,11 @@ msgstr "Check out"
 #: src/features/app-updates/components/VersionInfo.tsx
 msgid "Checking for update"
 msgstr "Checking for update"
+
+#: src/features/tsuji/comments/components/ChapterPicker.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Choose chapter"
+msgstr "Choose chapter"
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Choose the order in which chapters are displayed."
@@ -1056,6 +1058,10 @@ msgid "Comick"
 msgstr "Comick"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comick has no thread for chapter {chapter}"
+msgstr "Comick has no thread for chapter {chapter}"
+
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Comick results"
 msgstr "Comick results"
 
@@ -1086,6 +1092,10 @@ msgstr "Comments"
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Comments are off. Turn them on in Discover settings."
 msgstr "Comments are off. Turn them on in Discover settings."
+
+#: src/features/tsuji/comments/components/TsujiChapterCommentsButton.tsx
+msgid "Comments for this chapter"
+msgstr "Comments for this chapter"
 
 #: src/features/tsuji/comments/components/CommentsSettings.tsx
 msgid "Comments relay"
@@ -2952,6 +2962,7 @@ msgstr "Next"
 
 #: src/features/reader/hotkeys/settings/components/ReaderSettingHotkey.tsx
 #: src/features/reader/overlay/navigation/desktop/components/ReaderNavBarDesktopChapterNavigation.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Next chapter"
 msgstr "Next chapter"
 
@@ -2975,10 +2986,6 @@ msgstr "No chapters found"
 #: src/features/chapter/components/ChapterList.tsx
 msgid "No chapters matching filter"
 msgstr "No chapters matching filter"
-
-#: src/features/tsuji/comments/components/CommentsPanel.tsx
-msgid "No Comick thread for chapter {chapter}"
-msgstr "No Comick thread for chapter {chapter}"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "No Comick thread for this series"
@@ -3324,6 +3331,7 @@ msgstr "Previous"
 
 #: src/features/reader/hotkeys/settings/components/ReaderSettingHotkey.tsx
 #: src/features/reader/overlay/navigation/desktop/components/ReaderNavBarDesktopChapterNavigation.tsx
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Previous chapter"
 msgstr "Previous chapter"
 

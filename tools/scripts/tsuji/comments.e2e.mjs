@@ -39,6 +39,23 @@ const CONTENT_TYPES = {
 
 const MANGA_ID = 9;
 const FILLER_COUNT = 55;
+const LAST_CHAPTER = 150;
+
+/**
+ * Suwayomi's chapters: 1, two scanlator copies of 2 (A, then B), the extra 2.5 (Comick doesn't have it), then 3 ..
+ * 150. Source order follows that list, so /chapter/2 in the reader is chapter 2 from A.
+ */
+const SERIES_CHAPTERS = [
+    { chapterNumber: 1, scanlator: 'A', name: 'Chapter 1' },
+    { chapterNumber: 2, scanlator: 'A', name: 'Chapter 2 - The Devil Seeker' },
+    { chapterNumber: 2, scanlator: 'B', name: 'Chapter 2 - Devil Seeker (B)' },
+    { chapterNumber: 2.5, scanlator: 'A', name: 'Chapter 2.5 - Extra' },
+    ...Array.from({ length: LAST_CHAPTER - 2 }, (_, index) => ({
+        chapterNumber: index + 3,
+        scanlator: 'A',
+        name: `Chapter ${index + 3}`,
+    })),
+].map((chapter, index) => ({ ...chapter, sourceOrder: index + 1 }));
 
 const comment = (id, content, extra = {}) => ({
     id,
@@ -62,6 +79,10 @@ const createRelay = () => {
             { hid: 'c1-low', chap: '1', up_count: 1 },
             { hid: 'c1-top', chap: '1', up_count: 10 },
             { hid: 'c2', chap: '2', up_count: 4 },
+            ...Array.from({ length: LAST_CHAPTER - 2 }, (_, index) => ({
+                hid: `c${index + 3}`,
+                chap: String(index + 3),
+            })),
         ],
         other: [{ hid: 'o1', chap: '1', up_count: 1 }],
     };
@@ -75,6 +96,9 @@ const createRelay = () => {
             ...Array.from({ length: FILLER_COUNT }, (_, index) => comment(100 + index, `Filler ${index}`)),
         ],
         c2: [comment(10, 'Chapter two talk')],
+        c3: [comment(11, 'Chapter three talk')],
+        c100: [comment(12, 'Chapter hundred talk')],
+        [`c${LAST_CHAPTER}`]: [comment(13, 'Last chapter talk')],
         o1: [comment(20, 'Other series talk')],
     };
 
@@ -158,13 +182,13 @@ const createServer = (title, globalMeta = {}) =>
             genre: [],
             source: { id: '1', name: 'Local source', displayName: 'Local source' },
         },
-        chapters: Array.from({ length: 3 }, (_, index) => ({
-            id: 900 + index,
+        chapters: SERIES_CHAPTERS.map(({ chapterNumber, scanlator, name, sourceOrder }) => ({
+            id: 900 + sourceOrder,
             mangaId: MANGA_ID,
-            name: `Chapter ${index + 1}`,
-            chapterNumber: index + 1,
-            sourceOrder: index + 1,
-            scanlator: null,
+            name,
+            chapterNumber,
+            sourceOrder,
+            scanlator,
             isRead: false,
             isBookmarked: false,
             isDownloaded: false,
@@ -250,6 +274,28 @@ const openContext = async (browser, { server, relay, relayMode = () => 'up', con
 
 const panelOf = (page) => page.getByRole('dialog', { name: 'Comments' });
 
+const selectorOf = (panel) => ({
+    chooser: panel.getByRole('button', { name: 'Choose chapter' }),
+    previous: panel.getByRole('button', { name: 'Previous chapter' }),
+    next: panel.getByRole('button', { name: 'Next chapter' }),
+});
+
+const waitText = (scope, text) =>
+    scope
+        .getByText(text)
+        .first()
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+
+const isShown = (scope, text) =>
+    scope
+        .getByText(text)
+        .first()
+        .isVisible()
+        .catch(() => false);
+
+const chapterRow = (page, name) => page.locator('.MuiCard-root', { hasText: name }).first();
+
 const openPill = async (page) => {
     const pill = page.getByRole('button', { name: 'Comments', exact: true });
     await pill.waitFor({ timeout: 20_000 });
@@ -262,6 +308,8 @@ const openPill = async (page) => {
 const runBrowser = async (browserName) => {
     const browser = await launchers[browserName]();
     const label = (text) => `[${browserName}] ${text}`;
+
+    let rowHeightWithButton = null;
 
     // 1. Desktop, matched series: the pill opens chapter 1's thread.
     {
@@ -344,7 +392,170 @@ const runBrowser = async (browserName) => {
             .waitFor({ timeout: 5000 })
             .catch(() => {});
         check(label('reopen within 2 min: everything from the caches'), relay.total() === 3, relay.counts);
-        await page.keyboard.press('Escape');
+
+        // Brief #5.1: the chapter selector.
+        {
+            const live = panelOf(page);
+            const { chooser, previous, next } = selectorOf(live);
+            check(
+                label('selector: < Ch. 1 >, previous disabled at the first chapter'),
+                (await chooser.textContent()) === 'Ch. 1' && (await previous.isDisabled()) && (await next.isEnabled()),
+                { label: await chooser.textContent() },
+            );
+            await next.click();
+            await waitText(live, 'Chapter two talk');
+            check(
+                label('next: chapter 2 (twins are one entry, labelled from the first copy), its thread loads'),
+                (await chooser.textContent()) === 'Ch. 2 - The Devil Seeker' &&
+                    (await isShown(live, 'Chapter two talk')),
+                { label: await chooser.textContent() },
+            );
+            await next.click();
+            await waitText(live, 'Comick has no thread for chapter 2.5');
+            check(
+                label('a number Comick lacks (2.5): "no thread", no other chapter shown'),
+                (await isShown(live, 'Comick has no thread for chapter 2.5')) &&
+                    !(await isShown(live, 'Chapter two talk')) &&
+                    !(await isShown(live, 'Chapter three talk')) &&
+                    (await chooser.textContent()) === 'Ch. 2.5 - Extra',
+                { label: await chooser.textContent() },
+            );
+            check(
+                label('arrows still work on "no thread"'),
+                (await previous.isEnabled()) && (await next.isEnabled()),
+                {},
+            );
+
+            await chooser.focus();
+            await page.keyboard.press('ArrowRight');
+            await waitText(live, 'Chapter three talk');
+            check(label('ArrowRight in the panel steps to chapter 3'), await isShown(live, 'Chapter three talk'), {
+                label: await chooser.textContent(),
+            });
+            await page.keyboard.press('ArrowLeft');
+            await waitText(live, 'Comick has no thread for chapter 2.5');
+            check(label('ArrowLeft steps back'), (await chooser.textContent()) === 'Ch. 2.5 - Extra', {
+                label: await chooser.textContent(),
+            });
+
+            await chooser.click();
+            const picker = page.getByRole('dialog', { name: 'Choose chapter' });
+            await picker.waitFor({ timeout: 5000 }).catch(() => {});
+            const selected = picker.locator('[aria-selected="true"]');
+            await selected.waitFor({ timeout: 5000 }).catch(() => {});
+            check(
+                label('picker opens on the current chapter'),
+                (await selected.count()) === 1 &&
+                    (await selected.textContent()) === 'Ch. 2.5 - Extra' &&
+                    (await selected.isVisible()),
+                {
+                    selected: await selected.allTextContents().catch(() => null),
+                    visible: await selected
+                        .first()
+                        .isVisible()
+                        .catch(() => null),
+                },
+            );
+            const listbox = picker.getByRole('listbox');
+            const option100 = picker.getByRole('option', { name: 'Ch. 100', exact: true });
+            for (let step = 0; step < 40; step += 1) {
+                // oxlint-disable-next-line no-await-in-loop
+                if (await option100.isVisible().catch(() => false)) {
+                    break;
+                }
+                // oxlint-disable-next-line no-await-in-loop
+                await listbox.evaluate((element) => element.scrollBy(0, 500));
+                // oxlint-disable-next-line no-await-in-loop
+                await page.waitForTimeout(100);
+            }
+            await option100.click();
+            await waitText(live, 'Chapter hundred talk');
+            check(
+                label('picking chapter 100 closes the picker and loads its thread'),
+                (await picker.count()) === 0 &&
+                    (await chooser.textContent()) === 'Ch. 100' &&
+                    (await isShown(live, 'Chapter hundred talk')),
+                { label: await chooser.textContent() },
+            );
+
+            await chooser.click();
+            await picker.waitFor({ timeout: 5000 }).catch(() => {});
+            await picker
+                .locator('[aria-selected="true"]')
+                .waitFor({ timeout: 5000 })
+                .catch(() => {});
+            await page.waitForTimeout(300);
+            const listBox = await listbox.boundingBox();
+            const selectedBox = await picker.locator('[aria-selected="true"]').boundingBox();
+            check(
+                label('picker reopens scrolled to chapter 100'),
+                !!listBox &&
+                    !!selectedBox &&
+                    selectedBox.y >= listBox.y &&
+                    selectedBox.y + selectedBox.height <= listBox.y + listBox.height,
+                { listBox, selectedBox },
+            );
+            await page.keyboard.press('Escape');
+            await picker.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+            check(
+                label('Escape closes the picker, the panel stays'),
+                (await picker.count()) === 0 && (await live.isVisible()),
+                {},
+            );
+
+            const fetchedThreads = Object.keys(relay.counts)
+                .filter((path) => path.startsWith('/comment/'))
+                .sort();
+            check(
+                label('only the chapters selected were fetched (no prefetch past the selection)'),
+                JSON.stringify(fetchedThreads) ===
+                    JSON.stringify([
+                        '/comment/chapter/c1-top',
+                        '/comment/chapter/c100',
+                        '/comment/chapter/c2',
+                        '/comment/chapter/c3',
+                    ]),
+                fetchedThreads,
+            );
+
+            await live.getByRole('button', { name: 'Close' }).click();
+            await live.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+            await openPill(page);
+            check(
+                label('reopening resets to the entry chapter (Ch. 1)'),
+                (await selectorOf(panelOf(page)).chooser.textContent()) === 'Ch. 1',
+                {},
+            );
+            await panelOf(page).getByRole('button', { name: 'Close' }).click();
+            await panelOf(page)
+                .waitFor({ state: 'hidden', timeout: 5000 })
+                .catch(() => {});
+
+            // Per-chapter button on the chapter list (newest first, so chapter 150 is on top).
+            const row = chapterRow(page, `Chapter ${LAST_CHAPTER}`);
+            await row.waitFor({ timeout: 10_000 }).catch(() => {});
+            rowHeightWithButton = (await row.boundingBox())?.height ?? null;
+            await row.getByRole('button', { name: 'Comments for this chapter' }).click();
+            await waitText(panelOf(page), 'Last chapter talk');
+            const rowSelector = selectorOf(panelOf(page));
+            check(
+                label('row icon opens the panel on that chapter'),
+                (await rowSelector.chooser.textContent()) === `Ch. ${LAST_CHAPTER}` &&
+                    (await isShown(panelOf(page), 'Last chapter talk')) &&
+                    (await rowSelector.next.isDisabled()) &&
+                    page.url().endsWith(`/manga/${MANGA_ID}`),
+                { url: page.url() },
+            );
+            await panelOf(page).getByRole('button', { name: 'Close' }).click();
+            await panelOf(page)
+                .waitFor({ state: 'hidden', timeout: 5000 })
+                .catch(() => {});
+            await row.getByText(`Chapter ${LAST_CHAPTER}`, { exact: true }).click();
+            await page.waitForURL(/\/chapter\//, { timeout: 10_000 }).catch(() => {});
+            check(label('tapping the row itself still opens the reader'), /\/chapter\/\d+/.test(page.url()), {
+                url: page.url(),
+            });
+        }
 
         // 2. Reader: the current chapter's thread; the chapter map comes from the 24 h cache.
         await page.goto(`${ORIGIN}/manga/${MANGA_ID}/chapter/2`);
@@ -375,6 +586,24 @@ const runBrowser = async (browserName) => {
                 .catch(() => false),
             relay.counts,
         );
+        {
+            const live = panelOf(page);
+            const { chooser, next } = selectorOf(live);
+            await next.click().catch(() => {});
+            await waitText(live, 'Comick has no thread for chapter 2.5');
+            check(label('reader: next steps to 2.5'), (await chooser.textContent()) === 'Ch. 2.5 - Extra', {
+                label: await chooser.textContent().catch(() => null),
+            });
+            await live.getByRole('button', { name: 'Close' }).click();
+            await live.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+            await readerButton.click().catch(() => {});
+            await waitText(panelOf(page), 'Chapter two talk');
+            check(
+                label('reader: reopening is back on the current chapter'),
+                (await selectorOf(panelOf(page)).chooser.textContent()) === 'Ch. 2 - The Devil Seeker',
+                {},
+            );
+        }
         check(
             label('reader: match and chapter map not refetched'),
             relay.counts['/v1.0/search'] === 1 && relay.counts['/comic/ctest/chapters'] === 1,
@@ -386,6 +615,16 @@ const runBrowser = async (browserName) => {
         await page.goto(`${ORIGIN}/manga/${MANGA_ID}`);
         await page.getByRole('heading', { name: 'Similar' }).waitFor({ timeout: 20_000 });
         await page.waitForTimeout(500);
+        const rowOff = chapterRow(page, `Chapter ${LAST_CHAPTER}`);
+        await rowOff.waitFor({ timeout: 10_000 }).catch(() => {});
+        const rowHeightWithout = (await rowOff.boundingBox())?.height ?? null;
+        check(
+            label('row icon hidden while comments are off, row height unchanged by it'),
+            (await rowOff.getByRole('button', { name: 'Comments for this chapter' }).count()) === 0 &&
+                rowHeightWithButton !== null &&
+                rowHeightWithButton === rowHeightWithout,
+            { rowHeightWithButton, rowHeightWithout },
+        );
         check(
             label('tsuji_comments=false hides the pill'),
             (await page.getByRole('button', { name: 'Comments', exact: true }).count()) === 0,
@@ -542,6 +781,47 @@ const runBrowser = async (browserName) => {
             box && box.width === 390 && Math.abs(box.y + box.height - 844) < 2 && Math.abs(box.height - 844 * 0.85) < 4,
             box,
         );
+        const { chooser, previous, next } = selectorOf(panel);
+        const arrowBoxes = [await previous.boundingBox(), await next.boundingBox()];
+        check(
+            label('phone: selector arrows have 40 px targets'),
+            arrowBoxes.every((arrow) => arrow && arrow.width >= 40 && arrow.height >= 40),
+            arrowBoxes,
+        );
+        await chooser.click();
+        const picker = page.getByRole('dialog', { name: 'Choose chapter' });
+        await picker.waitFor({ timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(500);
+        const pickerBox = await picker.boundingBox();
+        check(
+            label('phone: the picker is a bottom sheet'),
+            !!pickerBox && pickerBox.width === 390 && Math.abs(pickerBox.y + pickerBox.height - 844) < 2,
+            pickerBox,
+        );
+        if (SCREENSHOT_DIR) {
+            await page.screenshot({ path: join(SCREENSHOT_DIR, `comments-picker-phone-${browserName}.png`) });
+        }
+        await page.keyboard.press('Escape');
+        await panel.getByRole('button', { name: 'Close' }).click();
+        await panel.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+
+        const row = chapterRow(page, `Chapter ${LAST_CHAPTER}`);
+        await row.scrollIntoViewIfNeeded().catch(() => {});
+        const rowBox = await row.boundingBox();
+        const iconBox = await row.getByRole('button', { name: 'Comments for this chapter' }).boundingBox();
+        check(
+            label('phone: row icon fits inside the row (40 px target, no overflow)'),
+            !!rowBox &&
+                !!iconBox &&
+                iconBox.width >= 40 &&
+                iconBox.x >= rowBox.x &&
+                iconBox.x + iconBox.width <= rowBox.x + rowBox.width &&
+                rowBox.x + rowBox.width <= 390,
+            { rowBox, iconBox },
+        );
+        if (SCREENSHOT_DIR) {
+            await page.screenshot({ path: join(SCREENSHOT_DIR, `comments-rows-phone-${browserName}.png`) });
+        }
         await context.close();
     }
 
