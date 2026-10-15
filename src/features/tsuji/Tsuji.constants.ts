@@ -25,6 +25,8 @@ export const TSUJI_META_KEYS = {
     /** Similar on the manga screen: "row" (scrolling row) or "grid" (wrapped); unset = grid on touch screens. */
     similarLayout: 'tsuji_similarLayout',
     anilistId: 'tsuji_anilistId',
+    /** Manga meta: JSON scanlator of the last chapter finished in the reader (duplicate chapters: Resume copy). */
+    readScanlator: 'tsuji_readScanlator',
     /** AniList user whose public manga list marks titles as already read (default DEFAULT_ANILIST_USER). */
     anilistUser: 'tsuji_anilistUser',
     /**

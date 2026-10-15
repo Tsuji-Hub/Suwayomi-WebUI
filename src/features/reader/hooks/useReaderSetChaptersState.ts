@@ -21,6 +21,7 @@ import { STABLE_EMPTY_OBJECT } from '@/base/Base.constants.ts';
 
 import { READER_DEFAULT_CHAPTERS_STATE } from '@/features/reader/stores/ReaderChaptersStore.ts';
 import { AppRoutes } from '@/base/AppRoute.constants.ts';
+import { tsujiRemoveDuplicates } from '@/features/tsuji/duplicates/duplicateChapters.ts';
 
 export const useReaderSetChaptersState = (
     chaptersResponse: ReturnType<typeof requestManager.useGetMangaChapters<GetChaptersReaderQuery>>,
@@ -55,7 +56,7 @@ export const useReaderSetChaptersState = (
                 ? filterChapters(mangaChapters ?? newMangaChapters, chapterListOptions)
                 : newMangaChapters;
             const uniqueChapters = shouldSkipDupChapters
-                ? Chapters.removeDuplicates(newChapterForDuplicatesHandling, filteredChapters)
+                ? tsujiRemoveDuplicates(newChapterForDuplicatesHandling, filteredChapters)
                 : filteredChapters;
 
             return uniqueChapters.map((chapter) => getReaderChapterFromCache(chapter.id)!);

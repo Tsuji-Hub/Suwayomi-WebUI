@@ -47,6 +47,8 @@ import { makeToast } from '@/base/utils/Toast.ts';
 import { ChapterListCard } from '@/features/chapter/components/cards/ChapterListCard.tsx';
 import { VirtuosoPersisted } from '@/lib/virtuoso/Component/VirtuosoPersisted.tsx';
 import { STABLE_EMPTY_ARRAY } from '@/base/Base.constants.ts';
+import { getTsujiResumeChapter } from '@/features/tsuji/duplicates/duplicateChapters.ts';
+import { getTsujiReadScanlator } from '@/features/tsuji/duplicates/DuplicateChaptersService.ts';
 
 type ChapterListHeaderProps = {
     scrollbarWidth: number;
@@ -264,7 +266,12 @@ export const ChapterList = ({
                 selectedChapters={selectedItemIds
                     .map((id) => chapters.find((chapter) => chapter.id === id))
                     .filter((chapter) => chapter != null)}
-                firstUnreadChapter={manga.firstUnreadChapter}
+                firstUnreadChapter={getTsujiResumeChapter(
+                    chapters,
+                    manga.firstUnreadChapter,
+                    getTsujiReadScanlator(manga),
+                    options.excludedScanlators,
+                )}
                 onFABMenuClose={clearSelection}
             />
         </>

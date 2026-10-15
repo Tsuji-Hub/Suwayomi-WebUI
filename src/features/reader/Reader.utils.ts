@@ -26,6 +26,7 @@ import {
     isContinuousVerticalReadingMode,
 } from '@/features/reader/settings/ReaderSettings.utils.tsx';
 import { Colors } from '@/lib/Colors.ts';
+import { tsujiAddDuplicates } from '@/features/tsuji/duplicates/duplicateChapters.ts';
 
 export const getInitialReaderPageIndex = (
     resumeMode: ReaderResumeMode,
@@ -66,7 +67,7 @@ export const getChapterIdsToDeleteForChapterUpdate = (
     }
 
     const maybeChaptersToDelete = shouldSkipDupChapters
-        ? Chapters.addDuplicates([maybeChapterToDelete], chapters)
+        ? tsujiAddDuplicates([maybeChapterToDelete], chapters)
         : [maybeChapterToDelete];
     const chaptersToDelete = maybeChaptersToDelete
         .map(({ id }) => getReaderChapterFromCache(id))
