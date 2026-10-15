@@ -17,6 +17,7 @@ import { GET_CHAPTERS_MANGA } from '@/lib/graphql/chapter/ChapterQuery.ts';
 import type { GetChaptersMangaQuery, GetChaptersMangaQueryVariables } from '@/lib/graphql/generated/graphql.ts';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { buildCommentChapters, getLastReadScanlator } from '@/features/tsuji/comments/chapterNav.ts';
+import { getTsujiReadScanlator } from '@/features/tsuji/duplicates/DuplicateChaptersService.ts';
 import {
     closeCommentsPanel,
     openCommentsPanel,
@@ -63,7 +64,11 @@ export const SeriesCommentsHost = ({ manga }: { manga: { id: number; title: stri
         { skip: !isOpen, fetchPolicy: 'cache-first' },
     );
     const nodes = data?.chapters.nodes;
-    const reference = request?.scanlator !== undefined ? request.scanlator : getLastReadScanlator(nodes ?? []);
+    // Twins are labelled from the opened row's copy, else the scanlator last finished in the reader (r3392's
+    // `tsuji_readScanlator`), else the last read copy.
+    const readScanlator = getTsujiReadScanlator(manga);
+    const fallback = readScanlator !== undefined ? readScanlator : getLastReadScanlator(nodes ?? []);
+    const reference = request?.scanlator !== undefined ? request.scanlator : fallback;
     const chapters = useMemo(() => buildCommentChapters(nodes ?? [], reference), [nodes, reference]);
 
     // Leaving the page (back button) with the panel open: don't reopen it on the next visit.

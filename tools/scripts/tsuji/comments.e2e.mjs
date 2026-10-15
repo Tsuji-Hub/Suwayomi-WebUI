@@ -693,6 +693,16 @@ const runBrowser = async (browserName) => {
             await panelOf(page).getByText('Other series talk').isVisible(),
             {},
         );
+        // Twins on the series page: labelled from tsuji_readScanlator (r3392) when it is set.
+        server.mangaMeta.set('tsuji_readScanlator', JSON.stringify('B'));
+        await page.reload();
+        await openPill(page);
+        await selectorOf(panelOf(page)).next.click();
+        check(
+            label('series page: twin labelled from tsuji_readScanlator'),
+            (await selectorOf(panelOf(page)).chooser.textContent()) === 'Ch. 2 - Devil Seeker (B)',
+            { label: await selectorOf(panelOf(page)).chooser.textContent() },
+        );
         check(label('no match: no page errors'), pageErrors.length === 0, pageErrors);
         await context.close();
     }
