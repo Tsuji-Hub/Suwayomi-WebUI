@@ -6,12 +6,12 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-15)
 
-| Branch                         | Commit             | What                                                                                                                                                                       |
-| ------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`                       | `3d686cb6` (r3392) | Briefs #1-#4 + reader resume. r3392 shipped 2026-10-15.                                                                                                                    |
-| `feat/comments-similar-scroll` | `8ef88f7d` (r3398) | Brief #5 + download ahead + merge of r3392. r3395 passed desktop checks 2026-10-14; phone items not checked yet.                                                           |
-| `feat/comments-chapter-nav`    | r3401              | Brief #5.1 + merge of r3392 (twins labelled from `tsuji_readScanlator`). r3397 (without r3392) deployed 2026-10-15, Chrome pass items 1-4 OK; phone items not checked yet. |
-| `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                             |
+| Branch                         | Commit             | What                                                                                                                                                                                                                                                     |
+| ------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`                       | `3d686cb6` (r3392) | Briefs #1-#4 + reader resume. r3392 shipped 2026-10-15.                                                                                                                                                                                                  |
+| `feat/comments-similar-scroll` | `8ef88f7d` (r3398) | Brief #5 + download ahead + merge of r3392. r3395 passed desktop checks 2026-10-14; phone items not checked yet.                                                                                                                                         |
+| `feat/comments-chapter-nav`    | `c6a51cd4` (r3401) | Briefs #5 + #5.1 + r3392. r3401 deployed 2026-10-15 (the server runs it), Chrome recheck OK on Tales of Demons and Gods (twins once, picker one entry per number, Resume copy, no-thread 504.1/504.5/504.6). Ready to ship for desktop; phone pass open. |
+| `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                                                                           |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
@@ -23,7 +23,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3397 (brief #5.1, built without r3392; the next comments release includes it). Older note:
+3. The server runs r3401 (briefs #4, #5, #5.1). Older note:
    release `r3383-eb23a8e3`
    has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
