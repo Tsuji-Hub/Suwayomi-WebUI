@@ -6,13 +6,13 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-15)
 
-| Branch                         | Commit             | What                                                                                                                                                  |
-| ------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`                       | `7a1ea34a` (r3391) | Briefs #1-#3 + reader resume. For You verified live.                                                                                                  |
-| `feat/duplicate-chapters`      | `3d686cb6` (r3392) | Brief #4, deployed 2026-09-30, waiting for the owner's checks. Merged here on ship.                                                                   |
-| `feat/comments-similar-scroll` | `19d38371` (r3395) | Brief #5 + download ahead. r3395 deployed 2026-10-14, browser pass OK (desktop); phone items (touch grid default, bottom-bar button) not checked yet. |
-| `feat/comments-chapter-nav`    | r3397              | Brief #5.1 (chapter selector in Comments, per-chapter comment buttons), off `feat/comments-similar-scroll`.                                           |
-| `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                        |
+| Branch                         | Commit             | What                                                                                                                                                                                                   |
+| ------------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `custom`                       | `7a1ea34a` (r3391) | Briefs #1-#3 + reader resume. For You verified live.                                                                                                                                                   |
+| `feat/duplicate-chapters`      | `3d686cb6` (r3392) | Brief #4, deployed 2026-09-30, waiting for the owner's checks. Merged here on ship.                                                                                                                    |
+| `feat/comments-similar-scroll` | `19d38371` (r3395) | Brief #5 + download ahead. r3395 deployed 2026-10-14, browser pass OK (desktop); phone items (touch grid default, bottom-bar button) not checked yet.                                                  |
+| `feat/comments-chapter-nav`    | `d7734415` (r3397) | Brief #5.1, off `feat/comments-similar-scroll`. Deployed 2026-10-15 (the server runs it), Chrome pass items 1-4 OK; item 5 (no-thread) covered by the browser suite only; phone items not checked yet. |
+| `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                         |
 
 Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
