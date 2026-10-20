@@ -745,6 +745,7 @@ const runBrowser = async (browserName) => {
         .getByRole('button', { name: 'Also match Murim' })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
+    const beforeAlsoMatch = seriesSearches().length;
     await page.getByRole('button', { name: 'Also match Murim' }).click();
     await page.getByRole('menuitem', { name: 'Add to Martial Arts' }).click();
     await page
@@ -757,9 +758,11 @@ const runBrowser = async (browserName) => {
     check(
         label('"+ also match": Martial Arts +1 searches System with Martial Arts or Murim (6 sub-searches)'),
         selectedChips.includes('Martial Arts +1') &&
+            // All six combinations were searched before (System + Murim, System + Martial Arts) and are cached an
+            // hour, so anything that does go out must be one of them.
             seriesSearches()
-                .slice(-6)
-                .every((request) => /tag=(29|40)&tag=(1171|1196|3081)&/.test(request)) &&
+                .slice(beforeAlsoMatch)
+                .every((request) => /[?&]tag=(29|40)&tag=(1171|1196|3081)&(?!tag=)/.test(request)) &&
             JSON.stringify([...either].sort()) ===
                 JSON.stringify(
                     [
@@ -772,7 +775,13 @@ const runBrowser = async (browserName) => {
                         'Psychopath in Murim',
                     ].sort(),
                 ),
-        { either, chips: selectedChips.filter((text) => text.startsWith('Martial')) },
+        {
+            either,
+            chips: selectedChips.filter((text) => text.startsWith('Martial')),
+            requests: seriesSearches()
+                .slice(beforeAlsoMatch)
+                .map((request) => new URLSearchParams(request.split('?')[1]).getAll('tag')),
+        },
     );
 
     // AniList-backed chips only (merged Dungeon): AniList search, zero MangaBaka series searches.
