@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Follow-up: preview comments start at chapter 1 (branch `feat/preview-comments-ch1`)
 
-On top of `feat/chapter-bell`; goes out after the bell ships. The Discover / For You / Similar preview's Comments tab
+Off `custom` (r3419, the bell). The Discover / For You / Similar preview's Comments tab
 opens on the first of chapters 1-5 that has comments (else chapter 1; a series without those numbers opens on its
 lowest chapter), never the newest: a preview decides whether to start a series, so late comments are spoilers
 (`findPreviewChapter` in `comments/chapterNav.ts`, replacing #8's "newest of the last 3"). The chapter picker stays;
@@ -24,6 +24,12 @@ the reader's comments stay on the current chapter. Unit test updated; browser ch
 3-8 (the newest has comments) never asked.
 
 # Brief #10: new-chapter bell (branch `feat/chapter-bell`)
+
+**Shipped as r3419** (2026-10-20). Cowork live: "New chapters: 2" (The Investor Who Sees The Future, ongoing, Ch
+108-110 · 3 new; God-Level Assassin, I'm the Shadow, ongoing, Ch 147), nothing from Reading; first run wrote only
+`tsuji_bellStart` (under 30 entries); a row opened ch 108 (first new), count 2 -> 1 in both browsers; Mark all seen
+-> 0; the dialog lists all 8 categories, adding Reading -> 4; one TSUJI_CHAPTER_BELL request per load, no OOM
+(965 MiB / 2 GiB).
 
 Off `custom` (r3416) + `chore/docs-r3416`. Replaces Cowork's Discord chapter pings: a bell in the app bar for series
 Ethan is caught up on in `ongoing` / `Completed`. One upstream hook: `DefaultNavBar.tsx` (the reader has its own bar,
