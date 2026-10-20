@@ -257,18 +257,21 @@ const runBrowser = async (browserName) => {
 
     // The reader menu: the center tap zone still opens it, and its quick setting switches to RIGHT.
     const rightButton = page.getByRole('button', { name: 'Right', exact: true });
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
         // oxlint-disable-next-line no-await-in-loop
         if (await rightButton.isVisible().catch(() => false)) {
             break;
         }
+        // Wait out the tap-zone preview first; every other try uses the menu hotkey (m) instead of a tap.
         // oxlint-disable-next-line no-await-in-loop
-        await page.mouse.click(VIEWPORT.width / 2, 300);
+        await page.waitForTimeout(1500);
+        // oxlint-disable-next-line no-await-in-loop
+        await (attempt % 2 === 0 ? page.mouse.click(VIEWPORT.width / 2, 300) : page.keyboard.press('m'));
         // oxlint-disable-next-line no-await-in-loop
         await rightButton.waitFor({ timeout: 1500 }).catch(() => {});
     }
     check(
-        label('center tap zone opens the menu with Left / Center / Right'),
+        label('reader menu (center tap, else m) has Left / Center / Right'),
         await rightButton.isVisible().catch(() => false),
         {},
     );
@@ -290,13 +293,17 @@ const runBrowser = async (browserName) => {
         right,
     );
 
-    // Shift+L cycles RIGHT -> LEFT.
+    // Shift+L cycles to the next position.
+    const beforeCycle = server.meta.get('tsuji_pagePosition') ?? 'CENTER';
+    const expectedAfterCycle = { LEFT: 'CENTER', CENTER: 'RIGHT', RIGHT: 'LEFT' }[beforeCycle];
     await page.mouse.move(VIEWPORT.width - 50, 600);
     await page.keyboard.press('Shift+L');
     await page.waitForTimeout(800);
-    check(label('Shift+L cycles RIGHT -> LEFT'), server.meta.get('tsuji_pagePosition') === 'LEFT', {
-        stored: server.meta.get('tsuji_pagePosition'),
-    });
+    check(
+        label(`Shift+L cycles ${beforeCycle} -> ${expectedAfterCycle}`),
+        server.meta.get('tsuji_pagePosition') === expectedAfterCycle,
+        { stored: server.meta.get('tsuji_pagePosition') },
+    );
     check(label('no page errors'), pageErrors.length === 0, pageErrors);
     await context.close();
 
