@@ -870,6 +870,10 @@ msgstr "Category selection dialog"
 msgid "CBZ MIME-Type"
 msgstr "CBZ MIME-Type"
 
+#: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
+msgid "Center"
+msgstr "Center"
+
 #: src/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx
 msgid "Ch {read}"
 msgstr "Ch {read}"
@@ -2130,6 +2134,10 @@ msgstr "Forget manga categories"
 msgid "Fourth to last read chapter"
 msgstr "Fourth to last read chapter"
 
+#: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
+msgid "Gap from the edge"
+msgstr "Gap from the edge"
+
 #: src/features/library/screens/LibrarySettings.tsx
 #: src/features/reader/settings/ReaderSettings.constants.tsx
 msgid "General"
@@ -2549,6 +2557,7 @@ msgstr "Leave empty to use this server on port 4568."
 
 #: src/features/reader/overlay/progress-bar/settings/components/ReaderSettingProgressBarPosition.tsx
 #: src/features/reader/settings/general/components/ReaderSettingSafeAreaInset.tsx
+#: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
 msgid "Left"
 msgstr "Left"
 
@@ -3243,6 +3252,10 @@ msgstr "Page"
 msgid "Page gap"
 msgstr "Page gap"
 
+#: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
+msgid "Page position"
+msgstr "Page position"
+
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "Parallel source requests"
 msgstr "Parallel source requests"
@@ -3559,6 +3572,7 @@ msgstr "Retry errored pages"
 
 #: src/features/reader/overlay/progress-bar/settings/components/ReaderSettingProgressBarPosition.tsx
 #: src/features/reader/settings/general/components/ReaderSettingSafeAreaInset.tsx
+#: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
 msgid "Right"
 msgstr "Right"
 
@@ -4777,6 +4791,10 @@ msgstr "When enabled, download and streaming links are provided directly in the 
 #: src/features/settings/Settings.constants.ts
 msgid "When you enable this, you may need to refresh this tab for the login page to appear."
 msgstr "When you enable this, you may need to refresh this tab for the login page to appear."
+
+#: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
+msgid "Where the pages sit in the window. Their size doesn't change. Shift+L cycles it."
+msgstr "Where the pages sit in the window. Their size doesn't change. Shift+L cycles it."
 
 #: src/features/settings/Settings.constants.ts
 msgid "Where to start the WebUI when starting the server"

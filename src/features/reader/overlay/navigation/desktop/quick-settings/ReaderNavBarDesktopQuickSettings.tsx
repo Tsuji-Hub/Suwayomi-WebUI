@@ -19,6 +19,7 @@ import type { ReaderNavBarDesktopProps } from '@/features/reader/overlay/ReaderO
 import { ReaderService } from '@/features/reader/services/ReaderService.ts';
 import { ReaderNavBarDesktopAutoScroll } from '@/features/reader/auto-scroll/settings/quick-setting/ReaderNavBarDesktopAutoScroll.tsx';
 import { useReaderSettingsStore } from '@/features/reader/stores/ReaderStore.ts';
+import { TsujiPagePositionQuickSetting } from '@/features/tsuji/reader/position/components/PagePositionSettings.tsx';
 
 const BaseReaderNavBarDesktopQuickSettings = ({ openSettings }: Pick<ReaderNavBarDesktopProps, 'openSettings'>) => {
     const { t } = useLingui();
@@ -58,6 +59,7 @@ const BaseReaderNavBarDesktopQuickSettings = ({ openSettings }: Pick<ReaderNavBa
                 isDefaultable
                 onDefault={() => ReaderService.deleteSetting('readingDirection')}
             />
+            <TsujiPagePositionQuickSetting />
             <ReaderNavBarDesktopAutoScroll
                 autoScroll={autoScroll}
                 setAutoScroll={(...args) => ReaderService.updateSetting('autoScroll', ...args)}

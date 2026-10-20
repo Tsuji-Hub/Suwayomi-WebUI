@@ -54,6 +54,7 @@ import {
 import { STABLE_EMPTY_OBJECT } from '@/base/Base.constants.ts';
 import { getPage } from '@/features/reader/overlay/progress-bar/ReaderProgressBar.utils.tsx';
 import { useTsujiRouteResumeMode } from '@/features/tsuji/reader/routeResumeMode.ts';
+import { useTsujiPagePositionHotkey } from '@/features/tsuji/reader/position/usePagePosition.ts';
 
 const READING_MODE_TO_IN_VIEWPORT_TYPE: Record<ReadingMode, PageInViewportType> = {
     [ReadingMode.SINGLE_PAGE]: PageInViewportType.X,
@@ -117,6 +118,7 @@ const BaseReaderViewer = ({
     const safeAreaInset = useReaderSettingsStore('safeAreaInset');
     const { resumeMode: routeResumeMode } = useLocation<RouteStateReader>().state ?? STABLE_EMPTY_OBJECT;
     const resumeMode = useTsujiRouteResumeMode(routeResumeMode, initialChapter, ReaderResumeMode.START);
+    useTsujiPagePositionHotkey();
 
     const scrollElementRef = useRef<HTMLDivElement | null>(null);
     const mergedRef = useMergedRef(ref, scrollElementRef);

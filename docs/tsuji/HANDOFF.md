@@ -6,10 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch   | Commit             | What                                                                                                                                  |
-| -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom` | `c6a51cd4` (r3401) | Briefs #1-#5.1 + reader resume. r3401 shipped 2026-10-20 (desktop checks OK; phone pass waived: the owner doesn't read on the phone). |
-| `master` | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                        |
+| Branch                 | Commit             | What                                                                                                                                  |
+| ---------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`               | `c6a51cd4` (r3401) | Briefs #1-#5.1 + reader resume. r3401 shipped 2026-10-20 (desktop checks OK; phone pass waived: the owner doesn't read on the phone). |
+| `feat/reader-position` | r3404              | Brief #7: reader page position (Left / Center / Right + edge offset, per device preset). Prerelease for Cowork's check.               |
+| `master`               | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                        |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -51,6 +52,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Metadata: raw `tsuji_*` keys only (upstream migrations delete unregistered `webUI_*` keys). Global:
   `tsuji_libraryProgressBadge`, `tsuji_readerChapterProgress`, `tsuji_recFilters`, `tsuji_anilistUser`,
   `tsuji_similarLayout`, `tsuji_comments`, `tsuji_commentsComick`, `tsuji_commentsRelay`, `tsuji_commentsMatch`,
+  per device preset `tsuji[_<device>]_pagePosition` and `tsuji[_<device>]_pageEdgeOffset` (brief #7),
   marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga:
   `tsuji_anilistId`, `tsuji_readScanlator` (JSON scanlator last finished in the reader: duplicate chapters' Resume
   copy). Write through upstream's metadata updater with `isMetadataKey: true`, except read-patch-write values (marks
@@ -64,32 +66,34 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (23 files)
+## Upstream touch list (25 files)
 
-| File                                                                      | Hook                                                                                                                                           |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gql_codegen.ts`                                                          | documents glob includes `src/features/tsuji/graphql/**`                                                                                        |
-| `src/lib/graphql/manga/MangaFragments.ts`                                 | spreads `TSUJI_MANGA_PROGRESS_FIELDS` into `MANGA_LIBRARY_FIELDS`                                                                              |
-| `src/features/manga/components/MangaBadges.tsx`                           | `children` slot after the unread badge                                                                                                         |
-| `src/features/manga/components/cards/MangaCard.tsx`                       | passes `<TsujiProgressBadge>` into `MangaBadges`                                                                                               |
-| `src/features/library/components/LibraryOptionsPanel.tsx`                 | progress-badge toggle under Badges                                                                                                             |
-| `src/features/manga/components/details/MangaDetails.tsx`                  | series progress line + Similar section                                                                                                         |
-| `src/features/reader/overlay/navigation/desktop/ReaderNavBarDesktop.tsx`  | "Ch. 21 / 200" under the chapter picker, then the Comments button                                                                              |
-| `src/features/reader/overlay/navigation/mobile/ReaderBottomBarMobile.tsx` | Comments icon button after Settings                                                                                                            |
-| `src/features/chapter/components/cards/ChapterCard.tsx`                   | `<TsujiChapterCommentsButton>` after the row's options button (series page only)                                                               |
-| `src/features/reader/settings/general/ReaderGeneralSettings.tsx`          | reader progress toggle                                                                                                                         |
-| `src/App.tsx`                                                             | Discover route (lazy)                                                                                                                          |
-| `src/base/AppRoute.constants.ts`                                          | `discover` route constant                                                                                                                      |
-| `src/features/navigation-bar/NavigationBar.constants.ts`                  | Discover nav item (desktop sidebar, More on mobile)                                                                                            |
-| `src/features/app-updates/components/WebUIUpdateChecker.tsx`              | wrapper: mount only after server settings load, never for Custom (brief #2)                                                                    |
-| `src/features/reader/viewer/ReaderChapterViewer.tsx`                      | `useTsujiReaderResume(...)` call (resume pin + in-page offset save)                                                                            |
-| `src/features/reader/services/ReaderControls.ts`                          | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write                                                                             |
-| `src/features/reader/viewer/ReaderViewer.tsx`                             | route resume mode via `useTsujiRouteResumeMode` (no state: last read)                                                                          |
-| `src/features/reader/services/ReaderService.ts`                           | progress update targets via `getTsujiReaderUpdateChapters` (copies); download ahead via `getTsujiChapterIdsForDownloadAhead` (no on-disk rule) |
-| `src/features/reader/hooks/useReaderSetChaptersState.ts`                  | reader chapter list via `tsujiRemoveDuplicates`                                                                                                |
-| `src/features/reader/Reader.utils.ts`                                     | delete-while-reading copies via `tsujiAddDuplicates`                                                                                           |
-| `src/features/chapter/services/Chapters.ts`                               | `markAsRead` ids via `withTsujiReadCopies` (manual marks reach copies)                                                                         |
-| `src/features/chapter/components/ChapterList.tsx`                         | Resume FAB chapter via `getTsujiResumeChapter`                                                                                                 |
+| File                                                                                                 | Hook                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gql_codegen.ts`                                                                                     | documents glob includes `src/features/tsuji/graphql/**`                                                                                        |
+| `src/lib/graphql/manga/MangaFragments.ts`                                                            | spreads `TSUJI_MANGA_PROGRESS_FIELDS` into `MANGA_LIBRARY_FIELDS`                                                                              |
+| `src/features/manga/components/MangaBadges.tsx`                                                      | `children` slot after the unread badge                                                                                                         |
+| `src/features/manga/components/cards/MangaCard.tsx`                                                  | passes `<TsujiProgressBadge>` into `MangaBadges`                                                                                               |
+| `src/features/library/components/LibraryOptionsPanel.tsx`                                            | progress-badge toggle under Badges                                                                                                             |
+| `src/features/manga/components/details/MangaDetails.tsx`                                             | series progress line + Similar section                                                                                                         |
+| `src/features/reader/overlay/navigation/desktop/ReaderNavBarDesktop.tsx`                             | "Ch. 21 / 200" under the chapter picker, then the Comments button                                                                              |
+| `src/features/reader/overlay/navigation/mobile/ReaderBottomBarMobile.tsx`                            | Comments icon button after Settings                                                                                                            |
+| `src/features/chapter/components/cards/ChapterCard.tsx`                                              | `<TsujiChapterCommentsButton>` after the row's options button (series page only)                                                               |
+| `src/features/reader/settings/general/ReaderGeneralSettings.tsx`                                     | reader progress toggle                                                                                                                         |
+| `src/features/reader/settings/layout/ReaderLayoutSettings.tsx`                                       | `<TsujiPagePositionSetting>` after the reader width                                                                                            |
+| `src/features/reader/overlay/navigation/desktop/quick-settings/ReaderNavBarDesktopQuickSettings.tsx` | `<TsujiPagePositionQuickSetting>` (Left / Center / Right)                                                                                      |
+| `src/App.tsx`                                                                                        | Discover route (lazy)                                                                                                                          |
+| `src/base/AppRoute.constants.ts`                                                                     | `discover` route constant                                                                                                                      |
+| `src/features/navigation-bar/NavigationBar.constants.ts`                                             | Discover nav item (desktop sidebar, More on mobile)                                                                                            |
+| `src/features/app-updates/components/WebUIUpdateChecker.tsx`                                         | wrapper: mount only after server settings load, never for Custom (brief #2)                                                                    |
+| `src/features/reader/viewer/ReaderChapterViewer.tsx`                                                 | `useTsujiReaderResume(...)` call (resume pin + in-page offset save); `getPagePositionSx(...)` in the viewer's sx (page position)               |
+| `src/features/reader/services/ReaderControls.ts`                                                     | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write                                                                             |
+| `src/features/reader/viewer/ReaderViewer.tsx`                                                        | route resume mode via `useTsujiRouteResumeMode` (no state: last read); `useTsujiPagePositionHotkey()` (Shift+L)                                |
+| `src/features/reader/services/ReaderService.ts`                                                      | progress update targets via `getTsujiReaderUpdateChapters` (copies); download ahead via `getTsujiChapterIdsForDownloadAhead` (no on-disk rule) |
+| `src/features/reader/hooks/useReaderSetChaptersState.ts`                                             | reader chapter list via `tsujiRemoveDuplicates`                                                                                                |
+| `src/features/reader/Reader.utils.ts`                                                                | delete-while-reading copies via `tsujiAddDuplicates`                                                                                           |
+| `src/features/chapter/services/Chapters.ts`                                                          | `markAsRead` ids via `withTsujiReadCopies` (manual marks reach copies)                                                                         |
+| `src/features/chapter/components/ChapterList.tsx`                                                    | Resume FAB chapter via `getTsujiResumeChapter`                                                                                                 |
 
 Also changed: `package.json` (vitest + playwright-core devDependencies, `test:tsuji`, `test:tsuji:e2e`,
 `codegen:offline`), `pnpm-lock.yaml`. Added at the
@@ -101,7 +105,7 @@ root: `gql_codegen.offline.ts`. Added: `docs/tsuji/**`, `.github/workflows/tsuji
 pnpm install --frozen-lockfile
 pnpm lint && pnpm format:check && pnpm tsc
 pnpm test:tsuji            # vitest, src/features/tsuji/**/*.test.ts
-pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You, duplicates, Similar row, comments (fake relay) (E2E_BROWSERS=chrome,firefox adds Firefox)
+pnpm test:tsuji:e2e        # after pnpm build: mocked Suwayomi (+ fixture AniList): reader resume, For You, duplicates, Similar row, comments (fake relay), page position (E2E_BROWSERS=chrome,firefox adds Firefox)
 pnpm build                 # output in build/
 pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server needed
 pnpm i18n:extract          # en.po only

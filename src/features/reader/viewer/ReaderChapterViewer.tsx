@@ -46,6 +46,8 @@ import { READER_DEFAULT_PAGES_STATE } from '@/features/reader/stores/ReaderPages
 
 import { getReaderChaptersStore, getReaderPagesStore } from '@/features/reader/stores/ReaderStore.ts';
 import { useTsujiReaderResume } from '@/features/tsuji/reader/useTsujiReaderResume.ts';
+import { usePagePosition } from '@/features/tsuji/reader/position/usePagePosition.ts';
+import { getPagePositionSx } from '@/features/tsuji/reader/position/pagePosition.ts';
 
 const BaseReaderChapterViewer = ({
     currentPageIndex,
@@ -112,6 +114,7 @@ const BaseReaderChapterViewer = ({
         scrollElement: HTMLElement | null;
     }) => {
     const { t } = useLingui();
+    const tsujiPosition = usePagePosition();
     const { direction: themeDirection } = useTheme();
 
     const [fetchPages, pagesResponse] = requestManager.useGetChapterPagesFetch(chapterId ?? -1);
@@ -420,6 +423,7 @@ const BaseReaderChapterViewer = ({
                         flexDirection: isLtrReadingDirection ? 'row-reverse' : 'row',
                     }),
                 }),
+                ...getPagePositionSx(tsujiPosition, readingMode, shouldHideChapter),
             }}
         >
             {!isPreloadMode && (

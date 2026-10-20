@@ -14,6 +14,35 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #7: reader page position (branch `feat/reader-position`)
+
+Off `custom` (r3401). The owner reads on a projector lying on his side: pages at the left edge of a maximized window,
+same size as centered, black on the right. Page widths are in vw, so shrinking the window shrank the pages; this
+replaces his bookmarklet (translateX on the viewer's children).
+
+**Done** (r3404):
+
+- Settings `pagePosition` (LEFT / CENTER / RIGHT, default CENTER) and `pageEdgeOffset` (0-800 px, default 0), per
+  device preset like the reader width, stored as raw global meta `tsuji_pagePosition` / `tsuji_<device>_pagePosition`
+  (and `..._pageEdgeOffset`): upstream's reader-setting keys would need `Metadata.constants.ts`, `Reader.types.ts`,
+  the defaults and `ReaderSettingsMetadata.ts` changed, and its migrations delete unregistered `webUI_*` keys. Not
+  per manga or per reading mode (the brief asked for per device).
+- Layout (`reader/position/pagePosition.ts`): upstream centers each chapter viewer with `margin: auto` (in every mode);
+  LEFT becomes `marginLeft: offset, marginRight: auto`, RIGHT the mirror. The images inside get the same edge margin,
+  because upstream centers them in the column (`m: auto`) and a not yet loaded page keeps a 40vw placeholder that can
+  be wider than a loaded image. Untouched: CENTER, continuous horizontal, hidden chapter viewers (`margin: unset`),
+  the images of double page (the spread stays joined; the spread as a whole moves). No size changes, so tap zones,
+  scroll preservation, resume and infinite scroll keep working as they are.
+- UI: Reader settings > Layout: "Page position" select + "Gap from the edge" slider (hidden for Center). Desktop
+  reader menu: Left / Center / Right toggle above Auto scroll. Shift+L cycles the three (reader hotkey scope; the
+  owner's bookmarklet key, unused by the reader).
+- Unit (5): parse / clamp, cycle, device keys, margins, hidden / horizontal / double page. Browser
+  (`reader-position.e2e.mjs`, 1920x1080): CENTER centered; LEFT offset 0 -> image left = 0 and same width as CENTER;
+  F5 keeps it; offset 120 -> left = 120; center tap zone opens the menu, its Right writes `tsuji_pagePosition`;
+  RIGHT -> 120 px from the scroll area's right edge; Shift+L RIGHT -> LEFT; device GamingPC reads its own key; single
+  page LEFT + the right tap zone (empty area) still turns the page; webtoon with the owner's 43 % width; double page
+  LEFT joined; infinite scroll: every loaded page of two chapters at the edge; LEFT resume on lastPageRead and F5.
+
 # Brief #5.1: chapter navigation in Comments, per-chapter comment buttons (branch `feat/comments-chapter-nav`)
 
 Off `feat/comments-similar-scroll` (r3392 and r3395 not on `custom` yet). Makimono reference: CommentsScreen.kt

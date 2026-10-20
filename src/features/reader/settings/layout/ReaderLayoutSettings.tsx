@@ -22,6 +22,7 @@ import { ReaderSettingWidth } from '@/features/reader/settings/layout/components
 import { DefaultSettingFootnote } from '@/features/reader/settings/components/DefaultSettingFootnote.tsx';
 import { getReaderTapZoneStore } from '@/features/reader/stores/ReaderStore.ts';
 import { ReaderDefaultLayoutSettings } from '@/features/reader/settings/layout/ReaderDefaultLayoutSettings.tsx';
+import { TsujiPagePositionSetting } from '@/features/tsuji/reader/position/components/PagePositionSettings.tsx';
 
 export const ReaderLayoutSettings = ({
     settings,
@@ -105,6 +106,7 @@ export const ReaderLayoutSettings = ({
                 updateSetting={(...args) => updateSetting(...args)}
                 setTransparent={setTransparent}
             />
+            <TsujiPagePositionSetting setTransparent={setTransparent} />
             {isSeriesMode && (
                 <>
                     <Divider />
