@@ -84,35 +84,88 @@ export const searchMuCategories = async (query: string, signal?: AbortSignal): P
     return categories;
 };
 
-export const searchMuSeries = async (query: MuSeriesQuery, signal?: AbortSignal) =>
-    parseMuSeriesSearch(await postMu('v1/series/search', query, signal));
+const SERIES_MEMO_MS = 15 * 60 * 1000;
+const seriesMemo = new Map<string, { at: number; result: Promise<ReturnType<typeof parseMuSeriesSearch>> }>();
+
+/** The promise, given up on (not cancelled) when the signal aborts. */
+const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> =>
+    signal
+        ? new Promise<T>((resolve, reject) => {
+              if (signal.aborted) {
+                  reject(signal.reason);
+                  return;
+              }
+              const abort = () => reject(signal.reason);
+              signal.addEventListener('abort', abort, { once: true });
+              promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+          })
+        : promise;
+
+/**
+ * One MU series search; an identical body within 15 minutes (also while in flight) is answered from memory, so a
+ * feed that resets with the same selection never asks MU twice. The request itself outlives an aborted caller, so
+ * the next caller with the same body picks it up instead of asking again.
+ */
+export const searchMuSeries = (query: MuSeriesQuery, signal?: AbortSignal) => {
+    const key = JSON.stringify(query);
+    const memo = seriesMemo.get(key);
+    if (memo && Date.now() - memo.at < SERIES_MEMO_MS) {
+        return untilAborted(memo.result, signal);
+    }
+    const result = postMu('v1/series/search', query).then(parseMuSeriesSearch);
+    seriesMemo.set(key, { at: Date.now(), result });
+    result.catch(() => seriesMemo.delete(key));
+    return untilAborted(result, signal);
+};
 
 type PageResponse = { media: AniListCandidate[] | null } | null;
 
-const matchKey = (seriesId: number) => `mu:match:v1:${seriesId}`;
+// v2: exact names are tie-broken by country and year (v1 verdicts could be wrong or empty for colliding names).
+const matchKey = (seriesId: number) => `mu:match:v2:${seriesId}`;
 type CachedMatch = { id: number | null };
 
+/** Matches of this tab, with the media (cards need it): no AniList request at all for a series seen before. */
+const matchMemo = new Map<number, RecMedia | null>();
+
 /**
- * AniList media for MU series (null = no match): cached ids (30 days) come back in one id_in request; the rest
- * are searched 10 titles per request through the shared AniList queue, and the verdict is cached.
+ * AniList media for MU series (null = no match), in the given order (the visible cards first), reported batch by
+ * batch through `onBatch` so cards can fill in as matches land. Known matches come from memory, cached ids
+ * (30 days) from one id_in request, the rest from 10 titles per aliased request through the shared AniList queue.
  */
 export const matchMuSeries = async (
     series: MuSeries[],
     signal?: AbortSignal,
+    onBatch?: (matches: Map<number, RecMedia | null>) => void,
 ): Promise<Map<number, RecMedia | null>> => {
     const result = new Map<number, RecMedia | null>();
+    const report = (batch: Map<number, RecMedia | null>) => {
+        batch.forEach((media, seriesId) => {
+            result.set(seriesId, media);
+            matchMemo.set(seriesId, media);
+        });
+        if (batch.size) {
+            onBatch?.(batch);
+        }
+    };
+
+    const remembered = new Map<number, RecMedia | null>();
     const knownIds = new Map<number, number>();
     const unknown: MuSeries[] = [];
     series.forEach((each) => {
+        if (matchMemo.has(each.seriesId)) {
+            remembered.set(each.seriesId, matchMemo.get(each.seriesId) ?? null);
+            return;
+        }
         const cached = TsujiCache.get<CachedMatch>(matchKey(each.seriesId));
         if (!cached) {
             unknown.push(each);
         } else if (cached.id === null) {
-            result.set(each.seriesId, null);
+            remembered.set(each.seriesId, null);
         } else {
             knownIds.set(each.seriesId, cached.id);
         }
     });
+    report(remembered);
 
     if (knownIds.size) {
         const data = await aniList.request<{ Page: PageResponse }>(
@@ -121,7 +174,7 @@ export const matchMuSeries = async (
             { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
         );
         const byId = new Map((data.Page?.media ?? []).map((media) => [media.id, media]));
-        knownIds.forEach((id, seriesId) => result.set(seriesId, byId.get(id) ?? null));
+        report(new Map([...knownIds].map(([seriesId, id]) => [seriesId, byId.get(id) ?? null])));
     }
 
     for (let start = 0; start < unknown.length; start += MATCH_BATCH) {
@@ -132,11 +185,15 @@ export const matchMuSeries = async (
             Object.fromEntries(batch.map((each, index) => [`t${index}`, each.title])),
             { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
         );
-        batch.forEach((each, index) => {
-            const match = pickAniListMatch(each, data[`m${index}`]?.media ?? []);
-            result.set(each.seriesId, match);
-            TsujiCache.set<CachedMatch>(matchKey(each.seriesId), { id: match?.id ?? null }, MATCH_TTL_MS);
-        });
+        report(
+            new Map(
+                batch.map((each, index) => {
+                    const match = pickAniListMatch(each, data[`m${index}`]?.media ?? []);
+                    TsujiCache.set<CachedMatch>(matchKey(each.seriesId), { id: match?.id ?? null }, MATCH_TTL_MS);
+                    return [each.seriesId, match];
+                }),
+            ),
+        );
     }
     return result;
 };

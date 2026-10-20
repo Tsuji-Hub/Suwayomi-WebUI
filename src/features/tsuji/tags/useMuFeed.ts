@@ -11,17 +11,17 @@ import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts'
 import type { FeedPhase } from '@/features/tsuji/discover/landing.ts';
 import type { ComicType, RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { useCommentsSettings } from '@/features/tsuji/comments/useComments.ts';
-import type { AniListChips, MuSelection } from '@/features/tsuji/tags/muSearch.ts';
-import { buildMuQueries, mergeMuSeries, passesAniListChips, toUnmatchedMedia } from '@/features/tsuji/tags/muSearch.ts';
+import type { AniListChips, MuSelection, MuSeries } from '@/features/tsuji/tags/muSearch.ts';
+import { buildMuQueries, mergeMuSeries, splitAniListChips, toMuCards } from '@/features/tsuji/tags/muSearch.ts';
 import { matchMuSeries, searchMuSeries } from '@/features/tsuji/tags/muService.ts';
 
 const PER_PAGE = 50;
 
 /**
- * One page of the MU search as cards: the page of every query (merged, de-duplicated against earlier pages),
- * matched to AniList; AniList-only chips filter the matched media, adult AniList media drop out unless allowed.
+ * One page of the MU search: the page of every query, merged and de-duplicated against earlier pages. AniList-only
+ * chips that are MU genres go to MU as genre / exclude_genre.
  */
-export const loadMuPage = async ({
+export const fetchMuPage = async ({
     mu,
     aniListChips,
     types,
@@ -39,8 +39,9 @@ export const loadMuPage = async ({
     page: number;
     seenSeriesIds: Set<number>;
     signal: AbortSignal;
-}): Promise<{ media: RecMedia[]; hasNextPage: boolean }> => {
-    const queries = buildMuQueries({ mu, types, sort, showAdult, page, perPage: PER_PAGE });
+}): Promise<{ series: MuSeries[]; hasNextPage: boolean }> => {
+    const { muGenres } = splitAniListChips(aniListChips);
+    const queries = buildMuQueries({ mu, muGenres, types, sort, showAdult, page, perPage: PER_PAGE });
     const results = [];
     for (const query of queries) {
         // oxlint-disable-next-line no-await-in-loop
@@ -50,19 +51,17 @@ export const loadMuPage = async ({
         ({ seriesId }) => !seenSeriesIds.has(seriesId),
     );
     series.forEach(({ seriesId }) => seenSeriesIds.add(seriesId));
-    const matches = await matchMuSeries(series, signal);
-    const media = series
-        .map((each) => ({ each, match: matches.get(each.seriesId) ?? null }))
-        .filter(({ match }) => passesAniListChips(match, aniListChips) && (showAdult || !match?.isAdult))
-        .map(({ each, match }) => match ?? toUnmatchedMedia(each));
-    return { media, hasNextPage: results.some(({ total }) => total > page * PER_PAGE) };
+    return { series, hasNextPage: results.some(({ total }) => total > page * PER_PAGE) };
 };
 
-type MuFeedState = { key: string; pages: RecMedia[][]; hasNextPage: boolean; status: 'idle' | 'loading' | 'error' };
+type MuFeedState = { key: string; pages: MuSeries[][]; hasNextPage: boolean; status: 'idle' | 'loading' | 'error' };
 
 const createState = (key: string): MuFeedState => ({ key, pages: [], hasNextPage: true, status: 'idle' });
 
-/** Paged MU-backed feed with the same shape as useDiscoverFeed (Discover swaps them by search engine). */
+/**
+ * Paged MU-backed feed with the same shape as useDiscoverFeed (Discover swaps them by search engine). A page shows
+ * as soon as MU answers; AniList matches run behind it, page by page in order, and fill the cards in as they land.
+ */
 export const useMuFeed = ({
     mu,
     aniListChips,
@@ -88,25 +87,46 @@ export const useMuFeed = ({
     const current = state.key === key ? state : createState(key);
     const currentRef = useRef(current);
     currentRef.current = current;
+    // Verdicts are per series, whatever the selection, so they outlive a selection change.
+    const [matches, setMatches] = useState<ReadonlyMap<number, RecMedia | null>>(() => new Map());
     const controllerRef = useRef<AbortController | null>(null);
+    const matchChainRef = useRef<Promise<unknown>>(Promise.resolve());
     const seenRef = useRef<{ key: string; ids: Set<number> }>({ key, ids: new Set() });
 
     useEffect(() => {
         controllerRef.current?.abort();
+        controllerRef.current = new AbortController();
+        matchChainRef.current = Promise.resolve();
         seenRef.current = { key, ids: new Set() };
         setState(createState(key));
     }, [key]);
     useEffect(() => () => controllerRef.current?.abort(), []);
 
+    const matchInBackground = useCallback((series: MuSeries[], signal: AbortSignal) => {
+        const addMatches = (batch: Map<number, RecMedia | null>) => {
+            if (!signal.aborted) {
+                setMatches((previous) => new Map([...previous, ...batch]));
+            }
+        };
+        // Pages match one after the other, so the visible page's cards fill in first.
+        matchChainRef.current = matchChainRef.current
+            .then(() => (signal.aborted ? null : matchMuSeries(series, signal, addMatches)))
+            .catch((error) => {
+                if (!signal.aborted) {
+                    defaultPromiseErrorHandler('useMuFeed::match')(error);
+                }
+            });
+    }, []);
+
     const loadMore = useCallback(() => {
         const feed = currentRef.current;
-        if (!isEnabled || feed.status === 'loading' || !feed.hasNextPage) {
+        const controller = controllerRef.current;
+        if (!isEnabled || !controller || feed.status === 'loading' || !feed.hasNextPage) {
             return;
         }
-        const controller = new AbortController();
-        controllerRef.current = controller;
+        const { signal } = controller;
         setState({ ...feed, status: 'loading' });
-        loadMuPage({
+        fetchMuPage({
             mu,
             aniListChips,
             types,
@@ -114,30 +134,32 @@ export const useMuFeed = ({
             showAdult,
             page: feed.pages.length + 1,
             seenSeriesIds: seenRef.current.ids,
-            signal: controller.signal,
+            signal,
         })
             .then((page) => {
-                if (!controller.signal.aborted) {
-                    setState((previous) =>
-                        previous.key === feed.key
-                            ? {
-                                  ...previous,
-                                  pages: [...previous.pages, page.media],
-                                  hasNextPage: page.hasNextPage,
-                                  status: 'idle',
-                              }
-                            : previous,
-                    );
+                if (signal.aborted) {
+                    return;
                 }
+                setState((previous) =>
+                    previous.key === feed.key
+                        ? {
+                              ...previous,
+                              pages: [...previous.pages, page.series],
+                              hasNextPage: page.hasNextPage,
+                              status: 'idle',
+                          }
+                        : previous,
+                );
+                matchInBackground(page.series, signal);
             })
             .catch((error) => {
-                if (controller.signal.aborted) {
+                if (signal.aborted) {
                     return;
                 }
                 defaultPromiseErrorHandler('useMuFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });
-    }, [isEnabled, mu, aniListChips, types, sort, showAdult]);
+    }, [isEnabled, mu, aniListChips, types, sort, showAdult, matchInBackground]);
 
     const shouldLoadFirstPage = isEnabled && !current.pages.length && current.status === 'idle';
     useEffect(() => {
@@ -146,20 +168,26 @@ export const useMuFeed = ({
         }
     }, [shouldLoadFirstPage, loadMore]);
 
+    const postFilter = useMemo(() => splitAniListChips(aniListChips).postFilter, [aniListChips]);
+    const pages = useMemo(
+        () => toMuCards(current.pages, matches, { postFilter, showAdult }),
+        [current.pages, matches, postFilter, showAdult],
+    );
+
     const retry = useCallback(() => setState((previous) => ({ ...previous, status: 'idle' })), []);
     const phase = ((): FeedPhase => {
         if (!isEnabled) {
             return 'off';
         }
-        if (current.pages.length) {
-            return current.pages[0].length ? 'ready' : 'empty';
+        if (pages.length) {
+            return pages.some((page) => page.length) ? 'ready' : 'empty';
         }
         return current.status === 'error' ? 'failed' : 'pending';
     })();
 
     return {
         phase,
-        pages: current.pages,
+        pages,
         hasNextPage: current.hasNextPage,
         isLoading: current.status === 'loading' || (isEnabled && !current.pages.length && current.status === 'idle'),
         isError: current.status === 'error',

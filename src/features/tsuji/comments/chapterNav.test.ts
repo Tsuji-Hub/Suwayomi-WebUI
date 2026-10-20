@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildCommentChapters,
+    findCommentedChapter,
     formatChapterLabel,
     getChapterLabel,
     getChapterStep,
@@ -108,5 +109,19 @@ describe('getLastReadScanlator', () => {
         ).toBe('B');
         expect(getLastReadScanlator([{ scanlator: null, lastReadAt: '5' }])).toBeNull();
         expect(getLastReadScanlator([{ scanlator: 'A', lastReadAt: '0' }])).toBeUndefined();
+    });
+});
+
+describe('findCommentedChapter', () => {
+    it('the newest of the last 3 chapters with comments, else the newest', async () => {
+        const asked: number[] = [];
+        const withComments = (numbers: number[]) => async (number: number) => {
+            asked.push(number);
+            return numbers.includes(number);
+        };
+        expect(await findCommentedChapter([1, 2, 3, 4, 5], withComments([3, 4]))).toBe(4);
+        expect(asked).toEqual([5, 4]);
+        expect(await findCommentedChapter([1, 2, 3, 4, 5], withComments([1]))).toBe(5);
+        expect(await findCommentedChapter([], withComments([]))).toBeNull();
     });
 });

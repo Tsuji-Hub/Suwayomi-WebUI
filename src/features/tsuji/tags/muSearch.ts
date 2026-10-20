@@ -70,8 +70,82 @@ export const getMuOrderBy = (sort: string): MuOrderBy => (sort === 'NEWEST' ? 'y
 const cartesian = (lists: string[][]): string[][] =>
     lists.reduce<string[][]>((combos, list) => combos.flatMap((combo) => list.map((item) => [...combo, item])), [[]]);
 
+/**
+ * MangaUpdates' fixed genre list. An AniList genre / tag with one of these names is sent to MU as `genre` /
+ * `exclude_genre` (server side) instead of filtering the matched results afterwards.
+ */
+export const MU_GENRES = [
+    'Action',
+    'Adult',
+    'Adventure',
+    'Comedy',
+    'Doujinshi',
+    'Drama',
+    'Ecchi',
+    'Fantasy',
+    'Gender Bender',
+    'Harem',
+    'Hentai',
+    'Historical',
+    'Horror',
+    'Josei',
+    'Lolicon',
+    'Martial Arts',
+    'Mature',
+    'Mecha',
+    'Mystery',
+    'Psychological',
+    'Romance',
+    'School Life',
+    'Sci-fi',
+    'Seinen',
+    'Shotacon',
+    'Shoujo',
+    'Shoujo Ai',
+    'Shounen',
+    'Shounen Ai',
+    'Slice of Life',
+    'Smut',
+    'Sports',
+    'Supernatural',
+    'Tragedy',
+    'Yaoi',
+    'Yuri',
+];
+
+const genreKey = (name: string) =>
+    name
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, ' ')
+        .trim();
+const MU_GENRE_BY_KEY = new Map(MU_GENRES.map((genre) => [genreKey(genre), genre]));
+
+/** The MU genre with this AniList name ("Sci-Fi" -> "Sci-fi"), or null. */
+export const toMuGenre = (name: string): string | null => MU_GENRE_BY_KEY.get(genreKey(name)) ?? null;
+
+/**
+ * AniList-only chips split for an MU search: the ones MU knows as genres go server side, the rest stay a
+ * post-filter on the matched AniList media.
+ */
+export const splitAniListChips = ({ genres, tags }: AniListChips) => {
+    const muGenres: { include: string[]; exclude: string[] } = { include: [], exclude: [] };
+    const postFilter: AniListChips = { genres: {}, tags: {} };
+    (['genres', 'tags'] as const).forEach((kind) =>
+        Object.entries(kind === 'genres' ? genres : tags).forEach(([name, state]) => {
+            const muGenre = toMuGenre(name);
+            if (muGenre) {
+                muGenres[state].push(muGenre);
+            } else {
+                postFilter[kind][name] = state;
+            }
+        }),
+    );
+    return { muGenres, postFilter };
+};
+
 export type MuSeriesQuery = {
     category: string[];
+    genre?: string[];
     exclude_category?: string[];
     exclude_genre?: string[];
     type: string[];
@@ -87,6 +161,7 @@ export type MuSeriesQuery = {
  */
 export const buildMuQueries = ({
     mu,
+    muGenres = { include: [], exclude: [] },
     types,
     sort,
     showAdult,
@@ -94,6 +169,8 @@ export const buildMuQueries = ({
     perPage = 50,
 }: {
     mu: MuSelection;
+    /** AniList-only chips that are MU genres (splitAniListChips). */
+    muGenres?: { include: string[]; exclude: string[] };
     types: ComicType[];
     sort: string;
     showAdult: boolean;
@@ -103,9 +180,11 @@ export const buildMuQueries = ({
     const chips = Object.values(mu).filter(({ categories }) => categories.length);
     const included = chips.filter(({ state }) => state === 'include').map(({ categories }) => categories);
     const excluded = chips.filter(({ state }) => state === 'exclude').flatMap(({ categories }) => categories);
+    const excludedGenres = [...new Set([...muGenres.exclude, ...(showAdult ? [] : ADULT_MU_GENRES)])];
     const base = {
+        ...(muGenres.include.length ? { genre: [...new Set(muGenres.include)] } : {}),
         ...(excluded.length ? { exclude_category: excluded } : {}),
-        ...(showAdult ? {} : { exclude_genre: ADULT_MU_GENRES }),
+        ...(excludedGenres.length ? { exclude_genre: excludedGenres } : {}),
         type: (types.length ? types : (Object.keys(MU_TYPES) as ComicType[])).map((type) => MU_TYPES[type]),
         orderby: getMuOrderBy(sort),
         page,
@@ -197,23 +276,30 @@ const candidateNames = (media: AniListCandidate) =>
  * top hit when it is very close (similarity >= 0.9), from the country the MU type says, and within a year.
  */
 export const pickAniListMatch = (series: MuSeries, candidates: AniListCandidate[]): AniListCandidate | null => {
+    const country = COUNTRY_BY_MU_TYPE[series.type];
+    const isSameCountry = (media: AniListCandidate) => !country || media.countryOfOrigin === country;
+    const isSameYear = (media: AniListCandidate) => {
+        const year = media.startDate?.year ?? null;
+        return series.year === null || year === null || Math.abs(series.year - year) <= 1;
+    };
+
+    // Exact names can collide ("Pick Me Up!" is also a synonym of an older Japanese title): the one from the MU
+    // type's country, then within a year, wins; an exact name from another country is not a match.
     const key = normalizeTitle(series.title);
     const exact = key
-        ? candidates.find((media) => candidateNames(media).some((name) => normalizeTitle(name) === key))
-        : undefined;
-    if (exact) {
-        return exact;
+        ? candidates.filter((media) => candidateNames(media).some((name) => normalizeTitle(name) === key))
+        : [];
+    const [bestExact] = exact.filter(isSameCountry).sort((a, b) => Number(isSameYear(b)) - Number(isSameYear(a)));
+    if (bestExact) {
+        return bestExact;
     }
+
     const [top] = candidates;
-    if (!top) {
+    if (!top || exact.length) {
         return null;
     }
     const similarity = Math.max(0, ...candidateNames(top).map((name) => titleSimilarity(series.title, name)));
-    const country = COUNTRY_BY_MU_TYPE[series.type];
-    const year = top.startDate?.year ?? null;
-    const isSameCountry = !country || top.countryOfOrigin === country;
-    const isSameYear = series.year === null || year === null || Math.abs(series.year - year) <= 1;
-    return similarity >= 0.9 && isSameCountry && isSameYear ? top : null;
+    return similarity >= 0.9 && isSameCountry(top) && isSameYear(top) ? top : null;
 };
 
 /** AniList-only chips applied to matched media (tags need rank >= 60; genres as they are). */
@@ -262,3 +348,35 @@ export const toUnmatchedMedia = (series: MuSeries): RecMedia => ({
 });
 
 export const isUnmatchedMedia = (media: Pick<RecMedia, 'id'>) => media.id < 0;
+
+/**
+ * The cards for MU pages while matches land: a series without a verdict yet shows as its MU card, a matched one as
+ * its AniList media (once per AniList id), and the post-filter chips and the Adult filter apply only once the
+ * verdict is in, so cards never wait for AniList.
+ */
+export const toMuCards = (
+    pages: MuSeries[][],
+    matches: ReadonlyMap<number, RecMedia | null>,
+    { postFilter, showAdult }: { postFilter: AniListChips; showAdult: boolean },
+): RecMedia[][] => {
+    const shownIds = new Set<number>();
+    return pages.map((page) =>
+        page.flatMap((series) => {
+            if (!matches.has(series.seriesId)) {
+                return [toUnmatchedMedia(series)];
+            }
+            const match = matches.get(series.seriesId) ?? null;
+            if (!passesAniListChips(match, postFilter) || (!showAdult && match?.isAdult)) {
+                return [];
+            }
+            if (!match) {
+                return [toUnmatchedMedia(series)];
+            }
+            if (shownIds.has(match.id)) {
+                return [];
+            }
+            shownIds.add(match.id);
+            return [match];
+        }),
+    );
+};

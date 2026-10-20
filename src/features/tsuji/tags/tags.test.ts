@@ -19,6 +19,9 @@ import {
     parseMuSeriesSearch,
     passesAniListChips,
     pickAniListMatch,
+    splitAniListChips,
+    toMuCards,
+    toMuGenre,
     toUnmatchedMedia,
 } from '@/features/tsuji/tags/muSearch.ts';
 import { buildMatchQuery } from '@/features/tsuji/tags/muQueries.ts';
@@ -285,6 +288,30 @@ describe('matching MU series to AniList', () => {
         expect(pickAniListMatch(muSeries('Anything'), [])).toBeNull();
     });
 
+    it("colliding exact names: the MU type's country wins, then the year; another country alone is no match", () => {
+        const gekkaBijin = candidate({
+            id: 94792,
+            countryOfOrigin: 'JP',
+            startDate: { year: 2008, month: null, day: null },
+            title: { romaji: 'Gekka Bijin', english: null, native: null, userPreferred: null },
+            synonyms: ['Pick Me Up'],
+        });
+        const pickMeUp = candidate({
+            id: 159441,
+            startDate: { year: 2022, month: null, day: null },
+            title: { romaji: 'Pick Me Up!', english: null, native: null, userPreferred: null },
+        });
+        const oldNamesake = candidate({
+            id: 5,
+            startDate: { year: 2010, month: null, day: null },
+            title: { romaji: 'Pick Me Up!', english: null, native: null, userPreferred: null },
+        });
+        const series = muSeries('Pick Me Up!', { year: 2022 });
+        expect(pickAniListMatch(series, [gekkaBijin, pickMeUp])?.id).toBe(159441);
+        expect(pickAniListMatch(series, [oldNamesake, gekkaBijin, pickMeUp])?.id).toBe(159441);
+        expect(pickAniListMatch(series, [gekkaBijin])).toBeNull();
+    });
+
     it('builds one aliased request for up to 10 titles', () => {
         const query = buildMatchQuery(3);
         expect(query).toContain('$t0: String, $t1: String, $t2: String');
@@ -327,5 +354,65 @@ describe('AniList-only chips in an MU search', () => {
             averageScore: 73,
             countryOfOrigin: 'KR',
         });
+    });
+});
+
+describe('MU genres from AniList chips', () => {
+    it('chips MU knows as genres go server side, the rest stay a post-filter', () => {
+        expect(toMuGenre('Sci-Fi')).toBe('Sci-fi');
+        expect(toMuGenre('Martial Arts')).toBe('Martial Arts');
+        expect(toMuGenre('Revenge')).toBeNull();
+        const { muGenres, postFilter } = splitAniListChips({
+            genres: { Romance: 'exclude' },
+            tags: { 'Martial Arts': 'include', Revenge: 'include' },
+        });
+        expect(muGenres).toEqual({ include: ['Martial Arts'], exclude: ['Romance'] });
+        expect(postFilter).toEqual({ genres: {}, tags: { Revenge: 'include' } });
+        const [query] = buildMuQueries({
+            mu: { system: { state: 'include', label: 'System', categories: ['System'] } },
+            muGenres,
+            types: ['MANHWA'],
+            sort: 'SCORE',
+            showAdult: false,
+            page: 1,
+        });
+        expect(query).toMatchObject({
+            category: ['System'],
+            genre: ['Martial Arts'],
+            exclude_genre: ['Romance', 'Adult', 'Hentai', 'Smut'],
+            type: ['Manhwa'],
+        });
+    });
+});
+
+describe('MU cards while matches land', () => {
+    const first = muSeries('First', { seriesId: 1 });
+    const second = muSeries('Second', { seriesId: 2 });
+    const third = muSeries('Third', { seriesId: 3 });
+    const matched = {
+        id: 50,
+        genres: [],
+        tags: [{ name: 'Revenge', rank: 90 }],
+        isAdult: false,
+    } as unknown as RecMedia;
+    const noChips = { postFilter: { genres: {}, tags: {} }, showAdult: false };
+
+    it('cards show before any match, as MU cards', () => {
+        expect(toMuCards([[first, second]], new Map(), noChips)[0].map(({ id }) => id)).toEqual([-1, -2]);
+    });
+
+    it('matches replace their cards; filters apply once a verdict is in; one card per AniList id', () => {
+        const matches = new Map<number, RecMedia | null>([
+            [1, matched],
+            [2, null],
+            [3, matched],
+        ]);
+        expect(toMuCards([[first, second], [third]], matches, noChips).map((page) => page.map(({ id }) => id))).toEqual(
+            [[50, -2], []],
+        );
+        const revenge = { postFilter: { genres: {}, tags: { Revenge: 'include' as const } }, showAdult: false };
+        expect(toMuCards([[first, second]], matches, revenge)[0].map(({ id }) => id)).toEqual([50]);
+        const adult = new Map<number, RecMedia | null>([[1, { ...matched, isAdult: true }]]);
+        expect(toMuCards([[first, second]], adult, noChips)[0].map(({ id }) => id)).toEqual([-2]);
     });
 });

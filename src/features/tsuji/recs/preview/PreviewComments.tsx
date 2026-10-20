@@ -17,6 +17,7 @@ import { useLingui } from '@lingui/react/macro';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { getAllTitles, getDisplayTitle } from '@/features/tsuji/recs/media.ts';
 import type { CommentChapter } from '@/features/tsuji/comments/chapterNav.ts';
+import { findCommentedChapter } from '@/features/tsuji/comments/chapterNav.ts';
 import { comickSource, resolveComickSeriesByAniList } from '@/features/tsuji/comments/commentsService.ts';
 import { useCommentsSettings } from '@/features/tsuji/comments/useComments.ts';
 import { CommentsView } from '@/features/tsuji/comments/components/CommentsPanel.tsx';
@@ -26,7 +27,7 @@ type State =
     | { status: 'loading' }
     | { status: 'none' }
     | { status: 'unreachable' }
-    | { status: 'ready'; seriesKey: string; chapters: CommentChapter[] };
+    | { status: 'ready'; seriesKey: string; chapters: CommentChapter[]; chapterNumber: number };
 
 const Notice = ({ children }: { children: string }) => (
     <Typography variant="body2" sx={{ color: 'text.secondary', py: 2 }}>
@@ -36,7 +37,7 @@ const Notice = ({ children }: { children: string }) => (
 
 /**
  * Comments tab of the preview: the Comick series whose `links.al` is this AniList entry (never a fuzzy title
- * match), opened on its newest chapter with a thread, with the chapter picker. Mounted only when the tab opens.
+ * match), opened on the newest of its last 3 chapters that has comments, with the chapter picker. Mounted only when the tab opens.
  */
 export const PreviewComments = ({ media }: { media: RecMedia }) => {
     const { t } = useLingui();
@@ -60,13 +61,18 @@ export const PreviewComments = ({ media }: { media: RecMedia }) => {
                     return { status: 'none' } as const;
                 }
                 const numbers = await comickSource.chapterNumbers(seriesKey, signal);
-                return numbers.length
-                    ? ({
+                const chapterNumber = await findCommentedChapter(numbers, async (number) => {
+                    const thread = await comickSource.thread(seriesKey, number, signal);
+                    return !!thread && !!(await comickSource.comments(thread, null, signal)).comments.length;
+                });
+                return chapterNumber === null
+                    ? ({ status: 'none' } as const)
+                    : ({
                           status: 'ready',
                           seriesKey,
                           chapters: numbers.map((number) => ({ number, label: `Ch. ${number}` })),
-                      } as const)
-                    : ({ status: 'none' } as const);
+                          chapterNumber,
+                      } as const);
             })
             .then((next) => !signal.aborted && setState(next))
             .catch(() => !signal.aborted && setState({ status: 'unreachable' }));
@@ -102,7 +108,7 @@ export const PreviewComments = ({ media }: { media: RecMedia }) => {
             <CommentsView
                 target={{
                     manga: { id: media.id, title: getDisplayTitle(media) },
-                    chapterNumber: state.chapters[state.chapters.length - 1].number,
+                    chapterNumber: state.chapterNumber,
                     seriesKey: state.seriesKey,
                 }}
                 chapters={state.chapters}

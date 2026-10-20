@@ -10,10 +10,22 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import type { SxProps, Theme } from '@mui/material/styles';
 
+const CORS_HOSTS = /(^|\.)(anilist\.co|anili\.st)$/;
+
+/** Only AniList's CDN answers CORS requests; other hosts (MangaUpdates) would fail one and log an error. */
+export const isCorsCoverHost = (src: string) => {
+    try {
+        return CORS_HOSTS.test(new URL(src).hostname);
+    } catch {
+        return false;
+    }
+};
+
 /**
  * AniList cover. Loaded in CORS mode (the CDN reflects the origin) so upstream's service-worker image cache stores a
  * real response rather than an opaque one (Chrome bills each opaque entry ~7 MB of quota). If the CORS load fails,
- * e.g. the browser cached the URL earlier without CORS headers, it retries once in plain mode.
+ * e.g. the browser cached the URL earlier without CORS headers, it retries once in plain mode. Covers from other
+ * hosts load in plain mode from the start.
  */
 export const RecCoverImage = ({
     src,
@@ -26,7 +38,8 @@ export const RecCoverImage = ({
     isLazy?: boolean;
     sx?: SxProps<Theme>;
 }) => {
-    const [isCorsMode, setIsCorsMode] = useState(true);
+    const [corsFailedSrc, setCorsFailedSrc] = useState<string | null>(null);
+    const isCorsMode = isCorsCoverHost(src) && corsFailedSrc !== src;
 
     return (
         <Box
@@ -36,7 +49,7 @@ export const RecCoverImage = ({
             loading={isLazy ? 'lazy' : undefined}
             referrerPolicy="no-referrer"
             crossOrigin={isCorsMode ? 'anonymous' : undefined}
-            onError={() => setIsCorsMode(false)}
+            onError={isCorsMode ? () => setCorsFailedSrc(src) : undefined}
             draggable={false}
             sx={sx}
         />
