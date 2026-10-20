@@ -11,7 +11,16 @@ import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts'
 import type { FeedPhase } from '@/features/tsuji/discover/landing.ts';
 import type { ComicType, RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import type { AniListChips, BakaSelection, BakaSeries } from '@/features/tsuji/tags/baka.ts';
-import { buildBakaSearch, getMissingDetails, toBakaCards } from '@/features/tsuji/tags/baka.ts';
+import {
+    BAKA_FAMILIES,
+    buildBakaSearch,
+    compareBakaSeries,
+    getBakaCombinations,
+    getChipTags,
+    getMissingDetails,
+    toBakaCards,
+} from '@/features/tsuji/tags/baka.ts';
+import { createBakaMerge } from '@/features/tsuji/tags/bakaMerge.ts';
 import {
     fetchAniListDetails,
     getSearchLimit,
@@ -20,43 +29,60 @@ import {
 } from '@/features/tsuji/tags/bakaService.ts';
 import { normalizeTagKey } from '@/features/tsuji/tags/tagKeys.ts';
 
-type ResolvedChips = { include: string[]; excludeIds: number[]; postFilter: AniListChips };
+/** Tag ids per included chip (OR inside, AND across), excluded ids, and what stays an AniList post-filter. */
+export type ResolvedChips = { includeSets: number[][]; excludeIds: number[]; postFilter: AniListChips };
 
 /**
- * The search terms of a selection: MangaBaka chips by tag; AniList-only chips ride along as the MangaBaka tag with
- * the same name when there is one (tag lookups are cached a week), else they stay a post-filter on AniList details.
+ * The search terms of a selection, as MangaBaka tag ids only (a name would miss the tag's subtags, and a name mixed
+ * with an id finds nothing): MangaBaka chips by their tags; AniList-only chips ride along as the family or the
+ * MangaBaka tag with the same name when there is one (tag lookups are cached a week), else they stay a post-filter
+ * on AniList details.
  */
 export const resolveChips = async (
     baka: BakaSelection,
     aniListChips: AniListChips,
     signal: AbortSignal,
 ): Promise<ResolvedChips> => {
+    const chips = Object.values(baka);
     const resolved: ResolvedChips = {
-        include: Object.values(baka)
+        includeSets: chips
             .filter(({ state }) => state === 'include')
-            .map(({ bakaTag }) => bakaTag.name),
-        excludeIds: Object.values(baka)
+            .map((chip) => getChipTags(chip).map(({ id }) => id)),
+        excludeIds: chips
             .filter(({ state }) => state === 'exclude')
-            .map(({ bakaTag }) => bakaTag.id),
+            .flatMap((chip) => getChipTags(chip).map(({ id }) => id)),
         postFilter: { genres: {}, tags: {} },
     };
     const aniListOnly = (['genres', 'tags'] as const).flatMap((kind) =>
         Object.entries(aniListChips[kind]).map(([name, state]) => ({ kind, name, state })),
     );
-    for (const { kind, name, state } of aniListOnly) {
-        // oxlint-disable-next-line no-await-in-loop
-        const tags = await searchBakaTags(name, signal).catch(() => []);
-        const same = tags.find((tag) => normalizeTagKey(tag.name) === normalizeTagKey(name));
-        if (!same) {
+    // Lookups for every AniList-only chip at once (cached a week; a family needs none).
+    const lookups = await Promise.all(
+        aniListOnly.map(async ({ name }) => {
+            const key = normalizeTagKey(name);
+            const family = BAKA_FAMILIES.find((each) => each.key === key);
+            if (family) {
+                return family.tags.map(({ id }) => id);
+            }
+            const tags = await searchBakaTags(name, signal).catch(() => []);
+            const same = tags.find((tag) => normalizeTagKey(tag.name) === key);
+            return same ? [same.id] : [];
+        }),
+    );
+    aniListOnly.forEach(({ kind, name, state }, index) => {
+        const ids = lookups[index];
+        if (!ids.length) {
             resolved.postFilter[kind][name] = state;
         } else if (state === 'include') {
-            resolved.include.push(same.name);
+            resolved.includeSets.push(ids);
         } else {
-            resolved.excludeIds.push(same.id);
+            resolved.excludeIds.push(...ids);
         }
-    }
+    });
     return resolved;
 };
+
+type BakaMerge = ReturnType<typeof createBakaMerge>;
 
 type BakaFeedState = {
     key: string;
@@ -74,9 +100,12 @@ const createState = (key: string): BakaFeedState => ({
     status: 'idle',
 });
 
+type MergedSearch = { resolved: ResolvedChips; merge: BakaMerge; limit: number };
+
 /**
- * Paged MangaBaka feed with the same shape as useDiscoverFeed (Discover swaps them by search engine). A page shows
- * as soon as MangaBaka answers; its AniList details follow in one `id_in` request and fill the cards in.
+ * Paged MangaBaka feed with the same shape as useDiscoverFeed (Discover swaps them by search engine). One
+ * sub-search per tag combination, merged in order without repeats (brief #11). A page shows as soon as MangaBaka
+ * answers; its AniList details follow in one `id_in` request and fill the cards in.
  */
 export const useBakaFeed = ({
     baka,
@@ -108,12 +137,12 @@ export const useBakaFeed = ({
     const detailsRef = useRef(details);
     detailsRef.current = details;
     const controllerRef = useRef<AbortController | null>(null);
-    const resolvedRef = useRef<Promise<ResolvedChips> | null>(null);
+    const searchRef = useRef<Promise<MergedSearch> | null>(null);
 
     useEffect(() => {
         controllerRef.current?.abort();
         controllerRef.current = new AbortController();
-        resolvedRef.current = null;
+        searchRef.current = null;
         setState(createState(key));
     }, [key]);
     useEffect(() => () => controllerRef.current?.abort(), []);
@@ -126,29 +155,49 @@ export const useBakaFeed = ({
         }
         const { signal } = controller;
         setState({ ...feed, status: 'loading' });
-        resolvedRef.current ??= resolveChips(baka, aniListChips, signal);
-        const page = feed.pages.length + 1;
-        const search = (resolved: ResolvedChips) =>
-            searchBakaSeries(
-                buildBakaSearch({
-                    ...resolved,
-                    types,
-                    sort,
-                    minScore,
-                    showAdult,
-                    page,
-                    limit: getSearchLimit(),
-                }),
-                signal,
-            );
-        resolvedRef.current
-            .then(async (resolved) => {
-                const limit = getSearchLimit();
+        const start = async (): Promise<MergedSearch> => {
+            const resolved = await resolveChips(baka, aniListChips, signal);
+            const combinations = getBakaCombinations(resolved.includeSets);
+            const limit = getSearchLimit();
+            const merge = createBakaMerge({
+                sourceCount: combinations.length,
+                compare: compareBakaSeries(sort),
+                fetchPage: (source, page) =>
+                    searchBakaSeries(
+                        buildBakaSearch({
+                            tagIds: combinations[source],
+                            excludeIds: resolved.excludeIds,
+                            types,
+                            sort,
+                            minScore,
+                            showAdult,
+                            page,
+                            limit,
+                        }),
+                        signal,
+                    ),
+            });
+            return { resolved, merge, limit };
+        };
+        const limitBefore = getSearchLimit();
+        const readPage = async () => {
+            // A failed start is forgotten (the next try starts over); a failed page keeps the merge's cursors.
+            searchRef.current ??= start().catch((error) => {
+                searchRef.current = null;
+                throw error;
+            });
+            const search = await searchRef.current;
+            const series = await search.merge.next(search.limit);
+            return { resolved: search.resolved, result: { series, hasNextPage: search.merge.hasNext() } };
+        };
+        readPage()
+            .catch((error) => {
                 // A first page refused for its size is asked again at the smaller size (learned for the session).
-                const result = await search(resolved).catch((error) =>
-                    page === 1 && getSearchLimit() !== limit ? search(resolved) : Promise.reject(error),
-                );
-                return { resolved, result };
+                if (feed.pages.length || getSearchLimit() === limitBefore) {
+                    return Promise.reject(error);
+                }
+                searchRef.current = null;
+                return readPage();
             })
             .then(({ resolved, result }) => {
                 if (signal.aborted) {
@@ -176,7 +225,6 @@ export const useBakaFeed = ({
                 if (signal.aborted) {
                     return;
                 }
-                resolvedRef.current = null;
                 defaultPromiseErrorHandler('useBakaFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });

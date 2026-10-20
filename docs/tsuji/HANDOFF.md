@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch             | Commit             | What                                                                                                                                    |
-| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`           | `57df59ce` (r3421) | Briefs #1-#10 (new-chapter bell, MangaBaka tag search, preview Comments from ch 1 / Reviews) + reader resume. Shipped 2026-10-20, live. |
-| `chore/docs-r3421` | this               | Docs only: r3421 shipped. Rides along with the next ship.                                                                               |
-| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                          |
+| Branch                  | Commit             | What                                                                                                                                          |
+| ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`                | `57df59ce` (r3421) | Briefs #1-#10 (new-chapter bell, MangaBaka tag search, preview Comments from ch 1 / Reviews) + reader resume. Shipped 2026-10-20, live.       |
+| `fix/mangabaka-tag-ids` | this               | Brief #11 v2: MangaBaka tags by id (subtags included), family / OR chips, merged sub-searches; incl. `chore/docs-r3421`. Prerelease to check. |
+| `master`                | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and

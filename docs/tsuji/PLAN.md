@@ -14,6 +14,39 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #11 v2: MangaBaka tags by id, family / OR chips (branch `fix/mangabaka-tag-ids`)
+
+Off `custom` (r3421) + `chore/docs-r3421`. Cowork found every MangaBaka tag search returned too little (System +
+Martial Arts: 22 on MangaBaka, ~14 cards; ~110 expected): a tag NAME matches only that tag (an ID covers its whole
+subtree: Martial Arts by name 1,447, by id 5,904), "System" by name is a substring match, and a name mixed with an
+id returns 0. Nothing outside the MangaBaka tag engine changed.
+
+**Done:**
+
+- Ids only (`buildBakaSearch({ tagIds })`): every `tag=` / `tag_not=` is a numeric id (the type makes a name
+  impossible); merged AniList chips use their MangaBaka tag's id or family (`resolveChips`). Chip counts stay
+  `series_count`, which now matches what the search uses.
+- Family chips (`BAKA_FAMILIES` in `tags/baka.ts`): System = 3081 + 1171 (Level System, with 4 subtags) + 1196
+  (System Administrator); Regression = 3495 + 2461 + 2147 + 5101 (not Age Regression 748); Dungeon = 500 + 2103.
+  A chip holds a set of ids (OR inside, AND across chips): one sub-search per combination (cartesian product, cap
+  16; System x Regression = 12), merged (`tags/bakaMerge.ts`) by `popularity.global.current` (parsed now; it is an
+  object) for Popular / Best match, `rating` for Score, year for Newest, de-duplicated by MangaBaka id. Each
+  sub-search keeps a cursor and fetches its next page only when its buffered rows run out (no repeats, nothing
+  skipped, a failed page consumes nothing). Label: the family's summed counts; hover: "System, Level System (+4),
+  System Administrator".
+- "+ also match" next to a suggestion adds its ids to a selected chip (a menu when several are selected); the chip
+  reads "Martial Arts +1". Any split concept works without a code change.
+- Suggestions: the family is first ("System · 839"); the single tags stay offered ("System only · 316", System
+  Administrator, Level System ...). A family named like an AniList tag (Dungeon) merges with it, so Dungeon alone
+  still runs on AniList.
+- Cost: one MangaBaka request per sub-search page (System = 3 at once; with the search queue's burst of 3 and 2.1 s
+  spacing, 12 sub-searches take ~20 s for the first page).
+- Unit (`tags.test.ts`, 18): ids-only URLs, the product and cap, merge order / dedupe / cursors across pages, a failed
+  page, score / newest order, popularity object, family suggestions and hover text. Browser (`discover-tags.e2e.mjs`,
+  22 checks): a fake MangaBaka with the live semantics (ids cover subtrees, names don't, mixing returns 0); family
+  searches, System + Murim / Martial Arts by id (subtags, dedupe), scrolling 144 family titles with no repeats and no
+  page fetched twice, "+ also match", numeric tags only.
+
 # Follow-up: preview comments start at chapter 1 (branch `feat/preview-comments-ch1`)
 
 Off `custom` (r3419, the bell). **Shipped as r3421** (2026-10-20; Cowork live: The Top Dungeon Farmer, Debut or

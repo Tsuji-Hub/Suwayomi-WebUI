@@ -38,16 +38,36 @@ const CONTENT_TYPES = {
     '.woff2': 'font/woff2',
 };
 
+/** MangaBaka's tag tree (ids as on the live site where it matters): an id covers its subtags, a name doesn't. */
 const BAKA_TAGS = [
-    { id: 11, name: 'System', name_path: 'Settings > Game Elements > System', series_count: 316 },
-    { id: 12, name: 'Level System', name_path: 'Settings > Game Elements > Level System', series_count: 250 },
-    { id: 13, name: 'Stat System', name_path: 'Settings > Game Elements > Stat System', series_count: 90 },
-    { id: 14, name: 'System Sidekick', name_path: 'Settings > Game Elements > System Sidekick', series_count: 0 },
-    { id: 20, name: 'Dungeon', name_path: 'Settings > Dungeon', series_count: 586 },
+    { id: 3081, name: 'System', name_path: 'Settings > Game Elements > System', series_count: 316 },
+    { id: 1171, name: 'Level System', name_path: 'Settings > Game Elements > Level System', series_count: 250 },
+    {
+        id: 13,
+        name: 'Stat System',
+        name_path: 'Settings > Game Elements > Level System > Stat System',
+        series_count: 90,
+        parent: 1171,
+    },
+    {
+        id: 14,
+        name: 'System Sidekick',
+        name_path: 'Settings > Game Elements > Level System > System Sidekick',
+        series_count: 0,
+        parent: 1171,
+    },
+    { id: 1196, name: 'System Administrator', name_path: 'Characters > System Administrator', series_count: 273 },
+    { id: 500, name: 'Dungeon', name_path: 'Settings > Dungeon', series_count: 586 },
+    { id: 2103, name: 'Dungeon Exploring', name_path: 'Theme > Dungeon Exploring', series_count: 146 },
     { id: 40, name: 'Murim', name_path: 'Settings > Murim', series_count: 420 },
+    { id: 29, name: 'Martial Arts', name_path: 'Theme > Martial Arts', series_count: 5484 },
+    { id: 363, name: 'Cultivation', name_path: 'Theme > Martial Arts > Cultivation', series_count: 363, parent: 29 },
 ].map((tag) => ({ content_rating: 'safe', is_genre: false, ...tag }));
+const tagByName = (name) => BAKA_TAGS.find((tag) => tag.name === name);
+/** The tag and every ancestor: what an id search finds a series under. */
+const withAncestors = (tag) => (tag ? [tag.id, ...withAncestors(BAKA_TAGS.find(({ id }) => id === tag.parent))] : []);
 
-/** [MangaBaka id, title, AniList id, popularity rank, total chapters, tags, overrides]. */
+/** [MangaBaka id, title, AniList id, popularity rank, total chapters, tag names, overrides]. */
 const BAKA_SERIES = [
     [1, 'Solo Leveling', 105398, 1, 201, ['System', 'Dungeon']],
     [2, 'Tower of God', 85143, 2, 600, ['System']],
@@ -64,6 +84,21 @@ const BAKA_SERIES = [
     [13, 'Raw Only System', null, 13, 80, ['System']],
     [14, 'System Manga From Japan', 170008, 14, 100, ['System'], { type: 'manga' }],
     [15, 'Adult System', 170007, 15, 100, ['System'], { content_rating: 'erotica' }],
+    // Missed while tags went by name: Level System / System Administrator members, subtags of Martial Arts.
+    [16, 'Second Life Ranker', 170010, 16, 150, ['Level System', 'Martial Arts']],
+    [17, 'Return to Player', 170011, 17, 150, ['Stat System']],
+    [18, 'Lucky Me: I Secretly Cultivated for 1,000 Years', 170012, 18, 120, ['System Administrator', 'Cultivation']],
+    // In two of the family's sub-searches: must show once.
+    [19, 'Triple Tag System', 170013, 19, 100, ['System', 'Level System', 'Martial Arts']],
+    // Enough System-family titles for several pages (50 a page per sub-search).
+    ...Array.from({ length: 130 }, (_, index) => [
+        100 + index,
+        `Filler System ${String(index + 1).padStart(3, '0')}`,
+        180_000 + index,
+        100 + index,
+        100,
+        [['System'], ['Level System'], ['System Administrator']][index % 3],
+    ]),
 ].map(([id, title, anilistId, popularity, chapters, tags, overrides = {}]) => ({
     id,
     title,
@@ -72,41 +107,55 @@ const BAKA_SERIES = [
     type: 'manhwa',
     status: 'releasing',
     rating: 80,
-    popularity,
+    popularity: { global: { current: popularity, previous: popularity } },
     total_chapters: chapters === null ? null : String(chapters),
     content_rating: 'safe',
     year: 2020,
     source: { anilist: { id: anilistId }, my_anime_list: { id: null } },
     tags,
+    tagIds: [...new Set(tags.flatMap((name) => withAncestors(tagByName(name))))],
     ...overrides,
 }));
 
-/** Fake MangaBaka: tags search, and series search honouring the verified semantics. */
+/**
+ * Fake MangaBaka: tags search, and series search with the verified semantics: `tag=<id>` covers the subtree (AND
+ * across repeats), `tag=<name>` only that very tag, a name mixed with an id finds nothing; `tag_not=<id>` subtree.
+ */
 const answerBaka = (url, requests) => {
     requests.push(`${url.pathname}?${url.searchParams.toString()}`);
     const params = url.searchParams;
     if (url.pathname === '/v1/tags') {
         const query = (params.get('q') ?? '').toLowerCase();
-        return { status: 200, data: BAKA_TAGS.filter(({ name }) => name.toLowerCase().includes(query)) };
+        return {
+            status: 200,
+            data: BAKA_TAGS.filter(({ name }) => name.toLowerCase().includes(query)).map(
+                ({ parent: _parent, ...tag }) => tag,
+            ),
+        };
     }
     if (url.pathname === '/v1/series/search') {
         const tags = params.getAll('tag');
-        const notTags = params.getAll('tag_not').map((id) => BAKA_TAGS.find((tag) => String(tag.id) === id)?.name);
+        const ids = tags.filter((tag) => /^\d+$/.test(tag)).map(Number);
+        const names = tags.filter((tag) => !/^\d+$/.test(tag));
+        const notIds = params.getAll('tag_not').map(Number);
         const types = params.getAll('type');
         const ratings = params.getAll('content_rating');
         const allowedRatings = ratings.length ? ratings : ['safe', 'suggestive'];
         const ratingLower = Number(params.get('rating_lower') ?? 0);
+        const isMixed = ids.length > 0 && names.length > 0;
         const hits = BAKA_SERIES.filter(
             (series) =>
-                tags.every((tag) => series.tags.includes(tag)) &&
-                !notTags.some((tag) => series.tags.includes(tag)) &&
+                !isMixed &&
+                ids.every((id) => series.tagIds.includes(id)) &&
+                names.every((name) => series.tags.includes(name)) &&
+                !notIds.some((id) => series.tagIds.includes(id)) &&
                 (!types.length || types.includes(series.type)) &&
                 allowedRatings.includes(series.content_rating) &&
                 series.rating >= ratingLower,
-        ).sort((a, b) => a.popularity - b.popularity);
+        ).sort((a, b) => a.popularity.global.current - b.popularity.global.current);
         const page = Number(params.get('page') ?? 1);
         const limit = Number(params.get('limit') ?? 50);
-        const data = hits.slice((page - 1) * limit, page * limit);
+        const data = hits.slice((page - 1) * limit, page * limit).map(({ tagIds: _ids, ...series }) => series);
         return {
             status: 200,
             data,
@@ -389,7 +438,8 @@ const runBrowser = async (browserName) => {
                 .filter(
                     (name) =>
                         !['open drawer', 'Discover settings', 'More actions'].includes(name) &&
-                        !name.startsWith('New chapters'),
+                        !name.startsWith('New chapters') &&
+                        !name.startsWith('Also match'),
                 ),
         );
     const cardText = (title) =>
@@ -404,14 +454,16 @@ const runBrowser = async (browserName) => {
     const search = page.getByRole('textbox', { name: 'Search tags' });
     await search.fill('system');
     await page
-        .getByRole('button', { name: /^System · 316$/ })
+        .getByRole('button', { name: /^System · 839$/ })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
     const suggestions = page.getByRole('group', { name: 'Tag suggestions' });
     const chipLabels = await suggestions.locator('.MuiChip-label').allTextContents();
     check(
-        label('typing "system" offers one System chip (316), Level System and Stat System next to it'),
-        chipLabels.filter((text) => text.startsWith('System ·')).length === 1 &&
+        label('"system": the System family first (316 + 250 + 273), the single tags listed too'),
+        chipLabels[0] === 'System · 839' &&
+            chipLabels.includes('System only · 316') &&
+            chipLabels.includes('System Administrator · 273') &&
             chipLabels.some((text) => text.startsWith('Level System')) &&
             !chipLabels.some((text) => text.startsWith('System Sidekick')),
         chipLabels,
@@ -419,7 +471,7 @@ const runBrowser = async (browserName) => {
     check(label('no MangaBaka series search before a chip is picked'), seriesSearches().length === 0, bakaRequests);
 
     const pickedAt = Date.now();
-    await page.getByRole('button', { name: /^System · 316$/ }).click();
+    await page.getByRole('button', { name: /^System · 839$/ }).click();
     await page
         .getByRole('button', { name: 'The Greatest Estate Developer' })
         .waitFor({ timeout: 10_000 })
@@ -447,16 +499,25 @@ const runBrowser = async (browserName) => {
             !(await cardText('Raw Only System')).includes('Planned'),
         titles,
     );
-    const [systemSearch] = seriesSearches();
-    const params = new URLSearchParams(systemSearch?.split('?')[1] ?? '');
+    const systemSearches = seriesSearches().map((request) => new URLSearchParams(request.split('?')[1]));
     check(
-        label('MangaBaka search: tag=System, Manhwa + Manhua, every rating (18+ on), most popular first'),
-        seriesSearches().length === 1 &&
-            JSON.stringify(params.getAll('tag')) === '["System"]' &&
-            JSON.stringify(params.getAll('type')) === '["manhua","manhwa"]' &&
-            params.getAll('content_rating').length === 4 &&
-            params.get('sort_by') === 'popularity_asc',
-        systemSearch,
+        label('System family: one id-only search per member (3081, 1171, 1196), Manhwa + Manhua, every rating'),
+        JSON.stringify(systemSearches.map((params) => params.getAll('tag')).sort()) ===
+            JSON.stringify([['1171'], ['1196'], ['3081']]) &&
+            systemSearches.every(
+                (params) =>
+                    JSON.stringify(params.getAll('type')) === '["manhua","manhwa"]' &&
+                    params.getAll('content_rating').length === 4 &&
+                    params.get('sort_by') === 'popularity_asc',
+            ),
+        seriesSearches(),
+    );
+    check(
+        label('the family brings Level System (and its subtag Stat System) and System Administrator titles'),
+        ['Second Life Ranker', 'Return to Player', 'Lucky Me: I Secretly Cultivated for 1,000 Years'].every((title) =>
+            titles.includes(title),
+        ) && titles.filter((title) => title === 'Triple Tag System').length === 1,
+        titles.slice(0, 20),
     );
     // The details request queues behind the landing page's AniList calls (shared 30/min budget).
     for (let waited = 0; !aniList.counts.TsujiBakaDetails && waited < 15_000; waited += 250) {
@@ -498,10 +559,17 @@ const runBrowser = async (browserName) => {
         .catch(() => {});
     await page.waitForTimeout(500);
     const murim = await cardTitles();
-    const murimParams = new URLSearchParams(seriesSearches().at(-1)?.split('?')[1] ?? '');
+    const murimTags = seriesSearches()
+        .slice(-3)
+        .map((request) => new URLSearchParams(request.split('?')[1]).getAll('tag'));
     check(
-        label('System + Murim: tag=Murim&tag=System, four titles, Planned badges on the two planned'),
-        JSON.stringify(murimParams.getAll('tag')) === '["Murim","System"]' &&
+        label('System + Murim: Murim (40) with each System member, four titles, Planned badges on the two planned'),
+        JSON.stringify([...murimTags].sort()) ===
+            JSON.stringify([
+                ['40', '1171'],
+                ['40', '1196'],
+                ['40', '3081'],
+            ]) &&
             JSON.stringify([...murim].sort()) ===
                 JSON.stringify(
                     [
@@ -513,14 +581,14 @@ const runBrowser = async (browserName) => {
                 ) &&
             (await cardText('I Came Back as a Martial Genius')).includes('Planned') &&
             (await cardText('Master of the Martial Arts Library')).includes('Planned'),
-        { murim, tags: murimParams.getAll('tag') },
+        { murim, murimTags },
     );
 
     // Back to System alone: answered from the cache, no new search.
     await page.getByRole('button', { name: 'Clear' }).click();
     await search.fill('system');
     const searchesBefore = seriesSearches().length;
-    await page.getByRole('button', { name: /^System · 316$/ }).click();
+    await page.getByRole('button', { name: /^System · 839$/ }).click();
     await page
         .getByRole('button', { name: 'SSS-Class Revival Hunter' })
         .waitFor({ timeout: 10_000 })
@@ -593,23 +661,137 @@ const runBrowser = async (browserName) => {
     );
     await page.keyboard.press('Escape');
 
+    // System alone, scrolled to the end: every family title once, each sub-search page fetched once.
+    let lastCount = -1;
+    let stableRounds = 0;
+    for (let round = 0; round < 40 && stableRounds < 4; round += 1) {
+        // oxlint-disable-next-line no-await-in-loop
+        const count = (await cardTitles()).length;
+        stableRounds = count === lastCount ? stableRounds + 1 : 0;
+        lastCount = count;
+        // oxlint-disable-next-line no-await-in-loop
+        await page.evaluate(() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight));
+        // oxlint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(800);
+    }
+    const scrolled = await cardTitles();
+    const hiddenTitles = ['Solo Leveling', 'Tower of God', 'Pick Me Up', 'Short Murim System'];
+    const familyVisible = BAKA_SERIES.filter(
+        (series) =>
+            series.type === 'manhwa' &&
+            [3081, 1171, 1196].some((id) => series.tagIds.includes(id)) &&
+            !hiddenTitles.includes(series.title),
+    );
+    const seriesPages = seriesSearches();
+    check(
+        label('scrolling System to the end: every family title once, no page asked twice'),
+        scrolled.length === familyVisible.length &&
+            new Set(scrolled).size === scrolled.length &&
+            new Set(seriesPages).size === seriesPages.length &&
+            seriesPages.some((request) => request.includes('page=2')),
+        { cards: scrolled.length, expected: familyVisible.length, requests: seriesPages.length },
+    );
+
+    // System + Martial Arts: the AniList-merged chip searches MangaBaka by id 29, subtags (Cultivation) included.
+    await page.evaluate(() => document.scrollingElement.scrollTo(0, 0));
+    await search.fill('martial');
+    await page
+        .getByRole('button', { name: /^Martial Arts · 5484$/ })
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+    await suggestions.getByRole('button', { name: /^Martial Arts · 5484$/ }).click();
+    await page
+        .getByRole('button', { name: 'Lucky Me: I Secretly Cultivated for 1,000 Years' })
+        .waitFor({ timeout: 20_000 })
+        .catch(() => {});
+    await page.waitForTimeout(1000);
+    const martial = await cardTitles();
+    const martialTags = seriesSearches()
+        .slice(-3)
+        .map((request) => new URLSearchParams(request.split('?')[1]).getAll('tag'));
+    check(
+        label(
+            'System + Martial Arts: 29 with each System member; Level System, System Administrator + Cultivation, once each',
+        ),
+        JSON.stringify([...martialTags].sort()) ===
+            JSON.stringify([
+                ['29', '1171'],
+                ['29', '1196'],
+                ['29', '3081'],
+            ]) &&
+            JSON.stringify([...martial].sort()) ===
+                JSON.stringify(
+                    [
+                        'Lucky Me: I Secretly Cultivated for 1,000 Years',
+                        'Second Life Ranker',
+                        'Triple Tag System',
+                    ].sort(),
+                ),
+        { martial, martialTags },
+    );
+    check(
+        label('every MangaBaka series request uses numeric tag ids only'),
+        seriesSearches().every((request) =>
+            [...new URLSearchParams(request.split('?')[1]).entries()]
+                .filter(([key]) => key === 'tag' || key === 'tag_not')
+                .every(([, value]) => /^\d+$/.test(value)),
+        ),
+        seriesSearches().filter((request) => /tag=[^0-9&]/.test(request)),
+    );
+
+    // "+ also match": Murim joins the Martial Arts chip, so System + (Martial Arts or Murim).
+    await search.fill('murim');
+    await page
+        .getByRole('button', { name: 'Also match Murim' })
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+    await page.getByRole('button', { name: 'Also match Murim' }).click();
+    await page.getByRole('menuitem', { name: 'Add to Martial Arts' }).click();
+    await page
+        .getByRole('button', { name: 'Psychopath in Murim' })
+        .waitFor({ timeout: 20_000 })
+        .catch(() => {});
+    await page.waitForTimeout(1000);
+    const either = await cardTitles();
+    const selectedChips = await page.locator('.MuiChip-label').allTextContents();
+    check(
+        label('"+ also match": Martial Arts +1 searches System with Martial Arts or Murim (6 sub-searches)'),
+        selectedChips.includes('Martial Arts +1') &&
+            seriesSearches()
+                .slice(-6)
+                .every((request) => /tag=(29|40)&tag=(1171|1196|3081)&/.test(request)) &&
+            JSON.stringify([...either].sort()) ===
+                JSON.stringify(
+                    [
+                        'Lucky Me: I Secretly Cultivated for 1,000 Years',
+                        'Second Life Ranker',
+                        'Triple Tag System',
+                        "The Heavenly Demon Doesn't Want to Level Up",
+                        'I Came Back as a Martial Genius',
+                        'Master of the Martial Arts Library',
+                        'Psychopath in Murim',
+                    ].sort(),
+                ),
+        { either, chips: selectedChips.filter((text) => text.startsWith('Martial')) },
+    );
+
     // AniList-backed chips only (merged Dungeon): AniList search, zero MangaBaka series searches.
     await page.getByRole('button', { name: 'Clear' }).click();
     const bakaBefore = seriesSearches().length;
     await search.fill('dungeon');
     await page
-        .getByRole('button', { name: /^Dungeon · 586$/ })
+        .getByRole('button', { name: /^Dungeon · 732$/ })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
     const dungeonChips = (await suggestions.locator('.MuiChip-label').allTextContents()).filter((text) =>
-        text.startsWith('Dungeon'),
+        text.startsWith('Dungeon ·'),
     );
     check(
-        label('"Dungeon" is one merged chip (AniList Dungeon + MangaBaka Dungeon)'),
+        label('"Dungeon" is one merged chip (AniList Dungeon + the MangaBaka Dungeon family, 586 + 146)'),
         dungeonChips.length === 1,
         dungeonChips,
     );
-    await page.getByRole('button', { name: /^Dungeon · 586$/ }).click();
+    await page.getByRole('button', { name: /^Dungeon · 732$/ }).click();
     await page
         .getByRole('button', { name: 'AniList Dungeon Title' })
         .waitFor({ timeout: 15_000 })

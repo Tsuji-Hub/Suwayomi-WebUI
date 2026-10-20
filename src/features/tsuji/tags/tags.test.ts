@@ -11,8 +11,11 @@ import { buildDiscoverVariables, getIncludedTags, hasSelection } from '@/feature
 import { DEFAULT_REC_FILTERS } from '@/features/tsuji/recs/filters.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import type { BakaChip, BakaSeries, BakaTag } from '@/features/tsuji/tags/baka.ts';
+import { createBakaMerge } from '@/features/tsuji/tags/bakaMerge.ts';
 import {
     buildBakaSearch,
+    compareBakaSeries,
+    getBakaCombinations,
     getMissingDetails,
     getSearchEngine,
     parseBakaSearch,
@@ -34,8 +37,9 @@ const bakaTag = (id: number, name: string, count: number, overrides: Partial<Bak
 });
 
 const BAKA_SYSTEM = [
-    bakaTag(11, 'System', 316),
-    bakaTag(12, 'Level System', 250),
+    bakaTag(3081, 'System', 316),
+    bakaTag(1171, 'Level System', 250),
+    bakaTag(1196, 'System Administrator', 273, { path: 'Characters > System Administrator' }),
     bakaTag(13, 'Stat System', 90),
     bakaTag(14, 'System Sidekick', 0),
 ];
@@ -43,7 +47,7 @@ const BAKA_SYSTEM = [
 const chip = (name: string, id: number, overrides: Partial<BakaChip> = {}): BakaChip => ({
     state: 'include',
     label: name,
-    bakaTag: { id, name },
+    bakaTags: [{ id, name }],
     ...overrides,
 });
 
@@ -61,7 +65,7 @@ describe('suggestions', () => {
     const genres = ['Action', 'Fantasy', 'Hentai'];
     const tags = [{ name: 'Dungeon' }, { name: 'Martial Arts' }, { name: 'Sexual Content', isAdult: true }];
 
-    it('"system" is one System chip (MangaBaka, 316), Level / Stat System next to it, empty tags dropped', () => {
+    it('"system": the System family first (System + Level System + System Administrator), the tags on their own too', () => {
         const suggestions = buildSuggestions({
             query: 'system',
             genres,
@@ -69,29 +73,51 @@ describe('suggestions', () => {
             bakaTags: BAKA_SYSTEM,
             showAdult: false,
         });
-        expect(suggestions.map(({ label }) => label)).toEqual(['System', 'Level System', 'Stat System']);
-        expect(suggestions[0]).toMatchObject({ key: 'system', bakaTag: { id: 11, name: 'System' }, count: 316 });
-        expect(describeChip(suggestions[0])).toBe('MangaBaka Settings > Game Elements > System');
+        expect(suggestions.map(({ label, isTagOnly }) => (isTagOnly ? `${label} only` : label))).toEqual([
+            'System',
+            'System only',
+            'System Administrator',
+            'Level System',
+            'Stat System',
+        ]);
+        expect(suggestions[0]).toMatchObject({ key: 'system', isFamily: true, count: 316 + 250 + 273 });
+        expect(suggestions[0].bakaTags?.map(({ id }) => id)).toEqual([3081, 1171, 1196]);
+        expect(describeChip(suggestions[0])).toBe('System, Level System (+4), System Administrator');
+        expect(suggestions[1]).toMatchObject({ bakaTags: [{ id: 3081, name: 'System' }], count: 316 });
+        expect(describeChip(suggestions[1])).toBe('MangaBaka Settings > Game Elements > System');
     });
 
-    it('merges AniList "Dungeon" and MangaBaka "Dungeon" into one chip backed by both', () => {
-        const [dungeon, ...rest] = buildSuggestions({
+    it('a family merges with the AniList tag of the same name; "regress" offers the Regression family', () => {
+        const [dungeon] = buildSuggestions({
             query: 'dungeon',
             genres,
             tags,
-            bakaTags: [bakaTag(20, 'Dungeon', 586, { path: 'Settings > Dungeon' })],
+            bakaTags: [bakaTag(500, 'Dungeon', 836), bakaTag(2103, 'Dungeon Exploring', 146)],
+            showAdult: false,
+        });
+        expect(dungeon).toMatchObject({ key: 'dungeon', tag: 'Dungeon', isFamily: true, count: 982 });
+        const [regression] = buildSuggestions({ query: 'regress', genres, tags, bakaTags: [], showAdult: false });
+        expect(regression.bakaTags?.map(({ id }) => id)).toEqual([3495, 2461, 2147, 5101]);
+    });
+
+    it('merges AniList "Martial Arts" and MangaBaka "Martial Arts" into one chip backed by both', () => {
+        const [martialArts, ...rest] = buildSuggestions({
+            query: 'martial',
+            genres,
+            tags,
+            bakaTags: [bakaTag(29, 'Martial Arts', 5484, { path: 'Theme > Martial Arts' })],
             showAdult: false,
         });
         expect(rest).toEqual([]);
-        expect(dungeon).toEqual({
-            key: 'dungeon',
-            label: 'Dungeon',
-            tag: 'Dungeon',
-            bakaTag: { id: 20, name: 'Dungeon' },
-            count: 586,
-            path: 'Settings > Dungeon',
+        expect(martialArts).toEqual({
+            key: 'martial art',
+            label: 'Martial Arts',
+            tag: 'Martial Arts',
+            bakaTags: [{ id: 29, name: 'Martial Arts' }],
+            count: 5484,
+            path: 'Theme > Martial Arts',
         });
-        expect(describeChip(dungeon)).toBe('AniList tag Dungeon; MangaBaka Settings > Dungeon');
+        expect(describeChip(martialArts)).toBe('MangaBaka Theme > Martial Arts; AniList tag Martial Arts');
     });
 
     it('AniList-only names stay AniList-only; adult tags and Hentai need the Adult filter', () => {
@@ -110,7 +136,7 @@ describe('suggestions', () => {
             parseBakaTags({
                 data: [
                     {
-                        id: 11,
+                        id: 3081,
                         name: 'System',
                         name_path: 'Settings > Game Elements > System',
                         series_count: 316,
@@ -145,20 +171,20 @@ describe('search engine', () => {
 });
 
 describe('MangaBaka search', () => {
-    it('tags by name (AND), excluded by id, types OR, adult only when allowed, most popular first', () => {
-        const params = new URLSearchParams(
-            buildBakaSearch({
-                include: ['System', 'Murim'],
-                excludeIds: [99],
-                types: ['MANHWA', 'MANHUA'],
-                sort: 'POPULARITY',
-                minScore: 0,
-                showAdult: false,
-                page: 2,
-                limit: 50,
-            }),
-        );
-        expect(params.getAll('tag')).toEqual(['Murim', 'System']);
+    it('tag ids only (AND), excluded ids, types OR, adult only when allowed, most popular first', () => {
+        const query = buildBakaSearch({
+            tagIds: [3081, 29],
+            excludeIds: [99],
+            types: ['MANHWA', 'MANHUA'],
+            sort: 'POPULARITY',
+            minScore: 0,
+            showAdult: false,
+            page: 2,
+            limit: 50,
+        });
+        const params = new URLSearchParams(query);
+        expect(params.getAll('tag')).toEqual(['29', '3081']);
+        expect([...params.getAll('tag'), ...params.getAll('tag_not')].every((value) => /^\d+$/.test(value))).toBe(true);
         expect(params.getAll('tag_not')).toEqual(['99']);
         expect(params.getAll('type')).toEqual(['manhua', 'manhwa']);
         expect(params.getAll('content_rating')).toEqual(['safe', 'suggestive']);
@@ -170,7 +196,7 @@ describe('MangaBaka search', () => {
     it('no Type filter = comics only; adult on = every rating; score sort and minimum score', () => {
         const params = new URLSearchParams(
             buildBakaSearch({
-                include: ['System'],
+                tagIds: [3081],
                 excludeIds: [],
                 types: [],
                 sort: 'SCORE',
@@ -185,6 +211,28 @@ describe('MangaBaka search', () => {
         expect(params.get('sort_by')).toBe('score_desc');
         expect(params.get('rating_lower')).toBe('70');
     });
+
+    it('one sub-search per combination: OR inside a chip, AND across chips, capped at 16', () => {
+        expect(getBakaCombinations([[3081, 1171, 1196], [29]])).toEqual([
+            [29, 3081],
+            [29, 1171],
+            [29, 1196],
+        ]);
+        expect(
+            getBakaCombinations([
+                [3081, 1171, 1196],
+                [3495, 2461, 2147, 5101],
+            ]),
+        ).toHaveLength(12);
+        expect(getBakaCombinations([])).toEqual([[]]);
+        expect(getBakaCombinations([[1, 2], [2]])).toEqual([[1, 2], [2]]);
+        expect(
+            getBakaCombinations([
+                [1, 2, 3, 4, 5],
+                [6, 7, 8, 9],
+            ]),
+        ).toHaveLength(16);
+    });
 });
 
 const SOLO_ROW = {
@@ -198,7 +246,7 @@ const SOLO_ROW = {
     type: 'manhwa',
     status: 'completed',
     rating: 88.4,
-    popularity: 1,
+    popularity: { global: { current: 7, previous: 8 } },
     total_chapters: '201',
     content_rating: 'safe',
     year: 2018,
@@ -239,7 +287,7 @@ describe('MangaBaka series', () => {
                 type: 'manhwa',
                 status: 'completed',
                 rating: 88.4,
-                popularity: 1,
+                popularity: 7,
                 totalChapters: 201,
                 isAdult: false,
                 year: 2018,
@@ -299,5 +347,71 @@ describe('MangaBaka series', () => {
         expect(passesAniListChips(media, { genres: { Romance: 'include' }, tags: {} })).toBe(false);
         expect(passesAniListChips(null, { genres: {}, tags: { Revenge: 'exclude' } })).toBe(true);
         expect(passesAniListChips(null, { genres: {}, tags: { Revenge: 'include' } })).toBe(false);
+    });
+});
+
+const pagesOf = (rows: BakaSeries[], size: number) =>
+    Array.from({ length: Math.ceil(rows.length / size) }, (_, index) => rows.slice(index * size, (index + 1) * size));
+
+describe('merging sub-searches', () => {
+    const ranked = (id: number, popularity: number) => series(id, null, { popularity });
+
+    it('k-way merge by rank, no repeats, a source fetched only when its rows run out, nothing skipped', async () => {
+        const sources = [
+            pagesOf([ranked(1, 1), ranked(3, 3), ranked(5, 5), ranked(7, 7), ranked(9, 9)], 2),
+            pagesOf([ranked(2, 2), ranked(3, 3), ranked(4, 4), ranked(10, 10)], 2),
+        ];
+        const fetched: string[] = [];
+        const merge = createBakaMerge({
+            sourceCount: 2,
+            compare: compareBakaSeries('POPULARITY'),
+            fetchPage: async (source, page) => {
+                fetched.push(`${source}:${page}`);
+                return { series: sources[source][page - 1] ?? [], hasNextPage: page < sources[source].length };
+            },
+        });
+        expect((await merge.next(3)).map(({ id }) => id)).toEqual([1, 2, 3]);
+        expect(fetched).toEqual(['0:1', '1:1']);
+        expect((await merge.next(3)).map(({ id }) => id)).toEqual([4, 5, 7]);
+        expect((await merge.next(10)).map(({ id }) => id)).toEqual([9, 10]);
+        expect(merge.hasNext()).toBe(false);
+        expect(fetched).toEqual(['0:1', '1:1', '0:2', '1:2', '0:3']);
+    });
+
+    it('a failed page consumes nothing: the retry continues exactly where it stopped', async () => {
+        let isDown = false;
+        const merge = createBakaMerge({
+            sourceCount: 1,
+            compare: compareBakaSeries('POPULARITY'),
+            fetchPage: async (_source, page) => {
+                if (isDown) {
+                    throw new Error('429');
+                }
+                return {
+                    series: [ranked(page * 2 - 1, page * 2 - 1), ranked(page * 2, page * 2)],
+                    hasNextPage: page < 3,
+                };
+            },
+        });
+        expect((await merge.next(2)).map(({ id }) => id)).toEqual([1, 2]);
+        isDown = true;
+        await expect(merge.next(3)).rejects.toThrow('429');
+        isDown = false;
+        expect((await merge.next(3)).map(({ id }) => id)).toEqual([3, 4, 5]);
+    });
+
+    it('score and newest order; unknown values last', () => {
+        const byScore = [
+            series(1, null, { rating: null }),
+            series(2, null, { rating: 90 }),
+            series(3, null, { rating: 70 }),
+        ];
+        expect([...byScore].sort(compareBakaSeries('SCORE')).map(({ id }) => id)).toEqual([2, 3, 1]);
+        const byYear = [
+            series(1, null, { year: 2010 }),
+            series(2, null, { year: null }),
+            series(3, null, { year: 2024 }),
+        ];
+        expect([...byYear].sort(compareBakaSeries('NEWEST')).map(({ id }) => id)).toEqual([3, 1, 2]);
     });
 });

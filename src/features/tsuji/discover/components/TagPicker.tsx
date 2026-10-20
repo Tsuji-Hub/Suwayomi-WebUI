@@ -7,16 +7,21 @@
  */
 
 import { useMemo, useState } from 'react';
+import type { MouseEvent } from 'react';
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Collapse from '@mui/material/Collapse';
 import LinearProgress from '@mui/material/LinearProgress';
 import FormLabel from '@mui/material/FormLabel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -28,7 +33,8 @@ import type { TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import { setTriState, TriStateChip } from '@/features/tsuji/recs/components/TriStateChip.tsx';
 import type { CatalogTag } from '@/features/tsuji/recs/aniListQueries.ts';
 import type { TriState } from '@/features/tsuji/recs/components/TriStateChip.tsx';
-import type { BakaChip } from '@/features/tsuji/tags/baka.ts';
+import type { BakaChip, BakaTagRef } from '@/features/tsuji/tags/baka.ts';
+import { getChipTags } from '@/features/tsuji/tags/baka.ts';
 import type { TagSuggestion } from '@/features/tsuji/tags/tagKeys.ts';
 import { describeChip } from '@/features/tsuji/tags/tagKeys.ts';
 import { useTagSuggestions } from '@/features/tsuji/tags/useTagSuggestions.ts';
@@ -37,11 +43,14 @@ type SelectionKind = 'genres' | 'tags';
 
 const MAX_SEARCH_RESULTS = 60;
 
-type ChipBacking = Pick<TagSuggestion, 'key' | 'label' | 'genre' | 'tag' | 'bakaTag' | 'path'>;
+type ChipBacking = Pick<TagSuggestion, 'key' | 'label' | 'genre' | 'tag' | 'bakaTags' | 'path'> & {
+    alsoMatch?: number;
+};
 
 /** A suggestion goes where its backing is: MangaBaka-backed (or merged) chips in `baka`, AniList-only as before. */
 const setSuggestionState = (selection: DiscoverSelection, chip: ChipBacking, state: TriState): DiscoverSelection => {
-    if (!chip.bakaTag) {
+    const bakaTags = getChipTags(chip);
+    if (!bakaTags.length) {
         const kind: SelectionKind = chip.genre ? 'genres' : 'tags';
         return { ...selection, [kind]: setTriState(selection[kind], (chip.genre ?? chip.tag)!, state) };
     }
@@ -49,16 +58,34 @@ const setSuggestionState = (selection: DiscoverSelection, chip: ChipBacking, sta
     const next: BakaChip = {
         state: state!,
         label: chip.label,
-        bakaTag: chip.bakaTag,
+        bakaTags,
         path: chip.path ?? null,
         genre: chip.genre,
         tag: chip.tag,
+        ...(chip.alsoMatch ? { alsoMatch: chip.alsoMatch } : {}),
     };
     return { ...selection, baka: state ? { ...rest, [chip.key]: next } : rest };
 };
 
+/** "+ also match": the suggestion's MangaBaka tags join a selected chip as alternatives (OR inside the chip). */
+const addAlternatives = (selection: DiscoverSelection, targetKey: string, tags: BakaTagRef[]): DiscoverSelection => {
+    const target = selection.baka?.[targetKey];
+    if (!target) {
+        return selection;
+    }
+    const current = getChipTags(target);
+    const added = tags.filter(({ id }) => !current.some((tag) => tag.id === id));
+    const next: BakaChip = {
+        ...target,
+        bakaTags: [...current, ...added],
+        path: null,
+        alsoMatch: (target.alsoMatch ?? 0) + added.length,
+    };
+    return { ...selection, baka: { ...selection.baka, [targetKey]: next } };
+};
+
 const getSuggestionState = (selection: DiscoverSelection, chip: TagSuggestion): TriState => {
-    if (chip.bakaTag) {
+    if (chip.bakaTags?.length) {
         return selection.baka?.[chip.key]?.state;
     }
     return chip.genre ? selection.genres[chip.genre] : selection.tags[chip.tag!];
@@ -124,23 +151,62 @@ export const TagPicker = ({
     );
 
     // One chip per name: the size hint in the label, MangaBaka's parent path and the sources on hover.
-    const renderSuggestion = (chip: TagSuggestion) => (
-        <CustomTooltip key={chip.key} title={describeChip(chip)}>
-            <span>
-                <TriStateChip
-                    label={chip.count ? `${chip.label} · ${chip.count}` : chip.label}
-                    state={getSuggestionState(selection, chip)}
-                    onChange={(state) => onChange(setSuggestionState(selection, chip, state))}
-                />
-            </span>
-        </CustomTooltip>
-    );
+    // Selected included MangaBaka chips a suggestion's tags can join ("+ also match").
+    const alsoMatchTargets = Object.entries(selection.baka ?? {}).filter(([, chip]) => chip.state === 'include');
+    const [alsoMatchMenu, setAlsoMatchMenu] = useState<{ anchor: HTMLElement; chip: TagSuggestion } | null>(null);
+    const alsoMatch = (targetKey: string, chip: TagSuggestion) =>
+        onChange(addAlternatives(selection, targetKey, chip.bakaTags ?? []));
+
+    const renderSuggestion = (chip: TagSuggestion) => {
+        const label = chip.isTagOnly ? t`${chip.label} only` : chip.label;
+        const targets = alsoMatchTargets.filter(
+            ([key, target]) =>
+                key !== chip.key &&
+                (chip.bakaTags ?? []).some(({ id }) => !getChipTags(target).some((tag) => tag.id === id)),
+        );
+        return (
+            <Stack key={chip.key} direction="row" sx={{ alignItems: 'center' }}>
+                <CustomTooltip title={describeChip(chip)}>
+                    <span>
+                        <TriStateChip
+                            label={chip.count ? `${label} · ${chip.count}` : label}
+                            state={getSuggestionState(selection, chip)}
+                            onChange={(state) => onChange(setSuggestionState(selection, chip, state))}
+                        />
+                    </span>
+                </CustomTooltip>
+                {!!chip.bakaTags?.length && !!targets.length && (
+                    <CustomTooltip
+                        title={
+                            targets.length === 1
+                                ? t`Also match ${label} in ${targets[0][1].label} (either counts)`
+                                : t`Also match ${label} in a selected chip (either counts)`
+                        }
+                    >
+                        <IconButton
+                            size="small"
+                            aria-label={t`Also match ${label}`}
+                            onClick={(event: MouseEvent<HTMLElement>) => {
+                                if (targets.length === 1) {
+                                    alsoMatch(targets[0][0], chip);
+                                } else {
+                                    setAlsoMatchMenu({ anchor: event.currentTarget, chip });
+                                }
+                            }}
+                        >
+                            <AddCircleOutlineIcon fontSize="small" />
+                        </IconButton>
+                    </CustomTooltip>
+                )}
+            </Stack>
+        );
+    };
 
     const renderBakaChip = (key: string, chip: BakaChip) => (
-        <CustomTooltip key={`baka-${key}`} title={describeChip(chip)}>
+        <CustomTooltip key={`baka-${key}`} title={describeChip({ ...chip, bakaTags: getChipTags(chip) })}>
             <span>
                 <TriStateChip
-                    label={chip.label}
+                    label={chip.alsoMatch ? `${chip.label} +${chip.alsoMatch}` : chip.label}
                     state={chip.state}
                     onChange={(state) => onChange(setSuggestionState(selection, { key, ...chip }, state))}
                 />
@@ -205,6 +271,25 @@ export const TagPicker = ({
                             sx={{ gap: 0.5, flexWrap: 'wrap' }}
                         >
                             {matches.map(renderSuggestion)}
+                            <Menu
+                                anchorEl={alsoMatchMenu?.anchor}
+                                open={!!alsoMatchMenu}
+                                onClose={() => setAlsoMatchMenu(null)}
+                            >
+                                {alsoMatchTargets.map(([key, target]) => (
+                                    <MenuItem
+                                        key={key}
+                                        onClick={() => {
+                                            if (alsoMatchMenu) {
+                                                alsoMatch(key, alsoMatchMenu.chip);
+                                            }
+                                            setAlsoMatchMenu(null);
+                                        }}
+                                    >
+                                        {t`Add to ${target.label}`}
+                                    </MenuItem>
+                                ))}
+                            </Menu>
                             {!matches.length && !isPending && (
                                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                                     {t`No matching tags.`}

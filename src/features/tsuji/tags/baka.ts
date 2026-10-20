@@ -12,21 +12,68 @@ import type { TagFilterState } from '@/features/tsuji/recs/filters.ts';
 /*
  * MangaBaka (brief #9): the tag search engine for chips AniList doesn't have ("System"). Its series carry their
  * AniList id, so cards render straight from it and key on that id; nothing is matched by title.
- * Verified live (2026-10-20): repeated `tag=` (names) is AND, repeated `type=` is OR, `tag_not=` takes numeric ids,
- * the default content rating is safe + suggestive, `popularity_asc` is most popular first (popularity is a rank).
+ * Verified live (2026-10-20, brief #11): tags are searched by ID only. An id covers the tag's whole subtree (a name
+ * covers only the tag itself, "System" by name is even a substring match), and a name mixed with an id returns
+ * nothing. Repeated `tag=` is AND, repeated `type=` is OR, `tag_not=<id>` excludes the subtree too, the default
+ * content rating is safe + suggestive, `popularity_asc` is most popular first (popularity is a rank).
  */
 
-/** A chip of the universal tag search with a MangaBaka tag behind it (the AniList name too when merged). */
+/** One MangaBaka tag behind a chip; `subtags` only for the hover text ("Level System (+4)"). */
+export type BakaTagRef = { id: number; name: string; subtags?: number };
+
+/**
+ * A chip of the universal tag search with MangaBaka tags behind it (the AniList name too when merged). Several
+ * tags = OR inside the chip (a family like System, or tags the user added with "+ also match").
+ */
 export type BakaChip = {
     state: TagFilterState;
     label: string;
-    /** MangaBaka tag: `name` for `tag=`, `id` for `tag_not=`. */
-    bakaTag: { id: number; name: string };
-    /** MangaBaka parent path, for the hover text. */
+    bakaTags: BakaTagRef[];
+    /** MangaBaka parent path of a single tag, for the hover text. */
     path?: string | null;
     genre?: string;
     tag?: string;
+    /** Tags added with "+ also match" (shown as "System +2"). */
+    alsoMatch?: number;
 };
+
+/** The chip's MangaBaka tags (selections saved before brief #11 carried one `bakaTag`). */
+export const getChipTags = (chip: { bakaTags?: BakaTagRef[]; bakaTag?: BakaTagRef }): BakaTagRef[] =>
+    chip.bakaTags ?? (chip.bakaTag ? [chip.bakaTag] : []);
+
+/**
+ * Concepts MangaBaka splits across tags with no shared parent: one chip searches them all (OR). Ids verified live
+ * (2026-10-20). Age Regression (748) is something else and stays out of Regression.
+ */
+export const BAKA_FAMILIES: { key: string; label: string; tags: BakaTagRef[] }[] = [
+    {
+        key: 'system',
+        label: 'System',
+        tags: [
+            { id: 3081, name: 'System' },
+            { id: 1171, name: 'Level System', subtags: 4 },
+            { id: 1196, name: 'System Administrator' },
+        ],
+    },
+    {
+        key: 'regression',
+        label: 'Regression',
+        tags: [
+            { id: 3495, name: 'Regressor Protagonist' },
+            { id: 2461, name: 'Regressed Male Lead' },
+            { id: 2147, name: 'Regressed Female Lead' },
+            { id: 5101, name: 'Multiple Regressed Individuals' },
+        ],
+    },
+    {
+        key: 'dungeon',
+        label: 'Dungeon',
+        tags: [
+            { id: 500, name: 'Dungeon' },
+            { id: 2103, name: 'Dungeon Exploring' },
+        ],
+    },
+];
 
 /** Selected MangaBaka-backed chips, by tag key. */
 export type BakaSelection = Record<string, BakaChip>;
@@ -106,6 +153,7 @@ export type BakaSeries = {
     type: string | null;
     status: string | null;
     rating: number | null;
+    /** Global popularity rank (1 = most popular). */
     popularity: number | null;
     totalChapters: number | null;
     isAdult: boolean;
@@ -177,7 +225,7 @@ export const parseBakaSeries = (row: unknown): BakaSeries | null => {
         type: asString(series.type),
         status: asString(series.status),
         rating: asNumber(series.rating),
-        popularity: asNumber(series.popularity),
+        popularity: asNumber(series.popularity) ?? asNumber(asRecord(asRecord(series.popularity).global).current),
         totalChapters: asNumber(series.total_chapters),
         isAdult: ADULT_RATINGS.has(String(series.content_rating ?? '')),
         year: asNumber(series.year) ?? asNumber(String(published.start_date ?? '').slice(0, 4)),
@@ -214,13 +262,28 @@ export const getBakaSort = (sort: string): BakaSort => {
     }
 };
 
+/** Most sub-searches one selection runs (the product of the chips' tag sets). */
+export const MAX_BAKA_COMBINATIONS = 16;
+
 /**
- * The search for one page: included chips' tags by name (AND), excluded ones by id, types from the Type filter
- * (comics only without one), the minimum score server side, adult ratings only with the Adult filter on. The
- * minimum chapter count stays client side: MangaBaka drops series without a count, Discover lets them pass.
+ * The tag ids of each sub-search: one id from every included chip (AND across chips, OR inside a chip), as the
+ * cartesian product of the chips' id sets, capped at MAX_BAKA_COMBINATIONS. No included chip = one search.
+ */
+export const getBakaCombinations = (includeSets: number[][]): number[][] =>
+    includeSets
+        .filter((ids) => ids.length)
+        .reduce<number[][]>((combos, ids) => combos.flatMap((combo) => ids.map((id) => [...combo, id])), [[]])
+        .map((combo) => [...new Set(combo)].sort((a, b) => a - b))
+        .filter((combo, index, list) => list.findIndex((other) => other.join() === combo.join()) === index)
+        .slice(0, MAX_BAKA_COMBINATIONS);
+
+/**
+ * One page of one sub-search: tag ids only (AND), excluded tag ids, types from the Type filter (comics only without
+ * one), the minimum score server side, adult ratings only with the Adult filter on. The minimum chapter count stays
+ * client side: MangaBaka drops series without a count, Discover lets them pass.
  */
 export const buildBakaSearch = ({
-    include,
+    tagIds,
     excludeIds,
     types,
     sort,
@@ -229,7 +292,7 @@ export const buildBakaSearch = ({
     page,
     limit,
 }: {
-    include: string[];
+    tagIds: number[];
     excludeIds: number[];
     types: ComicType[];
     sort: string;
@@ -239,7 +302,7 @@ export const buildBakaSearch = ({
     limit: number;
 }): string => {
     const params = new URLSearchParams();
-    [...new Set(include)].sort().forEach((name) => params.append('tag', name));
+    [...new Set(tagIds)].sort((a, b) => a - b).forEach((id) => params.append('tag', String(id)));
     [...new Set(excludeIds)].sort((a, b) => a - b).forEach((id) => params.append('tag_not', String(id)));
     (types.length ? types : (Object.keys(BAKA_TYPES) as ComicType[]))
         .map((type) => BAKA_TYPES[type])
@@ -253,6 +316,27 @@ export const buildBakaSearch = ({
     params.set('page', String(page));
     params.set('limit', String(limit));
     return params.toString();
+};
+
+const nullsLast = (value: number | null, direction: 1 | -1) =>
+    value === null ? Number.POSITIVE_INFINITY : value * direction;
+
+/**
+ * The order the sub-searches are merged in, matching each one's `sort_by`: popularity rank ascending, score and
+ * year descending; unknown values last, then MangaBaka id.
+ */
+export const compareBakaSeries = (sort: string) => {
+    const key = (series: BakaSeries): number => {
+        switch (getBakaSort(sort)) {
+            case 'score_desc':
+                return nullsLast(series.rating, -1);
+            case 'published_year_desc':
+                return nullsLast(series.year, -1);
+            default:
+                return nullsLast(series.popularity, 1);
+        }
+    };
+    return (a: BakaSeries, b: BakaSeries) => key(a) - key(b) || a.id - b.id;
 };
 
 const STATUS_BY_BAKA: Record<string, string> = {

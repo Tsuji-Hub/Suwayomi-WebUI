@@ -160,6 +160,11 @@ msgstr "{0} chapters"
 msgid "{0} of {1} found it helpful"
 msgstr "{0} of {1} found it helpful"
 
+#. placeholder {0}: chip.label
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "{0} only"
+msgstr "{0} only"
+
 #. placeholder {0}: updateStatus.progress
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
 msgid "{0}% | Updating…"
@@ -450,6 +455,11 @@ msgstr "Add bookmark"
 msgid "Add extension store"
 msgstr "Add extension store"
 
+#. placeholder {0}: target.label
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Add to {0}"
+msgstr "Add to {0}"
+
 #: src/features/manga/components/details/MangaDetails.tsx
 #: src/features/manga/components/MangaBadges.tsx
 #: src/features/reader/overlay/navigation/components/ReaderLibraryButton.tsx
@@ -508,6 +518,19 @@ msgstr "Alpha"
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Also hide Planned"
 msgstr "Also hide Planned"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Also match {label}"
+msgstr "Also match {label}"
+
+#. placeholder {0}: targets[0][1].label
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Also match {label} in {0} (either counts)"
+msgstr "Also match {label} in {0} (either counts)"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Also match {label} in a selected chip (either counts)"
+msgstr "Also match {label} in a selected chip (either counts)"
 
 #. placeholder {0}: tracker.name
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
