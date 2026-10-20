@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
+import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
@@ -100,7 +101,9 @@ const DiscoverBrowse = () => {
 
     const isBrowsing = hasSelection(selection);
     const sortOptions = isBrowsing ? BROWSE_SORTS : LANDING_SORTS;
-    const sort: DiscoverSort = sortChoice && sortOptions.includes(sortChoice) ? sortChoice : sortOptions[0];
+    // Browsing starts on the saved sort (tsuji_recFilters.sort); a choice made here wins for the session.
+    const defaultSort = isBrowsing && sortOptions.includes(storedFilters.sort) ? storedFilters.sort : sortOptions[0];
+    const sort: DiscoverSort = sortChoice && sortOptions.includes(sortChoice) ? sortChoice : defaultSort;
     const includedTags = useMemo(() => getIncludedTags(selection), [selection]);
     const variables = useMemo(() => buildDiscoverVariables(selection, filters), [selection, filters]);
 
@@ -162,6 +165,7 @@ const DiscoverBrowse = () => {
 
     const landingFeed = landingSource === 'trending' ? trending : popular;
     const browseFeed = engine === 'baka' ? bakaBrowse : browse;
+    const isBakaSearch = engine === 'baka' && !isLanding;
     const feed = isLanding ? landingFeed : browseFeed;
     const hasFellBack = isLanding
         ? landingSource === 'popular' && isTrendingOut
@@ -249,6 +253,13 @@ const DiscoverBrowse = () => {
                 onChange={setSelection}
                 showAdult={filters.showAdult}
             />
+            {isBakaSearch &&
+                !!bakaBrowse.combinations &&
+                bakaBrowse.combinations.total > bakaBrowse.combinations.used && (
+                    <Typography variant="caption" sx={{ color: 'warning.main' }}>
+                        {t`Showing ${bakaBrowse.combinations.used} of ${bakaBrowse.combinations.total} tag combinations. Remove a family or a chip to search them all.`}
+                    </Typography>
+                )}
             <RecFilterBar
                 filters={storedFilters}
                 onFiltersChange={setFilters}
@@ -281,6 +292,21 @@ const DiscoverBrowse = () => {
                 <Typography variant="h6" component="h2">
                     {gridHeading}
                 </Typography>
+            )}
+            {isInitialLoading && isBakaSearch && !!bakaBrowse.combinations && bakaBrowse.combinations.used > 1 && (
+                <Stack sx={{ gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {t`Searching MangaBaka: ${Math.min(bakaBrowse.firstPagesLoaded, bakaBrowse.combinations.used)} of ${bakaBrowse.combinations.used} tag combinations`}
+                    </Typography>
+                    <LinearProgress
+                        variant="determinate"
+                        value={
+                            (100 * Math.min(bakaBrowse.firstPagesLoaded, bakaBrowse.combinations.used)) /
+                            bakaBrowse.combinations.used
+                        }
+                        aria-label={t`Searching MangaBaka`}
+                    />
+                </Stack>
             )}
             {isInitialLoading && <Skeletons count={12} />}
             {!isInitialLoading && !!items.length && <CardGrid>{items.map(renderCard)}</CardGrid>}

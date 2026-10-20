@@ -15,6 +15,7 @@ import { createBakaMerge } from '@/features/tsuji/tags/bakaMerge.ts';
 import {
     buildBakaSearch,
     compareBakaSeries,
+    countBakaCombinations,
     getBakaCombinations,
     getMissingDetails,
     getSearchEngine,
@@ -170,6 +171,8 @@ describe('search engine', () => {
     });
 });
 
+const ascending = (combo: number[]) => [...combo].sort((a, b) => a - b);
+
 describe('MangaBaka search', () => {
     it('tag ids only (AND), excluded ids, types OR, adult only when allowed, most popular first', () => {
         const query = buildBakaSearch({
@@ -232,6 +235,26 @@ describe('MangaBaka search', () => {
                 [6, 7, 8, 9],
             ]),
         ).toHaveLength(16);
+    });
+
+    it("over the cap: each chip's first (most popular) ids run first; the count says how many were left out", () => {
+        const families = [
+            [3081, 1171, 1196],
+            [3495, 2461, 2147, 5101],
+            [500, 2103],
+        ];
+        const combinations = getBakaCombinations(families);
+        expect(countBakaCombinations(families)).toBe(24);
+        expect(combinations).toHaveLength(16);
+        expect(combinations[0]).toEqual(ascending([3081, 3495, 500]));
+        expect(combinations.slice(1, 4)).toEqual(
+            [
+                [3081, 3495, 2103],
+                [3081, 2461, 500],
+                [1171, 3495, 500],
+            ].map(ascending),
+        );
+        expect(combinations).not.toContainEqual(ascending([1196, 5101, 2103]));
     });
 });
 

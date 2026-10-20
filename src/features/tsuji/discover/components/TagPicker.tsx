@@ -34,7 +34,7 @@ import { setTriState, TriStateChip } from '@/features/tsuji/recs/components/TriS
 import type { CatalogTag } from '@/features/tsuji/recs/aniListQueries.ts';
 import type { TriState } from '@/features/tsuji/recs/components/TriStateChip.tsx';
 import type { BakaChip, BakaTagRef } from '@/features/tsuji/tags/baka.ts';
-import { getChipTags } from '@/features/tsuji/tags/baka.ts';
+import { countBakaCombinations, getChipTags, MAX_BAKA_COMBINATIONS } from '@/features/tsuji/tags/baka.ts';
 import type { TagSuggestion } from '@/features/tsuji/tags/tagKeys.ts';
 import { describeChip } from '@/features/tsuji/tags/tagKeys.ts';
 import { useTagSuggestions } from '@/features/tsuji/tags/useTagSuggestions.ts';
@@ -156,6 +156,26 @@ export const TagPicker = ({
     const [alsoMatchMenu, setAlsoMatchMenu] = useState<{ anchor: HTMLElement; chip: TagSuggestion } | null>(null);
     const alsoMatch = (targetKey: string, chip: TagSuggestion) =>
         onChange(addAlternatives(selection, targetKey, chip.bakaTags ?? []));
+    /** Sub-searches the selection would need after adding the suggestion's tags to a chip. */
+    const combinationsAfter = (targetKey: string, chip: TagSuggestion) =>
+        countBakaCombinations(
+            alsoMatchTargets.map(([key, target]) => [
+                ...new Set([
+                    ...getChipTags(target).map(({ id }) => id),
+                    ...(key === targetKey ? (chip.bakaTags ?? []).map(({ id }) => id) : []),
+                ]),
+            ]),
+        );
+
+    const getAlsoMatchHint = (chip: TagSuggestion, label: string, targets: typeof alsoMatchTargets) => {
+        const smallest = Math.min(...targets.map(([key]) => combinationsAfter(key, chip)));
+        if (smallest > MAX_BAKA_COMBINATIONS) {
+            return t`That would need ${smallest} tag combinations (${MAX_BAKA_COMBINATIONS} at most). Remove a family or a chip first.`;
+        }
+        return targets.length === 1
+            ? t`Also match ${label} in ${targets[0][1].label} (either counts)`
+            : t`Also match ${label} in a selected chip (either counts)`;
+    };
 
     const renderSuggestion = (chip: TagSuggestion) => {
         const label = chip.isTagOnly ? t`${chip.label} only` : chip.label;
@@ -176,26 +196,25 @@ export const TagPicker = ({
                     </span>
                 </CustomTooltip>
                 {!!chip.bakaTags?.length && !!targets.length && (
-                    <CustomTooltip
-                        title={
-                            targets.length === 1
-                                ? t`Also match ${label} in ${targets[0][1].label} (either counts)`
-                                : t`Also match ${label} in a selected chip (either counts)`
-                        }
-                    >
-                        <IconButton
-                            size="small"
-                            aria-label={t`Also match ${label}`}
-                            onClick={(event: MouseEvent<HTMLElement>) => {
-                                if (targets.length === 1) {
-                                    alsoMatch(targets[0][0], chip);
-                                } else {
-                                    setAlsoMatchMenu({ anchor: event.currentTarget, chip });
-                                }
-                            }}
-                        >
-                            <AddCircleOutlineIcon fontSize="small" />
-                        </IconButton>
+                    <CustomTooltip title={getAlsoMatchHint(chip, label, targets)}>
+                        <span>
+                            <IconButton
+                                size="small"
+                                aria-label={t`Also match ${label}`}
+                                disabled={targets.every(
+                                    ([key]) => combinationsAfter(key, chip) > MAX_BAKA_COMBINATIONS,
+                                )}
+                                onClick={(event: MouseEvent<HTMLElement>) => {
+                                    if (targets.length === 1) {
+                                        alsoMatch(targets[0][0], chip);
+                                    } else {
+                                        setAlsoMatchMenu({ anchor: event.currentTarget, chip });
+                                    }
+                                }}
+                            >
+                                <AddCircleOutlineIcon fontSize="small" />
+                            </IconButton>
+                        </span>
                     </CustomTooltip>
                 )}
             </Stack>
@@ -279,6 +298,10 @@ export const TagPicker = ({
                                 {alsoMatchTargets.map(([key, target]) => (
                                     <MenuItem
                                         key={key}
+                                        disabled={
+                                            !!alsoMatchMenu &&
+                                            combinationsAfter(key, alsoMatchMenu.chip) > MAX_BAKA_COMBINATIONS
+                                        }
                                         onClick={() => {
                                             if (alsoMatchMenu) {
                                                 alsoMatch(key, alsoMatchMenu.chip);

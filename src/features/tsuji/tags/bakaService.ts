@@ -8,7 +8,7 @@
 
 import { DAY_MS } from '@/features/tsuji/Tsuji.constants.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
-import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
+import { ParallelQueue, SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { MEDIA_FIELDS } from '@/features/tsuji/recs/aniListQueries.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
@@ -17,8 +17,9 @@ import { parseBakaSearch, parseBakaTags } from '@/features/tsuji/tags/baka.ts';
 
 /*
  * MangaBaka's public API, straight from the browser (it answers CORS with `*`; no relay, no login, never a token).
- * Limits: search 30/min, everything else 180/min, per IP; cached answers don't count. Client side: search one per
- * 2.1 s after a burst of 3, tags one per 0.5 s; a 429 waits (Retry-After, else 5 s) and retries twice. Requests
+ * Limits: search 30/min, everything else 180/min, per IP; cached answers don't count. Client side: up to 4 searches
+ * at once, tags one per 0.5 s; a 429 pauses the whole queue (Retry-After, else 5 s) and the request retries twice.
+ * Requests
  * carry no custom header: a browser can't set User-Agent, and an extra header would need a CORS preflight; the
  * Origin header names the Suwayomi host.
  */
@@ -30,7 +31,8 @@ const TAGS_TTL_MS = 7 * DAY_MS;
 const MAX_429_RETRIES = 2;
 const DEFAULT_RETRY_MS = 5000;
 
-const searchQueue = new SpacedQueue(2100, { burst: 3 });
+// Sub-searches of one selection go out together (brief #11: 16 one after another took ~40 s), like Makimono.
+const searchQueue = new ParallelQueue(4);
 const defaultQueue = new SpacedQueue(500, { burst: 5 });
 
 export class BakaError extends Error {
@@ -40,20 +42,12 @@ export class BakaError extends Error {
     }
 }
 
-const wait = (ms: number, signal?: AbortSignal) =>
-    new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, ms);
-        signal?.addEventListener(
-            'abort',
-            () => {
-                clearTimeout(timer);
-                reject(signal.reason);
-            },
-            { once: true },
-        );
-    });
-
-const getJson = async (queue: SpacedQueue, path: string, signal?: AbortSignal, attempt = 0): Promise<unknown> => {
+const getJson = async (
+    queue: SpacedQueue | ParallelQueue,
+    path: string,
+    signal?: AbortSignal,
+    attempt = 0,
+): Promise<unknown> => {
     const response = await queue.run(async () => {
         const controller = new AbortController();
         const forward = () => controller.abort(signal?.reason);
@@ -78,7 +72,10 @@ const getJson = async (queue: SpacedQueue, path: string, signal?: AbortSignal, a
     }, signal);
     if (response.status === 429 && attempt < MAX_429_RETRIES) {
         const retryAfter = Number(response.headers.get('retry-after'));
-        await wait(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : DEFAULT_RETRY_MS, signal);
+        // Shared back-off: every queued request waits, not only this one.
+        queue.pauseUntil(
+            Date.now() + (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : DEFAULT_RETRY_MS),
+        );
         return getJson(queue, path, signal, attempt + 1);
     }
     if (!response.ok) {

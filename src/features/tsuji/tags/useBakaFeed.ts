@@ -15,6 +15,7 @@ import {
     BAKA_FAMILIES,
     buildBakaSearch,
     compareBakaSeries,
+    countBakaCombinations,
     getBakaCombinations,
     getChipTags,
     getMissingDetails,
@@ -90,6 +91,10 @@ type BakaFeedState = {
     postFilter: AniListChips;
     hasNextPage: boolean;
     status: 'idle' | 'loading' | 'error';
+    /** Sub-searches run / needed without the cap (null until the chips are resolved). */
+    combinations: { used: number; total: number } | null;
+    /** Sub-searches whose first page is in (the first cards wait for all of them). */
+    firstPagesLoaded: number;
 };
 
 const createState = (key: string): BakaFeedState => ({
@@ -98,6 +103,8 @@ const createState = (key: string): BakaFeedState => ({
     postFilter: { genres: {}, tags: {} },
     hasNextPage: true,
     status: 'idle',
+    combinations: null,
+    firstPagesLoaded: 0,
 });
 
 type MergedSearch = { resolved: ResolvedChips; merge: BakaMerge; limit: number };
@@ -159,11 +166,17 @@ export const useBakaFeed = ({
             const resolved = await resolveChips(baka, aniListChips, signal);
             const combinations = getBakaCombinations(resolved.includeSets);
             const limit = getSearchLimit();
+            const update = (change: (previous: BakaFeedState) => Partial<BakaFeedState>) =>
+                setState((previous) => (previous.key === feed.key ? { ...previous, ...change(previous) } : previous));
+            update(() => ({
+                combinations: { used: combinations.length, total: countBakaCombinations(resolved.includeSets) },
+                firstPagesLoaded: 0,
+            }));
             const merge = createBakaMerge({
                 sourceCount: combinations.length,
                 compare: compareBakaSeries(sort),
-                fetchPage: (source, page) =>
-                    searchBakaSeries(
+                fetchPage: async (source, page) => {
+                    const result = await searchBakaSeries(
                         buildBakaSearch({
                             tagIds: combinations[source],
                             excludeIds: resolved.excludeIds,
@@ -175,7 +188,12 @@ export const useBakaFeed = ({
                             limit,
                         }),
                         signal,
-                    ),
+                    );
+                    if (page === 1 && !signal.aborted) {
+                        update((previous) => ({ firstPagesLoaded: previous.firstPagesLoaded + 1 }));
+                    }
+                    return result;
+                },
             });
             return { resolved, merge, limit };
         };
@@ -260,6 +278,8 @@ export const useBakaFeed = ({
         isLoading: current.status === 'loading' || (isEnabled && !current.pages.length && current.status === 'idle'),
         isError: current.status === 'error',
         serverSort: null as string | null,
+        combinations: current.combinations,
+        firstPagesLoaded: current.firstPagesLoaded,
         loadMore,
         retry,
     };

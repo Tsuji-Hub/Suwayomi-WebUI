@@ -3913,6 +3913,16 @@ msgstr "Search results will include manga that do not match the current filters"
 msgid "Search tags"
 msgstr "Search tags"
 
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Searching MangaBaka"
+msgstr "Searching MangaBaka"
+
+#. placeholder {0}: Math.min(bakaBrowse.firstPagesLoaded, bakaBrowse.combinations.used)
+#. placeholder {1}: bakaBrowse.combinations.used
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Searching MangaBaka: {0} of {1} tag combinations"
+msgstr "Searching MangaBaka: {0} of {1} tag combinations"
+
 #: src/features/migration/Migration.constants.ts
 msgid "Searching…"
 msgstr "Searching…"
@@ -4146,6 +4156,12 @@ msgstr "Show the category selection dialog when adding a manga to the library"
 #: src/features/reader/settings/behaviour/ReaderBehaviourSettings.tsx
 msgid "Show transition page"
 msgstr "Show transition page"
+
+#. placeholder {0}: bakaBrowse.combinations.used
+#. placeholder {1}: bakaBrowse.combinations.total
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "Showing {0} of {1} tag combinations. Remove a family or a chip to search them all."
+msgstr "Showing {0} of {1} tag combinations. Remove a family or a chip to search them all."
 
 #: src/features/settings/screens/ServerSettings.tsx
 #: src/features/settings/screens/WebUISettings.tsx
@@ -4451,6 +4467,10 @@ msgstr "Target mode"
 #: src/features/settings/Settings.constants.ts
 msgid "That haven't been started"
 msgstr "That haven't been started"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "That would need {smallest} tag combinations ({MAX_BAKA_COMBINATIONS} at most). Remove a family or a chip first."
+msgstr "That would need {smallest} tag combinations ({MAX_BAKA_COMBINATIONS} at most). Remove a family or a chip first."
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "The address of the FlareSolverr server"

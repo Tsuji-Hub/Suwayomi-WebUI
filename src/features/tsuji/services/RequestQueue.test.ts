@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
+import { ParallelQueue, SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 
 const recordStart = (starts: number[]) => () => {
     starts.push(Date.now());
@@ -130,5 +130,50 @@ describe('SpacedQueue', () => {
 
         await Promise.all([first, aborted, third]);
         expect(starts).toEqual([0, 2100]);
+    });
+});
+
+describe('ParallelQueue', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(0);
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('runs at most 4 at once, in call order, the next as soon as one finishes', async () => {
+        const queue = new ParallelQueue(4);
+        const started: number[] = [];
+        const finish: (() => void)[] = [];
+        const tasks = Array.from({ length: 6 }, (_, index) =>
+            queue.run(
+                () =>
+                    new Promise<void>((resolve) => {
+                        started.push(index);
+                        finish[index] = resolve;
+                    }),
+            ),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        expect(started).toEqual([0, 1, 2, 3]);
+        finish[1]();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(started).toEqual([0, 1, 2, 3, 4]);
+        finish.forEach((resolve) => resolve?.());
+        await vi.advanceTimersByTimeAsync(0);
+        finish.forEach((resolve) => resolve?.());
+        await Promise.all(tasks);
+        expect(started).toEqual([0, 1, 2, 3, 4, 5]);
+    });
+
+    it('a pause (after a 429) holds every queued task until it ends', async () => {
+        const queue = new ParallelQueue(4);
+        const starts: number[] = [];
+        queue.pauseUntil(5000);
+        const tasks = [queue.run(recordStart(starts)), queue.run(recordStart(starts))];
+        await vi.advanceTimersByTimeAsync(4999);
+        expect(starts).toEqual([]);
+        await vi.advanceTimersByTimeAsync(1);
+        await Promise.all(tasks);
+        expect(starts).toEqual([5000, 5000]);
     });
 });

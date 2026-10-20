@@ -337,6 +337,7 @@ const runBrowser = async (browserName) => {
                 showAdult: true,
                 hideInLibrary: true,
                 hideOnMyList: true,
+                sort: 'POPULARITY',
             }),
             // Ethan's "read" mark on Pick Me Up (159441 % 16 = 1).
             tsuji_seen_1: JSON.stringify({ r: [159441], s: [] }),
@@ -499,7 +500,16 @@ const runBrowser = async (browserName) => {
             !(await cardText('Raw Only System')).includes('Planned'),
         titles,
     );
-    const systemSearches = seriesSearches().map((request) => new URLSearchParams(request.split('?')[1]));
+    const sortShown = await page
+        .locator('[aria-label="Sort"]')
+        .locator('xpath=..')
+        .innerText()
+        .catch(() => '');
+    check(label('browsing starts on the saved sort (Popular), not Best match'), /popular/i.test(sortShown), sortShown);
+    // First pages only: by now the next page of a sub-search may have loaded too (infinite scroll).
+    const systemSearches = seriesSearches()
+        .map((request) => new URLSearchParams(request.split('?')[1]))
+        .filter((params) => params.get('page') === '1');
     check(
         label('System family: one id-only search per member (3081, 1171, 1196), Manhwa + Manhua, every rating'),
         JSON.stringify(systemSearches.map((params) => params.getAll('tag')).sort()) ===
@@ -782,6 +792,45 @@ const runBrowser = async (browserName) => {
                 .slice(beforeAlsoMatch)
                 .map((request) => new URLSearchParams(request.split('?')[1]).getAll('tag')),
         },
+    );
+
+    // System + Regression + Dungeon = 3 x 4 x 2 = 24 combinations: the first 16 run, and the page says so.
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await search.fill('system');
+    await page.getByRole('button', { name: /^System · 839$/ }).click();
+    await search.fill('regress');
+    await suggestions
+        .getByRole('button', { name: /^Regression/ })
+        .first()
+        .click();
+    await search.fill('dungeon');
+    await suggestions.getByRole('button', { name: /^Dungeon · 732$/ }).click();
+    const capNote = page.getByText('Showing 16 of 24 tag combinations. Remove a family or a chip to search them all.');
+    await capNote.waitFor({ timeout: 20_000 }).catch(() => {});
+    const threeTagSearches = () =>
+        seriesSearches().filter(
+            (request) =>
+                new URLSearchParams(request.split('?')[1]).getAll('tag').length === 3 && request.includes('page=1&'),
+        );
+    for (let waited = 0; threeTagSearches().length < 16 && waited < 15_000; waited += 250) {
+        // oxlint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(250);
+    }
+    check(
+        label('over 16 combinations: a note says 16 of 24 run, the first ids of each chip first'),
+        (await capNote.isVisible().catch(() => false)) &&
+            threeTagSearches().length === 16 &&
+            threeTagSearches().some((request) => /tag=500&tag=3081&tag=3495&/.test(request)) &&
+            !threeTagSearches().some((request) => /tag=1196&tag=2103&tag=5101&/.test(request)),
+        { searches: threeTagSearches().length },
+    );
+    await search.fill('level');
+    const levelAlsoMatch = page.getByRole('button', { name: 'Also match Level System' });
+    await levelAlsoMatch.waitFor({ timeout: 10_000 }).catch(() => {});
+    check(
+        label('"+ also match" is disabled when it would go past 16 combinations'),
+        await levelAlsoMatch.isDisabled().catch(() => false),
+        {},
     );
 
     // AniList-backed chips only (merged Dungeon): AniList search, zero MangaBaka series searches.

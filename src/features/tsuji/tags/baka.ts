@@ -265,17 +265,43 @@ export const getBakaSort = (sort: string): BakaSort => {
 /** Most sub-searches one selection runs (the product of the chips' tag sets). */
 export const MAX_BAKA_COMBINATIONS = 16;
 
+const sumIndexes = (indexes: number[]) => indexes.reduce((total, index) => total + index, 0);
+const byPosition = (a: number[], b: number[]) => {
+    const position = a.findIndex((index, at) => index !== b[at]);
+    return position === -1 ? 0 : a[position] - b[position];
+};
+
 /**
- * The tag ids of each sub-search: one id from every included chip (AND across chips, OR inside a chip), as the
- * cartesian product of the chips' id sets, capped at MAX_BAKA_COMBINATIONS. No included chip = one search.
+ * Every sub-search's tag ids: one id from every included chip (AND across chips, OR inside a chip), as the cartesian
+ * product of the chips' id sets, without repeats. Ordered so each chip's first (most popular) ids run first: by the
+ * sum of the members' positions, then position by position. No included chip = one search.
  */
+const listBakaCombinations = (includeSets: number[][]): number[][] => {
+    const sets = includeSets.filter((ids) => ids.length);
+    const indexed = sets.reduce<number[][]>(
+        (combos, ids) => combos.flatMap((combo) => ids.map((_, index) => [...combo, index])),
+        [[]],
+    );
+    const ranked = indexed.sort((a, b) => sumIndexes(a) - sumIndexes(b) || byPosition(a, b));
+    const seen = new Set<string>();
+    return ranked
+        .map((indexes) => [...new Set(indexes.map((index, position) => sets[position][index]))].sort((x, y) => x - y))
+        .filter((combo) => {
+            const key = combo.join();
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
+};
+
+/** The sub-searches a selection runs (at most MAX_BAKA_COMBINATIONS, the first-ranked ones). */
 export const getBakaCombinations = (includeSets: number[][]): number[][] =>
-    includeSets
-        .filter((ids) => ids.length)
-        .reduce<number[][]>((combos, ids) => combos.flatMap((combo) => ids.map((id) => [...combo, id])), [[]])
-        .map((combo) => [...new Set(combo)].sort((a, b) => a - b))
-        .filter((combo, index, list) => list.findIndex((other) => other.join() === combo.join()) === index)
-        .slice(0, MAX_BAKA_COMBINATIONS);
+    listBakaCombinations(includeSets).slice(0, MAX_BAKA_COMBINATIONS);
+
+/** How many sub-searches a selection would need without the cap. */
+export const countBakaCombinations = (includeSets: number[][]): number => listBakaCombinations(includeSets).length;
 
 /**
  * One page of one sub-search: tag ids only (AND), excluded tag ids, types from the Type filter (comics only without

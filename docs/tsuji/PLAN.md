@@ -39,13 +39,30 @@ id returns 0. Nothing outside the MangaBaka tag engine changed.
 - Suggestions: the family is first ("System · 839"); the single tags stay offered ("System only · 316", System
   Administrator, Level System ...). A family named like an AniList tag (Dungeon) merges with it, so Dungeon alone
   still runs on AniList.
-- Cost: one MangaBaka request per sub-search page (System = 3 at once; with the search queue's burst of 3 and 2.1 s
-  spacing, 12 sub-searches take ~20 s for the first page).
-- Unit (`tags.test.ts`, 18): ids-only URLs, the product and cap, merge order / dedupe / cursors across pages, a failed
+- Cost: one MangaBaka request per sub-search page; up to 4 go out at once (`ParallelQueue`), a 429 pauses them all
+  (Retry-After, else 5 s).
+
+**Fixed after Cowork's r3424 check** (live, Ethan's filters: System + Martial Arts 107 cards / 0 dupes; System alone
+347, no repeats; Regression + Martial Arts 18; Isekai + System 198; all requests ids only):
+
+1. The cap is no longer silent: combinations are ranked so each chip's first (most popular) ids run first (by the
+   sum of member positions), and over 16 a line under the chips reads "Showing 16 of 24 tag combinations. Remove a
+   family or a chip to search them all." "+ also match" is disabled (with that reason on hover) when it would go
+   past 16.
+2. Speed: sub-searches run 4 at a time with a shared 429 back-off (were one per 2.1 s: ~40 s for 3 families), and
+   while the first pages come in Discover shows "Searching MangaBaka: n of N tag combinations" with a progress bar
+   above the skeletons.
+3. Sort: browsing starts on the saved sort (`tsuji_recFilters.sort`, Ethan's POPULARITY) instead of Best match; a
+   choice in the combobox still wins for the session. Best match is Discover's re-rank of each page by how strongly
+   the AniList details carry the included AniList tags (why Infinite Evolution led System + Martial Arts); Popular
+   merges by `popularity.global.current`, as before.
+
+- Unit (`tags.test.ts`, 19; `RequestQueue.test.ts` +2): ids-only URLs, the product and cap, merge order / dedupe / cursors across pages, a failed
   page, score / newest order, popularity object, family suggestions and hover text. Browser (`discover-tags.e2e.mjs`,
   22 checks): a fake MangaBaka with the live semantics (ids cover subtrees, names don't, mixing returns 0); family
   searches, System + Murim / Martial Arts by id (subtags, dedupe), scrolling 144 family titles with no repeats and no
-  page fetched twice, "+ also match", numeric tags only.
+  page fetched twice, "+ also match", numeric tags only; the saved sort, the 16-of-24 note and a disabled
+  "+ also match" past the cap (25 checks).
 
 # Follow-up: preview comments start at chapter 1 (branch `feat/preview-comments-ch1`)
 

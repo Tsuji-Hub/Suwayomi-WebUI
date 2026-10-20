@@ -127,3 +127,76 @@ export class SpacedQueue {
         this.pump();
     }
 }
+
+/**
+ * Up to `maxInFlight` tasks at once, started in call order; `pauseUntil` holds every queued task (a 429 seen by
+ * one request backs all of them off). Aborted waiters leave the queue without running.
+ */
+export class ParallelQueue {
+    private readonly waiters: Waiter[] = [];
+
+    private inFlight = 0;
+
+    private pausedUntil = 0;
+
+    private timer: ReturnType<typeof setTimeout> | null = null;
+
+    constructor(
+        private readonly maxInFlight: number,
+        private readonly now: () => number = Date.now,
+    ) {}
+
+    pauseUntil(epochMs: number): void {
+        this.pausedUntil = Math.max(this.pausedUntil, epochMs);
+    }
+
+    async run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+        signal?.throwIfAborted();
+
+        await new Promise<void>((resolve, reject) => {
+            const waiter: Waiter = { start: resolve };
+            signal?.addEventListener(
+                'abort',
+                () => {
+                    const index = this.waiters.indexOf(waiter);
+                    if (index !== -1) {
+                        this.waiters.splice(index, 1);
+                        reject(signal.reason);
+                    }
+                },
+                { once: true },
+            );
+            this.waiters.push(waiter);
+            this.pump();
+        });
+
+        try {
+            signal?.throwIfAborted();
+            return await task();
+        } finally {
+            this.inFlight -= 1;
+            this.pump();
+        }
+    }
+
+    private pump(): void {
+        if (this.timer !== null) {
+            return;
+        }
+        const time = this.now();
+        if (this.waiters.length && time < this.pausedUntil) {
+            this.timer = setTimeout(
+                () => {
+                    this.timer = null;
+                    this.pump();
+                },
+                Math.max(1, this.pausedUntil - time),
+            );
+            return;
+        }
+        while (this.waiters.length && this.inFlight < this.maxInFlight) {
+            this.inFlight += 1;
+            this.waiters.shift()!.start();
+        }
+    }
+}
