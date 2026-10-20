@@ -306,6 +306,16 @@ const runBrowser = async (browserName) => {
         /\/manga\/1\/chapter\/11/.test(page.url()),
         page.url(),
     );
+    // The seen write runs on in the background (in-app navigation keeps it); a test reload must not cut it off.
+    for (let waited = 0; !server.meta.get('tsuji_bell_1')?.includes('"1":12') && waited < 5000; waited += 200) {
+        // oxlint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(200);
+    }
+    check(
+        label('opening a row writes its watermark (Bell Main: 12)'),
+        !!server.meta.get('tsuji_bell_1')?.includes('"1":12'),
+        server.meta.get('tsuji_bell_1'),
+    );
     await page.goto(`${ORIGIN}/library`);
     const afterOpen = await waitForCount(page, 29);
     check(label('the opened entry is seen: count 29'), afterOpen === 29, afterOpen);

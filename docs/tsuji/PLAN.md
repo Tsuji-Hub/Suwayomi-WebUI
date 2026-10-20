@@ -40,7 +40,7 @@ so no bell there).
 - Seen (`tsuji_bell_0` .. `tsuji_bell_15`, bucket = mangaId % 16): per-series watermark (highest number seen), only
   rising, merge-on-write against the server's buckets, serialized, 3800-char bucket limit. First run (no
   `tsuji_bellStart`): the newest 30 entries start unseen, older ones are written as seen.
-- Unit (8 in `chapterBell.test.ts`) and browser (`chapter-bell.e2e.mjs`, 13 checks; the mock takes per-test root
+- Unit (8 in `chapterBell.test.ts`) and browser (`chapter-bell.e2e.mjs`, 14 checks; the mock takes per-test root
   handlers now).
 
 # Brief #9: universal tag search on MangaBaka (branch `feat/mangabaka-tags`)
