@@ -14,6 +14,15 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Follow-up: preview comments start at chapter 1 (branch `feat/preview-comments-ch1`)
+
+On top of `feat/chapter-bell`; goes out after the bell ships. The Discover / For You / Similar preview's Comments tab
+opens on the first of chapters 1-5 that has comments (else chapter 1; a series without those numbers opens on its
+lowest chapter), never the newest: a preview decides whether to start a series, so late comments are spoilers
+(`findPreviewChapter` in `comments/chapterNav.ts`, replacing #8's "newest of the last 3"). The chapter picker stays;
+the reader's comments stay on the current chapter. Unit test updated; browser check: ch 1 empty, ch 2 opens, chapters
+3-8 (the newest has comments) never asked.
+
 # Brief #10: new-chapter bell (branch `feat/chapter-bell`)
 
 Off `custom` (r3416) + `chore/docs-r3416`. Replaces Cowork's Discord chapter pings: a bell in the app bar for series

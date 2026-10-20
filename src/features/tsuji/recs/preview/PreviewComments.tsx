@@ -17,7 +17,7 @@ import { useLingui } from '@lingui/react/macro';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { getAllTitles, getDisplayTitle } from '@/features/tsuji/recs/media.ts';
 import type { CommentChapter } from '@/features/tsuji/comments/chapterNav.ts';
-import { findCommentedChapter } from '@/features/tsuji/comments/chapterNav.ts';
+import { findPreviewChapter } from '@/features/tsuji/comments/chapterNav.ts';
 import { comickSource, resolveComickSeriesByAniList } from '@/features/tsuji/comments/commentsService.ts';
 import { useCommentsSettings } from '@/features/tsuji/comments/useComments.ts';
 import { CommentsView } from '@/features/tsuji/comments/components/CommentsPanel.tsx';
@@ -37,7 +37,8 @@ const Notice = ({ children }: { children: string }) => (
 
 /**
  * Comments tab of the preview: the Comick series whose `links.al` is this AniList entry (never a fuzzy title
- * match), opened on the newest of its last 3 chapters that has comments, with the chapter picker. Mounted only when the tab opens.
+ * match), opened on the first of chapters 1-5 that has comments (a preview decides whether to start a series, so
+ * no spoilers), with the chapter picker. Mounted only when the tab opens.
  */
 export const PreviewComments = ({ media }: { media: RecMedia }) => {
     const { t } = useLingui();
@@ -61,7 +62,7 @@ export const PreviewComments = ({ media }: { media: RecMedia }) => {
                     return { status: 'none' } as const;
                 }
                 const numbers = await comickSource.chapterNumbers(seriesKey, signal);
-                const chapterNumber = await findCommentedChapter(numbers, async (number) => {
+                const chapterNumber = await findPreviewChapter(numbers, async (number) => {
                     const thread = await comickSource.thread(seriesKey, number, signal);
                     return !!thread && !!(await comickSource.comments(thread, null, signal)).comments.length;
                 });

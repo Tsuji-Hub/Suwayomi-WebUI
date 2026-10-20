@@ -12,7 +12,8 @@
 // Manhua, at least 50 chapters, 18+ on, hide library and list. Checks one "System" chip, MangaBaka search params,
 // popular order, hiding (list, library, read mark, chapters, type), Planned badges, cards without an AniList id,
 // one AniList id_in request per page and no AniList searches, no MangaUpdates calls, System + Murim (AND),
-// merged chips staying on AniList, no repeated searches, CORS-free covers, comments by links.al.
+// merged chips staying on AniList, no repeated searches, CORS-free covers, comments by links.al on the first of
+// chapters 1-5 with comments.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/discover-tags.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -339,24 +340,24 @@ const runBrowser = async (browserName) => {
             }
             if (url.pathname === '/comick/comic/sss/chapters') {
                 return json({
-                    chapters: [1, 2, 3].map((number) => ({ hid: `sss${number}`, chap: String(number), up_count: 1 })),
+                    chapters: [1, 2, 3, 4, 5, 6, 7, 8].map((number) => ({
+                        hid: `sss${number}`,
+                        chap: String(number),
+                        up_count: 1,
+                    })),
                 });
             }
-            // The newest chapter has no comments yet; the one before has.
-            if (url.pathname === '/comick/comment/chapter/sss3') {
+            // Chapter 1 has no comments yet, chapter 2 has; the newest (a spoiler for a preview) has too.
+            const talk = (content) =>
+                json({ comments: [{ id: 1, content, up_count: 2, identities: { traits: { username: 'u' } } }] });
+            if (url.pathname === '/comick/comment/chapter/sss1') {
                 return json({ comments: [] });
             }
             if (url.pathname === '/comick/comment/chapter/sss2') {
-                return json({
-                    comments: [
-                        {
-                            id: 1,
-                            content: 'Chapter 2 talk',
-                            up_count: 2,
-                            identities: { traits: { username: 'u' } },
-                        },
-                    ],
-                });
+                return talk('Chapter 2 talk');
+            }
+            if (url.pathname === '/comick/comment/chapter/sss8') {
+                return talk('Late spoiler talk');
             }
             if (url.pathname === '/mangadex/manga') {
                 return json({ data: [] });
@@ -551,7 +552,9 @@ const runBrowser = async (browserName) => {
         .waitFor({ timeout: 20_000 })
         .catch(() => {});
     check(
-        label('Comments: the Comick series whose links.al is the AniList id, newest chapter with comments'),
+        label(
+            'Comments: the Comick series whose links.al is the AniList id, first of ch 1-5 with comments (no spoilers)',
+        ),
         (await dialog
             .getByText('Chapter 2 talk')
             .isVisible()
@@ -559,7 +562,8 @@ const runBrowser = async (browserName) => {
             (await dialog
                 .getByRole('button', { name: 'Choose chapter' })
                 .textContent()
-                .catch(() => '')) === 'Ch. 2',
+                .catch(() => '')) === 'Ch. 2' &&
+            !relayRequests.some((request) => /chapter\/sss[3-8]/.test(request)),
         relayRequests.filter((request) => request.includes('/comick/')),
     );
     await dialog.getByRole('tab', { name: 'Reviews' }).click();

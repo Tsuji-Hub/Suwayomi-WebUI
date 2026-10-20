@@ -106,23 +106,26 @@ export const getLastReadScanlator = (
     return latest ? latest.scanlator : undefined;
 };
 
-/** How many chapters back from the newest the preview looks for one with comments. */
-export const COMMENTED_CHAPTER_LOOKBACK = 3;
+/** The preview's comments start at chapter 1 and look forward up to chapter 5 (later ones would spoil). */
+export const PREVIEW_FIRST_CHAPTER = 1;
+export const PREVIEW_LAST_CHAPTER = 5;
 
 /**
- * The chapter a preview opens on: the newest of the last few (sorted ascending) that has comments, else the newest.
- * Comick's chapter list carries no comment count, so each candidate's thread is asked, newest first.
+ * The chapter a preview opens on: the first of chapters 1-5 (numbers sorted ascending) that has comments, else the
+ * first of them; a series without those numbers opens on its lowest chapter. Previews are for deciding whether to
+ * start a series, so it never opens late. Comick's chapter list carries no comment count: each candidate's thread is
+ * asked in order.
  */
-export const findCommentedChapter = async (
+export const findPreviewChapter = async (
     numbers: number[],
     hasComments: (chapterNumber: number) => Promise<boolean>,
 ): Promise<number | null> => {
-    const candidates = numbers.slice(-COMMENTED_CHAPTER_LOOKBACK).reverse();
+    const candidates = numbers.filter((number) => number >= PREVIEW_FIRST_CHAPTER && number <= PREVIEW_LAST_CHAPTER);
     for (const chapterNumber of candidates) {
         // oxlint-disable-next-line no-await-in-loop
         if (await hasComments(chapterNumber)) {
             return chapterNumber;
         }
     }
-    return candidates[0] ?? null;
+    return candidates[0] ?? numbers[0] ?? null;
 };
