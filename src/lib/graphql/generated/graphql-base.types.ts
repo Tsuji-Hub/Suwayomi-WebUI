@@ -20,6 +20,7 @@ export type AboutServerPayload = {
     discord: Scalars['String']['output'];
     github: Scalars['String']['output'];
     name: Scalars['String']['output'];
+    platformInfo: PlatformInfo;
     /** @deprecated The version includes the revision as the patch number */
     revision: Scalars['String']['output'];
     version: Scalars['String']['output'];
@@ -179,6 +180,7 @@ export type CategoryType = {
     id: Scalars['Int']['output'];
     includeInDownload: IncludeOrExclude;
     includeInUpdate: IncludeOrExclude;
+    isDefaultCategory: Scalars['Boolean']['output'];
     mangas: MangaNodeList;
     meta: Array<CategoryMetaType>;
     name: Scalars['String']['output'];
@@ -214,6 +216,11 @@ export type ChapterConditionInput = {
     sourceOrder?: InputMaybe<Scalars['Int']['input']>;
     uploadDate?: InputMaybe<Scalars['LongString']['input']>;
     url?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type ChapterDownloadReorderInput = {
+    chapterId: Scalars['Int']['input'];
+    to: Scalars['Int']['input'];
 };
 
 export type ChapterEdge = Edge & {
@@ -343,6 +350,15 @@ export type ClearCachedImagesPayload = {
     downloadedThumbnails?: Maybe<Scalars['Boolean']['output']>;
 };
 
+export type ClearCookiesAndCacheInput = {
+    clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type ClearCookiesAndCachePayload = {
+    __typename?: 'ClearCookiesAndCachePayload';
+    clientMutationId?: Maybe<Scalars['String']['output']>;
+};
+
 export type ClearDownloaderInput = {
     clientMutationId?: InputMaybe<Scalars['String']['input']>;
 };
@@ -387,6 +403,18 @@ export type ContentWarningFilterInput = {
 export type CreateBackupInput = {
     clientMutationId?: InputMaybe<Scalars['String']['input']>;
     flags?: InputMaybe<PartialBackupFlagsInput>;
+    /** @deprecated Will get removed, replace with flags */
+    includeCategories?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Will get removed, replace with flags */
+    includeChapters?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Will get removed, replace with flags */
+    includeClientData?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Will get removed, replace with flags */
+    includeHistory?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Will get removed, replace with flags */
+    includeServerSettings?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Will get removed, replace with flags */
+    includeTracking?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type CreateBackupPayload = {
@@ -761,11 +789,15 @@ export type ExtensionConditionInput = {
     hasUpdate?: InputMaybe<Scalars['Boolean']['input']>;
     iconUrl?: InputMaybe<Scalars['String']['input']>;
     isInstalled?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated , replace with contentWarning */
+    isNsfw?: InputMaybe<Scalars['Boolean']['input']>;
     isObsolete?: InputMaybe<Scalars['Boolean']['input']>;
     jarUrl?: InputMaybe<Scalars['String']['input']>;
     lang?: InputMaybe<Scalars['String']['input']>;
     name?: InputMaybe<Scalars['String']['input']>;
     pkgName?: InputMaybe<Scalars['String']['input']>;
+    /** @deprecated , replace with storeIndexUrl */
+    repo?: InputMaybe<Scalars['String']['input']>;
     storeIndexUrl?: InputMaybe<Scalars['String']['input']>;
     versionCode?: InputMaybe<Scalars['Int']['input']>;
     versionCodeLong?: InputMaybe<Scalars['LongString']['input']>;
@@ -787,6 +819,8 @@ export type ExtensionFilterInput = {
     hasUpdate?: InputMaybe<BooleanFilterInput>;
     iconUrl?: InputMaybe<StringFilterInput>;
     isInstalled?: InputMaybe<BooleanFilterInput>;
+    /** @deprecated , replace with contentWarning */
+    isNsfw?: InputMaybe<BooleanFilterInput>;
     isObsolete?: InputMaybe<BooleanFilterInput>;
     jarUrl?: InputMaybe<StringFilterInput>;
     lang?: InputMaybe<StringFilterInput>;
@@ -794,7 +828,11 @@ export type ExtensionFilterInput = {
     not?: InputMaybe<ExtensionFilterInput>;
     or?: InputMaybe<Array<ExtensionFilterInput>>;
     pkgName?: InputMaybe<StringFilterInput>;
+    /** @deprecated , replace with storeIndexUrl */
+    repo?: InputMaybe<StringFilterInput>;
     storeIndexUrl?: InputMaybe<StringFilterInput>;
+    /** @deprecated , replace with versionCodeLong */
+    versionCode?: InputMaybe<IntFilterInput>;
     versionCodeLong?: InputMaybe<LongFilterInput>;
     versionName?: InputMaybe<StringFilterInput>;
 };
@@ -1075,6 +1113,14 @@ export type IntFilterInput = {
     notEqualToAll?: InputMaybe<Array<Scalars['Int']['input']>>;
     notEqualToAny?: InputMaybe<Array<Scalars['Int']['input']>>;
     notIn?: InputMaybe<Array<Scalars['Int']['input']>>;
+};
+
+export type JvmInfo = {
+    __typename?: 'JvmInfo';
+    javaVersion: Scalars['String']['output'];
+    vmName: Scalars['String']['output'];
+    vmVendor: Scalars['String']['output'];
+    vmVersion: Scalars['String']['output'];
 };
 
 export type KoSyncConnectPayload = {
@@ -1445,6 +1491,7 @@ export type Mutation = {
     bindTrack: BindTrackPayload;
     bindTrackRecord?: Maybe<BindTrackRecordPayload>;
     clearCachedImages: ClearCachedImagesPayload;
+    clearCookiesAndCache: ClearCookiesAndCachePayload;
     clearDownloader?: Maybe<ClearDownloaderPayload>;
     connectKoSyncAccount: KoSyncConnectPayload;
     createBackup: CreateBackupPayload;
@@ -1486,6 +1533,7 @@ export type Mutation = {
     refreshToken: RefreshTokenPayload;
     removeExtensionStore?: Maybe<RemoveExtensionStorePayload>;
     reorderChapterDownload?: Maybe<ReorderChapterDownloadPayload>;
+    reorderChapterDownloads?: Maybe<ReorderChapterDownloadPayload>;
     resetSettings: ResetSettingsPayload;
     resetWebUIUpdateStatus?: Maybe<WebUiUpdateStatus>;
     restoreBackup: RestoreBackupPayload;
@@ -1539,6 +1587,10 @@ export type MutationBindTrackRecordArgs = {
 
 export type MutationClearCachedImagesArgs = {
     input: ClearCachedImagesInput;
+};
+
+export type MutationClearCookiesAndCacheArgs = {
+    input?: InputMaybe<ClearCookiesAndCacheInput>;
 };
 
 export type MutationClearDownloaderArgs = {
@@ -1695,6 +1747,10 @@ export type MutationRemoveExtensionStoreArgs = {
 
 export type MutationReorderChapterDownloadArgs = {
     input: ReorderChapterDownloadInput;
+};
+
+export type MutationReorderChapterDownloadsArgs = {
+    input: ReorderChapterDownloadsInput;
 };
 
 export type MutationResetSettingsArgs = {
@@ -1871,6 +1927,13 @@ export type NodeList = {
     totalCount: Scalars['Int']['output'];
 };
 
+export type OsInfo = {
+    __typename?: 'OSInfo';
+    build?: Maybe<Scalars['String']['output']>;
+    name: Scalars['String']['output'];
+    version: Scalars['String']['output'];
+};
+
 export type PageInfo = {
     __typename?: 'PageInfo';
     /** When paginating forwards, the cursor to continue. */
@@ -1933,7 +1996,7 @@ export type PartialSettingsType = Settings & {
     excludeEntryWithUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
     excludeNotStarted?: Maybe<Scalars['Boolean']['output']>;
     excludeUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
-    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations */
+    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations, replace with extensionStores */
     extensionRepos?: Maybe<Array<Scalars['String']['output']>>;
     flareSolverrAsResponseFallback?: Maybe<Scalars['Boolean']['output']>;
     flareSolverrEnabled?: Maybe<Scalars['Boolean']['output']>;
@@ -2015,6 +2078,8 @@ export type PartialSettingsTypeInput = {
     autoBackupIncludeManga?: InputMaybe<Scalars['Boolean']['input']>;
     autoBackupIncludeServerSettings?: InputMaybe<Scalars['Boolean']['input']>;
     autoBackupIncludeTracking?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Replaced with autoDownloadNewChaptersLimit, replace with autoDownloadNewChaptersLimit */
+    autoDownloadAheadLimit?: InputMaybe<Scalars['Int']['input']>;
     autoDownloadIgnoreReUploads?: InputMaybe<Scalars['Boolean']['input']>;
     autoDownloadNewChapters?: InputMaybe<Scalars['Boolean']['input']>;
     autoDownloadNewChaptersLimit?: InputMaybe<Scalars['Int']['input']>;
@@ -2022,6 +2087,12 @@ export type PartialSettingsTypeInput = {
     backupPath?: InputMaybe<Scalars['String']['input']>;
     backupTTL?: InputMaybe<Scalars['Int']['input']>;
     backupTime?: InputMaybe<Scalars['String']['input']>;
+    /** @deprecated Removed - prefer authMode, replace with authMode */
+    basicAuthEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Removed - prefer authPassword, replace with authPassword */
+    basicAuthPassword?: InputMaybe<Scalars['String']['input']>;
+    /** @deprecated Removed - prefer authUsername, replace with authUsername */
+    basicAuthUsername?: InputMaybe<Scalars['String']['input']>;
     databasePassword?: InputMaybe<Scalars['String']['input']>;
     databaseType?: InputMaybe<DatabaseType>;
     databaseUrl?: InputMaybe<Scalars['String']['input']>;
@@ -2035,6 +2106,8 @@ export type PartialSettingsTypeInput = {
     excludeEntryWithUnreadChapters?: InputMaybe<Scalars['Boolean']['input']>;
     excludeNotStarted?: InputMaybe<Scalars['Boolean']['input']>;
     excludeUnreadChapters?: InputMaybe<Scalars['Boolean']['input']>;
+    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations, replace with extensionStores */
+    extensionRepos?: InputMaybe<Array<Scalars['String']['input']>>;
     flareSolverrAsResponseFallback?: InputMaybe<Scalars['Boolean']['input']>;
     flareSolverrEnabled?: InputMaybe<Scalars['Boolean']['input']>;
     flareSolverrSessionName?: InputMaybe<Scalars['String']['input']>;
@@ -2042,6 +2115,8 @@ export type PartialSettingsTypeInput = {
     flareSolverrTimeout?: InputMaybe<Scalars['Int']['input']>;
     flareSolverrUrl?: InputMaybe<Scalars['String']['input']>;
     globalUpdateInterval?: InputMaybe<Scalars['Float']['input']>;
+    /** @deprecated Removed - does not do anything */
+    gqlDebugLogsEnabled?: InputMaybe<Scalars['Boolean']['input']>;
     initialOpenInBrowserEnabled?: InputMaybe<Scalars['Boolean']['input']>;
     ip?: InputMaybe<Scalars['String']['input']>;
     jwtAudience?: InputMaybe<Scalars['String']['input']>;
@@ -2049,9 +2124,19 @@ export type PartialSettingsTypeInput = {
     jwtTokenExpiry?: InputMaybe<Scalars['Duration']['input']>;
     kcefEnabled?: InputMaybe<Scalars['Boolean']['input']>;
     koreaderSyncChecksumMethod?: InputMaybe<KoreaderSyncChecksumMethod>;
+    /** @deprecated Moved to preference store. Is supposed to be random and gets auto generated, replace with MOVE TO PREFERENCES */
+    koreaderSyncDeviceId?: InputMaybe<Scalars['String']['input']>;
     koreaderSyncPercentageTolerance?: InputMaybe<Scalars['Float']['input']>;
+    /** @deprecated Moved to preference store. User is supposed to use a login/logout mutation, replace with MOVE TO PREFERENCES */
+    koreaderSyncServerUrl?: InputMaybe<Scalars['String']['input']>;
+    /** @deprecated Replaced with koreaderSyncStrategyForward and koreaderSyncStrategyBackward, replace with koreaderSyncStrategyForward, koreaderSyncStrategyBackward */
+    koreaderSyncStrategy?: InputMaybe<KoreaderSyncLegacyStrategy>;
     koreaderSyncStrategyBackward?: InputMaybe<KoreaderSyncConflictStrategy>;
     koreaderSyncStrategyForward?: InputMaybe<KoreaderSyncConflictStrategy>;
+    /** @deprecated Moved to preference store. User is supposed to use a login/logout mutation, replace with MOVE TO PREFERENCES */
+    koreaderSyncUserkey?: InputMaybe<Scalars['String']['input']>;
+    /** @deprecated Moved to preference store. User is supposed to use a login/logout mutation, replace with MOVE TO PREFERENCES */
+    koreaderSyncUsername?: InputMaybe<Scalars['String']['input']>;
     localSourcePath?: InputMaybe<Scalars['String']['input']>;
     maxLogFileSize?: InputMaybe<Scalars['String']['input']>;
     maxLogFiles?: InputMaybe<Scalars['Int']['input']>;
@@ -2090,6 +2175,14 @@ export type PartialSettingsTypeInput = {
     webUIFlavor?: InputMaybe<WebUiFlavor>;
     webUIInterface?: InputMaybe<WebUiInterface>;
     webUIUpdateCheckInterval?: InputMaybe<Scalars['Float']['input']>;
+};
+
+export type PlatformInfo = {
+    __typename?: 'PlatformInfo';
+    arch: Scalars['String']['output'];
+    headless: Scalars['Boolean']['output'];
+    jvm: JvmInfo;
+    os: OsInfo;
 };
 
 export type Preference =
@@ -2170,6 +2263,8 @@ export type QueryCategoriesArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<CategoryOrderInput>>;
+    orderBy?: InputMaybe<CategoryOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryCategoryArgs = {
@@ -2189,6 +2284,8 @@ export type QueryChaptersArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<ChapterOrderInput>>;
+    orderBy?: InputMaybe<ChapterOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryExtensionArgs = {
@@ -2219,6 +2316,8 @@ export type QueryExtensionsArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<ExtensionOrderInput>>;
+    orderBy?: InputMaybe<ExtensionOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryMangaArgs = {
@@ -2234,6 +2333,8 @@ export type QueryMangasArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<MangaOrderInput>>;
+    orderBy?: InputMaybe<MangaOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryMetaArgs = {
@@ -2249,6 +2350,8 @@ export type QueryMetasArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<MetaOrderInput>>;
+    orderBy?: InputMaybe<MetaOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryRestoreStatusArgs = {
@@ -2272,6 +2375,8 @@ export type QuerySourcesArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<SourceOrderInput>>;
+    orderBy?: InputMaybe<SourceOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryTrackRecordArgs = {
@@ -2287,6 +2392,8 @@ export type QueryTrackRecordsArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<TrackRecordOrderInput>>;
+    orderBy?: InputMaybe<TrackRecordOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryTrackerArgs = {
@@ -2301,6 +2408,8 @@ export type QueryTrackersArgs = {
     last?: InputMaybe<Scalars['Int']['input']>;
     offset?: InputMaybe<Scalars['Int']['input']>;
     order?: InputMaybe<Array<TrackerOrderInput>>;
+    orderBy?: InputMaybe<TrackerOrderBy>;
+    orderByType?: InputMaybe<SortOrder>;
 };
 
 export type QueryValidateBackupArgs = {
@@ -2339,6 +2448,11 @@ export type ReorderChapterDownloadPayload = {
     __typename?: 'ReorderChapterDownloadPayload';
     clientMutationId?: Maybe<Scalars['String']['output']>;
     downloadStatus: DownloadStatus;
+};
+
+export type ReorderChapterDownloadsInput = {
+    clientMutationId?: InputMaybe<Scalars['String']['input']>;
+    reorders: Array<ChapterDownloadReorderInput>;
 };
 
 export type ResetSettingsInput = {
@@ -2570,7 +2684,7 @@ export type Settings = {
     excludeEntryWithUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
     excludeNotStarted?: Maybe<Scalars['Boolean']['output']>;
     excludeUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
-    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations */
+    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations, replace with extensionStores */
     extensionRepos?: Maybe<Array<Scalars['String']['output']>>;
     flareSolverrAsResponseFallback?: Maybe<Scalars['Boolean']['output']>;
     flareSolverrEnabled?: Maybe<Scalars['Boolean']['output']>;
@@ -2725,7 +2839,7 @@ export type SettingsType = Settings & {
     excludeEntryWithUnreadChapters: Scalars['Boolean']['output'];
     excludeNotStarted: Scalars['Boolean']['output'];
     excludeUnreadChapters: Scalars['Boolean']['output'];
-    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations */
+    /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations, replace with extensionStores */
     extensionRepos: Array<Scalars['String']['output']>;
     flareSolverrAsResponseFallback: Scalars['Boolean']['output'];
     flareSolverrEnabled: Scalars['Boolean']['output'];
@@ -2826,6 +2940,8 @@ export type SortSelectionInput = {
 export type SourceConditionInput = {
     contentWarning?: InputMaybe<ContentWarning>;
     id?: InputMaybe<Scalars['LongString']['input']>;
+    /** @deprecated replace with contentWarning == ContentRating.MIXED, replace with contentWarning */
+    isNsfw?: InputMaybe<Scalars['Boolean']['input']>;
     lang?: InputMaybe<Scalars['String']['input']>;
     name?: InputMaybe<Scalars['String']['input']>;
 };
@@ -2840,6 +2956,8 @@ export type SourceFilterInput = {
     and?: InputMaybe<Array<SourceFilterInput>>;
     contentWarning?: InputMaybe<ContentWarningFilterInput>;
     id?: InputMaybe<LongFilterInput>;
+    /** @deprecated replace with contentWarning, replace with contentWarning */
+    isNsfw?: InputMaybe<BooleanFilterInput>;
     lang?: InputMaybe<StringFilterInput>;
     name?: InputMaybe<StringFilterInput>;
     not?: InputMaybe<SourceFilterInput>;
@@ -3551,6 +3669,8 @@ export type UpdateTrackInput = {
     /** This will only work if the tracker of the track record supports reading dates */
     startDate?: InputMaybe<Scalars['LongString']['input']>;
     status?: InputMaybe<Scalars['Int']['input']>;
+    /** @deprecated Replaced with "unbindTrack" mutation, replace with unbindTrack */
+    unbind?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type UpdateTrackPayload = {

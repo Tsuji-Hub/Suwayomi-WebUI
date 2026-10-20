@@ -46,12 +46,32 @@ One search box covers both; the user never picks a source. No upstream file touc
   Comments: the Comick series whose `links.al` is the AniList id (search by the AniList titles, top 3 candidates,
   detail fetched when the search has no links; MangaDex `/mangadex/manga` supplies more titles of the manga linked to
   the same id), cached a week (misses a day); "No comments found" otherwise and for unmatched MU cards. Opens on the
-  newest chapter Comick has, with the brief #5.1 picker (chapters from Comick's chapter map). Reviews: AniList's 5
+  newest chapter with comments (fix 6), with the brief #5.1 picker (chapters from Comick's chapter map). Reviews: AniList's 5
   best-rated (summary, score, helpful count, link).
-- Unit (22): tag keys, suggestions (System alias, Dungeon merge, adult, noise, aliases), engine, merged chips on
+  **Fixed after Cowork's r3410 check** (MU verified live: the `category` array is AND, `type` is OR, an unknown
+  category gives 0; "Martial Arts" is an MU genre, not a category):
+
+1. Speed: MU pages render as soon as MU answers (MU title / cover cards); AniList matching runs behind them, page by
+   page in order, 10 titles per request, and cards fill in as batches land (`toMuCards`: a card without a verdict
+   shows as its MU card; post-filter and Adult apply once the verdict is in; one card per AniList id). Was ~25 s to
+   the first card (the grid waited for all ~127 matches).
+2. No repeated MU searches: identical bodies are answered from memory for 15 min, also while in flight, and the
+   request outlives an aborted caller (a feed reset with the same selection picks it up); matches are remembered
+   per tab too. Cache key now `mu:match:v2:<series_id>`.
+3. Matcher: exact-name collisions are tie-broken by the MU type's country (Manhwa KR, Manhua CN, Manga JP), then
+   the year within 1; an exact name only from another country is no match. MU "Pick Me Up!" (2022, Manhwa) now
+   gets AniList 159441, not Gekka Bijin (synonym "Pick Me Up").
+4. AniList chips inside an MU search that are MU genres (fixed list, `MU_GENRES`) go to MU as `genre` /
+   `exclude_genre`; only the rest stay a post-filter (`splitAniListChips`). System + Martial Arts + Manhwa = 14 on MU.
+5. Covers: only AniList hosts load with `crossOrigin` (MU's CDN sends no CORS headers).
+6. Preview comments open on the newest of the last 3 chapters that has comments (Comick's chapter list has no
+   count, so each thread is asked, newest first), else the newest.
+
+- Unit (27, one in `chapterNav.test.ts`): tag keys, suggestions (System alias, Dungeon merge, adult, noise, aliases), engine, merged chips on
   AniList, MU queries (OR/AND combinations, cap, adult, types, sort), MU parsing, matching, post-filter, unmatched
-  cards, Comick-by-AniList (links.al, look-alikes refused, MangaDex fallback, cache). Browser
-  (`discover-tags.e2e.mjs`, 16 checks) with a fake MU / Comick relay.
+  cards, name collisions, MU genres, cards while matches land, commented chapter, Comick-by-AniList (links.al,
+  look-alikes refused, MangaDex fallback, cache). Browser (`discover-tags.e2e.mjs`, 19 checks) with a fake MU /
+  Comick relay and AniList matching held back to see cards before matches.
 
 # Brief #6 v2: Raws, Translate, Compare (branch `feat/raw-compare`)
 

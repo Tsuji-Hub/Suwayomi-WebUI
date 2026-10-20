@@ -6,12 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch                        | Commit             | What                                                                                                                                     |
-| ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`                      | `201d139b` (r3409) | Briefs #1-#7 (incl. #6 v2 raws / MTL / Compare, #7 page position) + reader resume. r3409 shipped 2026-10-20, verified live on v2.4.2366. |
-| `chore/schema-v2.4.2366`      | `2153fdcf`         | Waiting for the v2.4.2366 schema dump (then `pnpm codegen:offline`).                                                                     |
-| `feat/discover-tags-comments` | r3410              | Brief #8 v2: universal tag search (AniList + MangaUpdates) and Comments / Reviews in the preview. Prerelease for Cowork's check.         |
-| `master`                      | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                           |
+| Branch                        | Commit             | What                                                                                                                                                                   |
+| ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`                      | `201d139b` (r3409) | Briefs #1-#7 (incl. #6 v2 raws / MTL / Compare, #7 page position) + reader resume. r3409 shipped 2026-10-20, verified live on v2.4.2366.                               |
+| `feat/discover-tags-comments` | r3410 + fixes      | Brief #8 v2: universal tag search (AniList + MangaUpdates), Comments / Reviews in the preview; Cowork's six r3410 fixes; schema v2.4.2366 merged. Prerelease to check. |
+| `master`                      | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                         |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -26,7 +25,8 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3409 (briefs #4-#7). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
+3. The server runs r3409 (briefs #4-#7). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+   `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
    the service-worker image cache below. **The SW item is still a blocker before any HTTPS / secure-context
@@ -118,8 +118,9 @@ pnpm i18n:extract          # en.po only
 
 Offline codegen was byte-identical to live codegen against v2.3.2243 (run `oxfmt --write` on the three generated
 files afterwards, as the commit hook would). Refresh `docs/tsuji/schema.graphql` from the server's introspection when
-the server is upgraded (and keep custom-scalar descriptions out of it, or the generated comments drift). **Pending:**
-the snapshot is still v2.3.2243's; the v2.4.2366 dump has to come from the LAN (cloud sessions can't reach it).
+the server is upgraded (and keep custom-scalar descriptions out of it, or the generated comments drift). The snapshot
+is v2.4.2366's (dumped from the LAN by Cowork, `420a79ea`; cloud sessions can't reach the server); its codegen only
+added types (platform / JVM info, cookie clearing, download reorder, deprecations), no fork code changed.
 
 ## CI and releases
 

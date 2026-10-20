@@ -5,6 +5,7 @@ export type AboutServerPayloadKeySpecifier = (
     | 'discord'
     | 'github'
     | 'name'
+    | 'platformInfo'
     | 'revision'
     | 'version'
     | AboutServerPayloadKeySpecifier
@@ -15,6 +16,7 @@ export type AboutServerPayloadFieldPolicy = {
     discord?: FieldPolicy<any> | FieldReadFunction<any>;
     github?: FieldPolicy<any> | FieldReadFunction<any>;
     name?: FieldPolicy<any> | FieldReadFunction<any>;
+    platformInfo?: FieldPolicy<any> | FieldReadFunction<any>;
     revision?: FieldPolicy<any> | FieldReadFunction<any>;
     version?: FieldPolicy<any> | FieldReadFunction<any>;
 };
@@ -94,6 +96,7 @@ export type CategoryTypeKeySpecifier = (
     | 'id'
     | 'includeInDownload'
     | 'includeInUpdate'
+    | 'isDefaultCategory'
     | 'mangas'
     | 'meta'
     | 'name'
@@ -105,6 +108,7 @@ export type CategoryTypeFieldPolicy = {
     id?: FieldPolicy<any> | FieldReadFunction<any>;
     includeInDownload?: FieldPolicy<any> | FieldReadFunction<any>;
     includeInUpdate?: FieldPolicy<any> | FieldReadFunction<any>;
+    isDefaultCategory?: FieldPolicy<any> | FieldReadFunction<any>;
     mangas?: FieldPolicy<any> | FieldReadFunction<any>;
     meta?: FieldPolicy<any> | FieldReadFunction<any>;
     name?: FieldPolicy<any> | FieldReadFunction<any>;
@@ -228,6 +232,10 @@ export type ClearCachedImagesPayloadFieldPolicy = {
     cachedThumbnails?: FieldPolicy<any> | FieldReadFunction<any>;
     clientMutationId?: FieldPolicy<any> | FieldReadFunction<any>;
     downloadedThumbnails?: FieldPolicy<any> | FieldReadFunction<any>;
+};
+export type ClearCookiesAndCachePayloadKeySpecifier = ('clientMutationId' | ClearCookiesAndCachePayloadKeySpecifier)[];
+export type ClearCookiesAndCachePayloadFieldPolicy = {
+    clientMutationId?: FieldPolicy<any> | FieldReadFunction<any>;
 };
 export type ClearDownloaderPayloadKeySpecifier = (
     | 'clientMutationId'
@@ -704,6 +712,13 @@ export type InstallExternalExtensionPayloadFieldPolicy = {
     clientMutationId?: FieldPolicy<any> | FieldReadFunction<any>;
     extension?: FieldPolicy<any> | FieldReadFunction<any>;
 };
+export type JvmInfoKeySpecifier = ('javaVersion' | 'vmName' | 'vmVendor' | 'vmVersion' | JvmInfoKeySpecifier)[];
+export type JvmInfoFieldPolicy = {
+    javaVersion?: FieldPolicy<any> | FieldReadFunction<any>;
+    vmName?: FieldPolicy<any> | FieldReadFunction<any>;
+    vmVendor?: FieldPolicy<any> | FieldReadFunction<any>;
+    vmVersion?: FieldPolicy<any> | FieldReadFunction<any>;
+};
 export type KoSyncConnectPayloadKeySpecifier = (
     | 'clientMutationId'
     | 'message'
@@ -958,6 +973,7 @@ export type MutationKeySpecifier = (
     | 'bindTrack'
     | 'bindTrackRecord'
     | 'clearCachedImages'
+    | 'clearCookiesAndCache'
     | 'clearDownloader'
     | 'connectKoSyncAccount'
     | 'createBackup'
@@ -997,6 +1013,7 @@ export type MutationKeySpecifier = (
     | 'refreshToken'
     | 'removeExtensionStore'
     | 'reorderChapterDownload'
+    | 'reorderChapterDownloads'
     | 'resetSettings'
     | 'resetWebUIUpdateStatus'
     | 'restoreBackup'
@@ -1041,6 +1058,7 @@ export type MutationFieldPolicy = {
     bindTrack?: FieldPolicy<any> | FieldReadFunction<any>;
     bindTrackRecord?: FieldPolicy<any> | FieldReadFunction<any>;
     clearCachedImages?: FieldPolicy<any> | FieldReadFunction<any>;
+    clearCookiesAndCache?: FieldPolicy<any> | FieldReadFunction<any>;
     clearDownloader?: FieldPolicy<any> | FieldReadFunction<any>;
     connectKoSyncAccount?: FieldPolicy<any> | FieldReadFunction<any>;
     createBackup?: FieldPolicy<any> | FieldReadFunction<any>;
@@ -1080,6 +1098,7 @@ export type MutationFieldPolicy = {
     refreshToken?: FieldPolicy<any> | FieldReadFunction<any>;
     removeExtensionStore?: FieldPolicy<any> | FieldReadFunction<any>;
     reorderChapterDownload?: FieldPolicy<any> | FieldReadFunction<any>;
+    reorderChapterDownloads?: FieldPolicy<any> | FieldReadFunction<any>;
     resetSettings?: FieldPolicy<any> | FieldReadFunction<any>;
     resetWebUIUpdateStatus?: FieldPolicy<any> | FieldReadFunction<any>;
     restoreBackup?: FieldPolicy<any> | FieldReadFunction<any>;
@@ -1124,6 +1143,12 @@ export type NodeListFieldPolicy = {
     nodes?: FieldPolicy<any> | FieldReadFunction<any>;
     pageInfo?: FieldPolicy<any> | FieldReadFunction<any>;
     totalCount?: FieldPolicy<any> | FieldReadFunction<any>;
+};
+export type OSInfoKeySpecifier = ('build' | 'name' | 'version' | OSInfoKeySpecifier)[];
+export type OSInfoFieldPolicy = {
+    build?: FieldPolicy<any> | FieldReadFunction<any>;
+    name?: FieldPolicy<any> | FieldReadFunction<any>;
+    version?: FieldPolicy<any> | FieldReadFunction<any>;
 };
 export type PageInfoKeySpecifier = (
     | 'endCursor'
@@ -1334,6 +1359,13 @@ export type PartialSettingsTypeFieldPolicy = {
     webUIFlavor?: FieldPolicy<any> | FieldReadFunction<any>;
     webUIInterface?: FieldPolicy<any> | FieldReadFunction<any>;
     webUIUpdateCheckInterval?: FieldPolicy<any> | FieldReadFunction<any>;
+};
+export type PlatformInfoKeySpecifier = ('arch' | 'headless' | 'jvm' | 'os' | PlatformInfoKeySpecifier)[];
+export type PlatformInfoFieldPolicy = {
+    arch?: FieldPolicy<any> | FieldReadFunction<any>;
+    headless?: FieldPolicy<any> | FieldReadFunction<any>;
+    jvm?: FieldPolicy<any> | FieldReadFunction<any>;
+    os?: FieldPolicy<any> | FieldReadFunction<any>;
 };
 export type PullKoSyncProgressPayloadKeySpecifier = (
     | 'chapter'
@@ -2641,6 +2673,13 @@ export type StrictTypedTypePolicies = {
             | (() => undefined | ClearCachedImagesPayloadKeySpecifier);
         fields?: ClearCachedImagesPayloadFieldPolicy;
     };
+    ClearCookiesAndCachePayload?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
+        keyFields?:
+            | false
+            | ClearCookiesAndCachePayloadKeySpecifier
+            | (() => undefined | ClearCookiesAndCachePayloadKeySpecifier);
+        fields?: ClearCookiesAndCachePayloadFieldPolicy;
+    };
     ClearDownloaderPayload?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
         keyFields?: false | ClearDownloaderPayloadKeySpecifier | (() => undefined | ClearDownloaderPayloadKeySpecifier);
         fields?: ClearDownloaderPayloadFieldPolicy;
@@ -2882,6 +2921,10 @@ export type StrictTypedTypePolicies = {
             | (() => undefined | InstallExternalExtensionPayloadKeySpecifier);
         fields?: InstallExternalExtensionPayloadFieldPolicy;
     };
+    JvmInfo?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
+        keyFields?: false | JvmInfoKeySpecifier | (() => undefined | JvmInfoKeySpecifier);
+        fields?: JvmInfoFieldPolicy;
+    };
     KoSyncConnectPayload?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
         keyFields?: false | KoSyncConnectPayloadKeySpecifier | (() => undefined | KoSyncConnectPayloadKeySpecifier);
         fields?: KoSyncConnectPayloadFieldPolicy;
@@ -2977,6 +3020,10 @@ export type StrictTypedTypePolicies = {
         keyFields?: false | NodeListKeySpecifier | (() => undefined | NodeListKeySpecifier);
         fields?: NodeListFieldPolicy;
     };
+    OSInfo?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
+        keyFields?: false | OSInfoKeySpecifier | (() => undefined | OSInfoKeySpecifier);
+        fields?: OSInfoFieldPolicy;
+    };
     PageInfo?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
         keyFields?: false | PageInfoKeySpecifier | (() => undefined | PageInfoKeySpecifier);
         fields?: PageInfoFieldPolicy;
@@ -2984,6 +3031,10 @@ export type StrictTypedTypePolicies = {
     PartialSettingsType?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
         keyFields?: false | PartialSettingsTypeKeySpecifier | (() => undefined | PartialSettingsTypeKeySpecifier);
         fields?: PartialSettingsTypeFieldPolicy;
+    };
+    PlatformInfo?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
+        keyFields?: false | PlatformInfoKeySpecifier | (() => undefined | PlatformInfoKeySpecifier);
+        fields?: PlatformInfoFieldPolicy;
     };
     PullKoSyncProgressPayload?: Omit<TypePolicy, 'fields' | 'keyFields'> & {
         keyFields?:
