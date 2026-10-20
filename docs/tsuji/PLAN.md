@@ -19,7 +19,7 @@ Working plan for the current feature and the report of its last run. State, rule
 Off `feat/comments-similar-scroll` (r3392 and r3395 not on `custom` yet). Makimono reference: CommentsScreen.kt
 (chapter selector header), MangaScreen.kt (`onChapterCommentsClicked`).
 
-**Done** (r3397):
+**Shipped** 2026-10-20 as r3401 (with #5 and r3392; desktop checks OK, phone pass waived). **Done** (r3397):
 
 - `comments/chapterNav.ts` (pure): one entry per chapter number >= 0, ascending (numberless -1 chapters have no
   thread to look up and are left out); twins labelled from the reference scanlator's copy (the reader: the copy being

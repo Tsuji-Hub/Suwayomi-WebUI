@@ -4,16 +4,17 @@ Everything a new session needs to continue this fork. The fork adds a small set 
 the owner's Makimono Android fork) to Suwayomi-WebUI and is served by the owner's Suwayomi-Server as the **Custom**
 WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
-## State (2026-10-15)
+## State (2026-10-20)
 
-| Branch                         | Commit             | What                                                                                                                                                                                                                                                     |
-| ------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`                       | `3d686cb6` (r3392) | Briefs #1-#4 + reader resume. r3392 shipped 2026-10-15.                                                                                                                                                                                                  |
-| `feat/comments-similar-scroll` | `8ef88f7d` (r3398) | Brief #5 + download ahead + merge of r3392. r3395 passed desktop checks 2026-10-14; phone items not checked yet.                                                                                                                                         |
-| `feat/comments-chapter-nav`    | `c6a51cd4` (r3401) | Briefs #5 + #5.1 + r3392. r3401 deployed 2026-10-15 (the server runs it), Chrome recheck OK on Tales of Demons and Gods (twins once, picker one entry per number, Resume copy, no-thread 504.1/504.5/504.6). Ready to ship for desktop; phone pass open. |
-| `master`                       | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                                                                           |
+| Branch   | Commit             | What                                                                                                                                  |
+| -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom` | `c6a51cd4` (r3401) | Briefs #1-#5.1 + reader resume. r3401 shipped 2026-10-20 (desktop checks OK; phone pass waived: the owner doesn't read on the phone). |
+| `master` | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                        |
 
-Server: Suwayomi-Server **v2.3.2243 Stable** (needs WebUI r3379-compatible queries), flavor Custom.
+Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
+Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
+machine-translated by server-side jobs (rawfinder, mtl-engine on VM110; brief #6 v2). Phone passes and phone UX are
+optional: the owner reads on the desktop / projector only.
 Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayomi/Suwayomi-WebUI.
 
 ## Open items
@@ -23,9 +24,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3401 (briefs #4, #5, #5.1). Older note:
-   release `r3383-eb23a8e3`
-   has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
+3. The server runs r3401 (briefs #4, #5, #5.1). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
    the service-worker image cache below. **The SW item is still a blocker before any HTTPS / secure-context
@@ -42,9 +41,9 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 
 ## Rules (non-negotiable)
 
-- **Base = stable tag, never upstream master.** Master needs server r2320+ (see `versionToServerVersionMapping.json`);
-  its queries fail on v2.3.2243 (e.g. `aboutServer.platformInfo`). Sync by rebasing `custom` onto the next stable
-  tag that matches the server.
+- **Base = stable tag, never upstream master.** `custom` is on `v20260726.01` (WebUI r3379, made for server r2243);
+  it runs on the server's v2.4.2366 (r2366). Upstream now has `v20260929.01` (r3518, server r2320) and its PREVIEW
+  targets r2366. Sync by rebasing `custom` onto the next stable tag that matches the server, only on the owner's go.
 - All new code under `src/features/tsuji/**`. Upstream files get one-line hooks only (list below). No methods added
   to `src/lib/requests/RequestManager.ts`. External calls (AniList, Jikan) use `fetch`, never Apollo.
 - Upstream conventions: `@/` imports with extensions, MUI `sx`/`styled` (no `style` prop), every user-facing string
@@ -108,9 +107,10 @@ pnpm codegen:offline       # types from docs/tsuji/schema.graphql, no server nee
 pnpm i18n:extract          # en.po only
 ```
 
-Offline codegen is byte-identical to live codegen against v2.3.2243 (run `oxfmt --write` on the three generated
+Offline codegen was byte-identical to live codegen against v2.3.2243 (run `oxfmt --write` on the three generated
 files afterwards, as the commit hook would). Refresh `docs/tsuji/schema.graphql` from the server's introspection when
-the server is upgraded (and keep custom-scalar descriptions out of it, or the generated comments drift).
+the server is upgraded (and keep custom-scalar descriptions out of it, or the generated comments drift). **Pending:**
+the snapshot is still v2.3.2243's; the v2.4.2366 dump has to come from the LAN (cloud sessions can't reach it).
 
 ## CI and releases
 
