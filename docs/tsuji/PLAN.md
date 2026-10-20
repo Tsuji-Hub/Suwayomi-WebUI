@@ -14,6 +14,40 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #9: universal tag search on MangaBaka (branch `feat/mangabaka-tags`)
+
+Off `custom` (r3414) + `chore/lint-staged-generated`. Replaces #8's MangaUpdates engine: MU needed the relay, title
+matching back to AniList (extra AniList searches, a 429, "Pick Me Up!" ambiguity) and had no popularity sort.
+MangaBaka (`api.mangabaka.org`, upstream Mihon's new tracker) answers CORS with `*`, needs no login and carries the
+AniList id on every series. Comments / Reviews in the preview unchanged. No upstream file touched.
+
+**Done:**
+
+- Suggestions (`tags/tagKeys.ts`, `useTagSuggestions`): AniList catalog + MangaBaka `GET /v1/tags?q=` (300 ms
+  debounce, cached a week), merged by normalized name (AniList "Dungeon" + MangaBaka "Dungeon" = one chip). Label
+  "System · 316" (series count), hover: MangaBaka parent path + AniList backing. #8's aliases are gone: MangaBaka's
+  hierarchy has System under Game Elements, Level System / Stat System are offered next to it. Adult tags only with
+  the Adult filter; empty tags dropped.
+- Engine (`tags/baka.ts`, `getSearchEngine`): AniList unless a selected chip has no AniList backing; then
+  `GET /v1/series/search`: `tag=` names (AND), `tag_not=` ids, `type=` from the Type filter (comics only without
+  one), `content_rating` safe + suggestive, all four with 18+ on, `rating_lower` = min score, `sort_by` Best match /
+  Popularity `popularity_asc` (a rank: asc = most popular), Score `score_desc`, Newest `published_year_desc`, 50 a
+  page (25 for the session if MangaBaka refuses 50). AniList-only chips ride along as the MangaBaka tag of the same
+  name when one exists, else post-filter AniList details (tags rank >= 60). Min chapters stays client side
+  (MangaBaka drops series without a count; Discover lets them pass).
+- Cards (`useBakaFeed`, `toBakaCards`): render straight from MangaBaka, id = `source.anilist.id` (list hiding, marks,
+  Planned badges, library hiding by AniList / MAL id and title), negative id without one (no badge, no comments /
+  reviews). AniList details for each loaded page in ONE `Media(id_in)` request (`TsujiBakaDetails`), no title
+  searches; MangaBaka's chapter count and rating stay on the card so filters never flip a shown card.
+- Etiquette (`tags/bakaService.ts`): search one per 2.1 s after a burst of 3 (limit 30/min), tags one per 0.5 s; 429
+  waits Retry-After (else 5 s), two retries; search pages cached an hour (and in memory, in-flight shared), tags a
+  week; no token, no custom header (a browser can't set User-Agent and an extra header would need a preflight).
+- Removed (MangaUpdates): `tags/muSearch.ts` (queries, parsing, matcher, MU genres, `toMuCards`), `tags/muService.ts`
+  (relay calls, match cache `mu:match:v2:*`), `tags/muQueries.ts` (aliased title searches), `tags/useMuFeed.ts`, #8's
+  tag aliases, and the export of `getCommentsRelayUrl`. Kept: `passesAniListChips`, `isUnmatchedMedia` (moved to
+  `baka.ts`); covers load without crossOrigin unless AniList's CDN (MangaBaka's CDN too).
+- Unit (13 in `tags.test.ts`) and browser (`discover-tags.e2e.mjs`, 18 checks, fake MangaBaka, Ethan's filters).
+
 # Brief #8 v2: universal tag search + comments in the preview (branch `feat/discover-tags-comments`)
 
 Off `custom` (r3409). AniList has no "System" (428 tags, 19 genres); MangaUpdates has it as a category (602 series).

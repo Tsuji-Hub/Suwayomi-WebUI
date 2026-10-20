@@ -10,35 +10,47 @@ import { describe, expect, it } from 'vitest';
 import { buildDiscoverVariables, getIncludedTags, hasSelection } from '@/features/tsuji/discover/discoverQuery.ts';
 import { DEFAULT_REC_FILTERS } from '@/features/tsuji/recs/filters.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
-import type { AniListCandidate, MuSeries } from '@/features/tsuji/tags/muSearch.ts';
+import type { BakaChip, BakaSeries, BakaTag } from '@/features/tsuji/tags/baka.ts';
 import {
-    buildMuQueries,
+    buildBakaSearch,
+    getMissingDetails,
     getSearchEngine,
-    mergeMuSeries,
-    parseMuCategorySearch,
-    parseMuSeriesSearch,
+    parseBakaSearch,
+    parseBakaTags,
     passesAniListChips,
-    pickAniListMatch,
-    splitAniListChips,
-    toMuCards,
-    toMuGenre,
-    toUnmatchedMedia,
-} from '@/features/tsuji/tags/muSearch.ts';
-import { buildMatchQuery } from '@/features/tsuji/tags/muQueries.ts';
+    toBakaCards,
+    toBakaMedia,
+} from '@/features/tsuji/tags/baka.ts';
 import { buildSuggestions, describeChip, normalizeTagKey } from '@/features/tsuji/tags/tagKeys.ts';
 
-const MU_SYSTEM = [
-    { category: 'System', usage: 602 },
-    { category: 'Level System', usage: 427 },
-    { category: 'Stat System', usage: 46 },
-    { category: 'System Admin', usage: 3 },
+const bakaTag = (id: number, name: string, count: number, overrides: Partial<BakaTag> = {}): BakaTag => ({
+    id,
+    name,
+    path: `Settings > Game Elements > ${name}`,
+    count,
+    isAdult: false,
+    isGenre: false,
+    ...overrides,
+});
+
+const BAKA_SYSTEM = [
+    bakaTag(11, 'System', 316),
+    bakaTag(12, 'Level System', 250),
+    bakaTag(13, 'Stat System', 90),
+    bakaTag(14, 'System Sidekick', 0),
 ];
 
+const chip = (name: string, id: number, overrides: Partial<BakaChip> = {}): BakaChip => ({
+    state: 'include',
+    label: name,
+    bakaTag: { id, name },
+    ...overrides,
+});
+
 describe('tag keys', () => {
-    it('normalizes MU and AniList names to one key', () => {
-        expect(normalizeTagKey('Dungeon/s')).toBe('dungeon');
+    it('normalizes names from both sources to one key', () => {
+        expect(normalizeTagKey('Dungeons')).toBe('dungeon');
         expect(normalizeTagKey('Dungeon')).toBe('dungeon');
-        expect(normalizeTagKey('Special Ability/ies')).toBe('special ability');
         expect(normalizeTagKey('Martial Arts')).toBe('martial art');
         expect(normalizeTagKey('Boss')).toBe('boss');
         expect(normalizeTagKey('Isekai!')).toBe('isekai');
@@ -49,31 +61,25 @@ describe('suggestions', () => {
     const genres = ['Action', 'Fantasy', 'Hentai'];
     const tags = [{ name: 'Dungeon' }, { name: 'Martial Arts' }, { name: 'Sexual Content', isAdult: true }];
 
-    it('"system" is one System chip (alias of three MU categories) plus the other MU system categories', () => {
+    it('"system" is one System chip (MangaBaka, 316), Level / Stat System next to it, empty tags dropped', () => {
         const suggestions = buildSuggestions({
             query: 'system',
             genres,
             tags,
-            muCategories: MU_SYSTEM,
+            bakaTags: BAKA_SYSTEM,
             showAdult: false,
         });
-        const systemChips = suggestions.filter(({ label }) => label === 'System');
-        expect(systemChips).toHaveLength(1);
-        expect(systemChips[0]).toMatchObject({
-            key: 'system',
-            categories: ['System', 'Level System', 'Stat System'],
-            count: 602,
-        });
         expect(suggestions.map(({ label }) => label)).toEqual(['System', 'Level System', 'Stat System']);
-        expect(describeChip(systemChips[0])).toBe('includes: MangaUpdates: System, Level System, Stat System');
+        expect(suggestions[0]).toMatchObject({ key: 'system', bakaTag: { id: 11, name: 'System' }, count: 316 });
+        expect(describeChip(suggestions[0])).toBe('MangaBaka Settings > Game Elements > System');
     });
 
-    it('merges AniList "Dungeon" and MU "Dungeon/s" into one chip backed by both', () => {
+    it('merges AniList "Dungeon" and MangaBaka "Dungeon" into one chip backed by both', () => {
         const [dungeon, ...rest] = buildSuggestions({
             query: 'dungeon',
             genres,
             tags,
-            muCategories: [{ category: 'Dungeon/s', usage: 586 }],
+            bakaTags: [bakaTag(20, 'Dungeon', 586, { path: 'Settings > Dungeon' })],
             showAdult: false,
         });
         expect(rest).toEqual([]);
@@ -81,338 +87,217 @@ describe('suggestions', () => {
             key: 'dungeon',
             label: 'Dungeon',
             tag: 'Dungeon',
-            categories: ['Dungeon/s'],
+            bakaTag: { id: 20, name: 'Dungeon' },
             count: 586,
+            path: 'Settings > Dungeon',
         });
+        expect(describeChip(dungeon)).toBe('AniList tag Dungeon; MangaBaka Settings > Dungeon');
     });
 
-    it('AniList-only names stay AniList-only; adult tags and Hentai need the Adult filter; MU noise is dropped', () => {
-        expect(buildSuggestions({ query: 'fanta', genres, tags, muCategories: [], showAdult: false })).toEqual([
-            { key: 'fantasy', label: 'Fantasy', genre: 'Fantasy', categories: [] },
+    it('AniList-only names stay AniList-only; adult tags and Hentai need the Adult filter', () => {
+        expect(buildSuggestions({ query: 'fanta', genres, tags, bakaTags: [], showAdult: false })).toEqual([
+            { key: 'fantasy', label: 'Fantasy', genre: 'Fantasy' },
         ]);
-        expect(buildSuggestions({ query: 'sexual', genres, tags, muCategories: [], showAdult: false })).toEqual([]);
-        expect(buildSuggestions({ query: 'hent', genres, tags, muCategories: [], showAdult: true })).toHaveLength(1);
-        expect(buildSuggestions({ query: 'admin', genres, tags, muCategories: MU_SYSTEM, showAdult: false })).toEqual(
-            [],
-        );
+        expect(buildSuggestions({ query: 'sexual', genres, tags, bakaTags: [], showAdult: false })).toEqual([]);
+        expect(buildSuggestions({ query: 'hent', genres, tags, bakaTags: [], showAdult: true })).toHaveLength(1);
+        const adultTag = [bakaTag(30, 'Netorare', 40, { isAdult: true })];
+        expect(buildSuggestions({ query: 'netor', genres, tags, bakaTags: adultTag, showAdult: false })).toEqual([]);
+        expect(buildSuggestions({ query: 'netor', genres, tags, bakaTags: adultTag, showAdult: true })).toHaveLength(1);
     });
 
-    it('aliases: litrpg and regression', () => {
+    it('parses /v1/tags rows', () => {
         expect(
-            buildSuggestions({ query: 'litrpg', genres, tags, muCategories: [], showAdult: false })[0],
-        ).toMatchObject({
-            label: 'LitRPG',
-            categories: ['Game Elements', 'Level System'],
-        });
-        expect(
-            buildSuggestions({
-                query: 'regress',
-                genres,
-                tags,
-                muCategories: [{ category: 'Regression', usage: 599 }],
-                showAdult: false,
+            parseBakaTags({
+                data: [
+                    {
+                        id: 11,
+                        name: 'System',
+                        name_path: 'Settings > Game Elements > System',
+                        series_count: 316,
+                        content_rating: 'safe',
+                        is_genre: false,
+                    },
+                    { id: 'x', name: 'Broken' },
+                ],
             }),
-        ).toEqual([{ key: 'regression', label: 'Regression', categories: ['Regression'], count: 599 }]);
+        ).toEqual([BAKA_SYSTEM[0]]);
     });
 });
 
 describe('search engine', () => {
     it('AniList unless a selected chip has nothing on AniList', () => {
         expect(getSearchEngine(undefined)).toBe('anilist');
-        expect(
-            getSearchEngine({
-                dungeon: { state: 'include', label: 'Dungeon', tag: 'Dungeon', categories: ['Dungeon/s'] },
-            }),
-        ).toBe('anilist');
-        expect(getSearchEngine({ system: { state: 'include', label: 'System', categories: ['System'] } })).toBe('mu');
-        expect(getSearchEngine({ system: { state: 'exclude', label: 'System', categories: ['System'] } })).toBe('mu');
+        expect(getSearchEngine({ dungeon: chip('Dungeon', 20, { tag: 'Dungeon' }) })).toBe('anilist');
+        expect(getSearchEngine({ system: chip('System', 11) })).toBe('baka');
+        expect(getSearchEngine({ system: chip('System', 11, { state: 'exclude' }) })).toBe('baka');
     });
 
-    it('merged chips search AniList by their AniList name; MU-only chips count as a selection', () => {
+    it('merged chips search AniList by their AniList name; MangaBaka-only chips count as a selection', () => {
         const selection = {
             genres: {},
             tags: { Revenge: 'include' as const },
-            mu: { dungeon: { state: 'include' as const, label: 'Dungeon', tag: 'Dungeon', categories: ['Dungeon/s'] } },
+            baka: { dungeon: chip('Dungeon', 20, { tag: 'Dungeon' }) },
         };
         expect(buildDiscoverVariables(selection, DEFAULT_REC_FILTERS)).toEqual({ tagIn: ['Dungeon', 'Revenge'] });
         expect(getIncludedTags(selection)).toEqual(['Dungeon', 'Revenge']);
-        expect(
-            hasSelection({
-                genres: {},
-                tags: {},
-                mu: { system: { state: 'include', label: 'S', categories: ['System'] } },
+        expect(hasSelection({ genres: {}, tags: {}, baka: { system: chip('System', 11) } })).toBe(true);
+    });
+});
+
+describe('MangaBaka search', () => {
+    it('tags by name (AND), excluded by id, types OR, adult only when allowed, most popular first', () => {
+        const params = new URLSearchParams(
+            buildBakaSearch({
+                include: ['System', 'Murim'],
+                excludeIds: [99],
+                types: ['MANHWA', 'MANHUA'],
+                sort: 'POPULARITY',
+                minScore: 0,
+                showAdult: false,
+                page: 2,
+                limit: 50,
             }),
-        ).toBe(true);
+        );
+        expect(params.getAll('tag')).toEqual(['Murim', 'System']);
+        expect(params.getAll('tag_not')).toEqual(['99']);
+        expect(params.getAll('type')).toEqual(['manhua', 'manhwa']);
+        expect(params.getAll('content_rating')).toEqual(['safe', 'suggestive']);
+        expect(params.get('sort_by')).toBe('popularity_asc');
+        expect(params.get('rating_lower')).toBeNull();
+        expect([params.get('page'), params.get('limit')]).toEqual(['2', '50']);
+    });
+
+    it('no Type filter = comics only; adult on = every rating; score sort and minimum score', () => {
+        const params = new URLSearchParams(
+            buildBakaSearch({
+                include: ['System'],
+                excludeIds: [],
+                types: [],
+                sort: 'SCORE',
+                minScore: 70,
+                showAdult: true,
+                page: 1,
+                limit: 50,
+            }),
+        );
+        expect(params.getAll('type')).toEqual(['manga', 'manhua', 'manhwa']);
+        expect(params.getAll('content_rating')).toEqual(['safe', 'suggestive', 'erotica', 'pornographic']);
+        expect(params.get('sort_by')).toBe('score_desc');
+        expect(params.get('rating_lower')).toBe('70');
     });
 });
 
-describe('MU queries', () => {
-    const system = {
-        state: 'include' as const,
-        label: 'System',
-        categories: ['System', 'Level System', 'Stat System'],
-    };
-
-    it('one query per category of a chip (OR), chips combined (AND), adult genres excluded, comics only', () => {
-        const queries = buildMuQueries({
-            mu: { system, martial: { state: 'include', label: 'Martial Arts', categories: ['Martial Arts'] } },
-            types: ['MANHWA'],
-            sort: 'BEST',
-            showAdult: false,
-            page: 2,
-        });
-        expect(queries.map(({ category }) => category)).toEqual([
-            ['System', 'Martial Arts'],
-            ['Level System', 'Martial Arts'],
-            ['Stat System', 'Martial Arts'],
-        ]);
-        expect(queries[0]).toEqual({
-            category: ['System', 'Martial Arts'],
-            exclude_genre: ['Adult', 'Hentai', 'Smut'],
-            type: ['Manhwa'],
-            orderby: 'rating',
-            page: 2,
-            perpage: 50,
-        });
-    });
-
-    it('excluded chips, all types, adult allowed, newest first; capped at 6 queries', () => {
-        const [query] = buildMuQueries({
-            mu: { system, harem: { state: 'exclude', label: 'Harem', categories: ['Harem'] } },
-            types: [],
-            sort: 'NEWEST',
-            showAdult: true,
-            page: 1,
-        });
-        expect(query).toEqual({
-            category: ['System'],
-            exclude_category: ['Harem'],
-            type: ['Manhwa', 'Manhua', 'Manga'],
-            orderby: 'year',
-            page: 1,
-            perpage: 50,
-        });
-        const many = buildMuQueries({
-            mu: { a: system, b: { ...system, label: 'B' } },
-            types: [],
-            sort: 'BEST',
-            showAdult: false,
-            page: 1,
-        });
-        expect(many).toHaveLength(6);
-    });
-});
-
-describe('MU responses', () => {
-    it('parses series and categories, merges by series id', () => {
-        const { total, series } = parseMuSeriesSearch({
-            total_hits: 211,
-            results: [
-                {
-                    record: {
-                        series_id: 1,
-                        title: 'Solo Leveling',
-                        url: 'https://mu/s/1',
-                        image: { url: { original: 'https://img/1.jpg', thumb: 'https://img/1t.jpg' } },
-                        type: 'Manhwa',
-                        year: '2018',
-                        bayesian_rating: 8.4,
-                    },
-                },
-                { record: { title: 'no id' } },
-            ],
-        });
-        expect(total).toBe(211);
-        expect(series).toEqual([
-            {
-                seriesId: 1,
-                title: 'Solo Leveling',
-                url: 'https://mu/s/1',
-                image: 'https://img/1.jpg',
-                type: 'Manhwa',
-                year: 2018,
-                rating: 8.4,
-            },
-        ]);
-        expect(parseMuCategorySearch({ results: [{ record: { category: 'System', usage: 602 } }, {}] })).toEqual([
-            { category: 'System', usage: 602 },
-        ]);
-        expect(
-            mergeMuSeries([[series[0]], [series[0], { ...series[0], seriesId: 2 }]]).map(({ seriesId }) => seriesId),
-        ).toEqual([1, 2]);
-    });
-});
-
-const candidate = (overrides: Partial<AniListCandidate>): AniListCandidate =>
-    ({
-        id: 1,
-        title: { romaji: null, english: null, native: null, userPreferred: null },
-        synonyms: [],
-        countryOfOrigin: 'KR',
-        startDate: { year: 2018, month: null, day: null },
-        isAdult: false,
-        tags: [],
-        ...overrides,
-    }) as AniListCandidate;
-
-const muSeries = (title: string, overrides: Partial<MuSeries> = {}): MuSeries => ({
-    seriesId: 9,
-    title,
-    url: '',
-    image: null,
-    type: 'Manhwa',
+const SOLO_ROW = {
+    id: 1,
+    title: 'Solo Leveling',
+    titles: [
+        { language: 'en', title: 'Solo Leveling', is_primary: true, traits: ['official'] },
+        { language: 'ko-Latn', title: 'Na Honjaman Level-Up', is_primary: false, traits: [] },
+    ],
+    cover: { x250: { x1: 'https://cdn.mangabaka.org/1.jpg' } },
+    type: 'manhwa',
+    status: 'completed',
+    rating: 88.4,
+    popularity: 1,
+    total_chapters: '201',
+    content_rating: 'safe',
     year: 2018,
-    rating: null,
+    source: { anilist: { id: 105398 }, my_anime_list: { id: 121496 }, manga_updates: { id: 'abc' } },
+};
+
+const series = (id: number, anilistId: number | null, overrides: Partial<BakaSeries> = {}): BakaSeries => ({
+    id,
+    anilistId,
+    malId: null,
+    title: `Series ${id}`,
+    english: null,
+    romaji: null,
+    cover: null,
+    type: 'manhwa',
+    status: 'releasing',
+    rating: 80,
+    popularity: id,
+    totalChapters: 100,
+    isAdult: false,
+    year: 2020,
     ...overrides,
 });
 
-describe('matching MU series to AniList', () => {
-    it('accepts an exact normalized name among all names (synonyms too)', () => {
-        const other = candidate({
-            id: 2,
-            title: { romaji: 'Something', english: null, native: null, userPreferred: null },
-        });
-        const match = candidate({ id: 3, synonyms: ['Pick Me Up, Infinite Gacha'] });
-        expect(pickAniListMatch(muSeries('Pick Me Up, Infinite Gacha'), [other, match])?.id).toBe(3);
+describe('MangaBaka series', () => {
+    it('parses a search page into small series with their AniList / MAL ids', () => {
+        const page = parseBakaSearch({ data: [SOLO_ROW, { nope: true }], pagination: { next: '?page=2' } }, 50);
+        expect(page.hasNextPage).toBe(true);
+        expect(page.series).toEqual([
+            {
+                id: 1,
+                anilistId: 105398,
+                malId: 121496,
+                title: 'Solo Leveling',
+                english: 'Solo Leveling',
+                romaji: 'Na Honjaman Level-Up',
+                cover: 'https://cdn.mangabaka.org/1.jpg',
+                type: 'manhwa',
+                status: 'completed',
+                rating: 88.4,
+                popularity: 1,
+                totalChapters: 201,
+                isAdult: false,
+                year: 2018,
+            },
+        ]);
+        expect(parseBakaSearch({ data: [SOLO_ROW] }, 50).hasNextPage).toBe(false);
     });
 
-    it('otherwise only a very close top hit from the same country and year (+-1)', () => {
-        const top = candidate({
-            id: 4,
-            title: { romaji: 'Solo Levelling', english: null, native: null, userPreferred: null },
+    it('cards key on the AniList id (negative MangaBaka id without one); MangaBaka chapters and rating stay', () => {
+        const [solo] = parseBakaSearch({ data: [SOLO_ROW] }, 50).series;
+        expect(toBakaMedia(solo)).toMatchObject({
+            id: 105398,
+            idMal: 121496,
+            countryOfOrigin: 'KR',
+            status: 'FINISHED',
+            chapters: 201,
+            averageScore: 88,
+            coverImage: { large: 'https://cdn.mangabaka.org/1.jpg' },
         });
-        expect(pickAniListMatch(muSeries('Solo Leveling'), [top])?.id).toBe(4);
-        expect(pickAniListMatch(muSeries('Solo Leveling', { type: 'Manga' }), [top])).toBeNull();
-        expect(pickAniListMatch(muSeries('Solo Leveling', { year: 2015 }), [top])).toBeNull();
-        expect(pickAniListMatch(muSeries('Solo Hunter'), [top])).toBeNull();
-        expect(pickAniListMatch(muSeries('Anything'), [])).toBeNull();
+        expect(toBakaMedia(series(7, null)).id).toBe(-7);
+        const details = { id: 105398, chapters: null, averageScore: 84, description: 'AniList synopsis' } as RecMedia;
+        expect(toBakaMedia(solo, details)).toMatchObject({
+            description: 'AniList synopsis',
+            chapters: 201,
+            averageScore: 88,
+        });
     });
 
-    it("colliding exact names: the MU type's country wins, then the year; another country alone is no match", () => {
-        const gekkaBijin = candidate({
-            id: 94792,
-            countryOfOrigin: 'JP',
-            startDate: { year: 2008, month: null, day: null },
-            title: { romaji: 'Gekka Bijin', english: null, native: null, userPreferred: null },
-            synonyms: ['Pick Me Up'],
-        });
-        const pickMeUp = candidate({
-            id: 159441,
-            startDate: { year: 2022, month: null, day: null },
-            title: { romaji: 'Pick Me Up!', english: null, native: null, userPreferred: null },
-        });
-        const oldNamesake = candidate({
-            id: 5,
-            startDate: { year: 2010, month: null, day: null },
-            title: { romaji: 'Pick Me Up!', english: null, native: null, userPreferred: null },
-        });
-        const series = muSeries('Pick Me Up!', { year: 2022 });
-        expect(pickAniListMatch(series, [gekkaBijin, pickMeUp])?.id).toBe(159441);
-        expect(pickAniListMatch(series, [oldNamesake, gekkaBijin, pickMeUp])?.id).toBe(159441);
-        expect(pickAniListMatch(series, [gekkaBijin])).toBeNull();
+    it('cards show before details; AniList-only chips filter once details are in; one card per id', () => {
+        const pages = [[series(1, 10), series(2, 20), series(3, null)], [series(4, 10)]];
+        const noChips = { genres: {}, tags: {} };
+        expect(toBakaCards(pages, new Map(), noChips).map((page) => page.map(({ id }) => id))).toEqual([
+            [10, 20, -3],
+            [],
+        ]);
+        const details = new Map<number, RecMedia | null>([
+            [10, { id: 10, genres: [], tags: [{ name: 'Revenge', rank: 90 }] } as unknown as RecMedia],
+            [20, null],
+        ]);
+        const revenge = { genres: {}, tags: { Revenge: 'include' as const } };
+        expect(toBakaCards(pages, details, revenge).map((page) => page.map(({ id }) => id))).toEqual([[10], []]);
+        expect(getMissingDetails(pages[0], new Map([[10, null]]))).toEqual([20]);
     });
 
-    it('builds one aliased request for up to 10 titles', () => {
-        const query = buildMatchQuery(3);
-        expect(query).toContain('$t0: String, $t1: String, $t2: String');
-        expect(query).toContain('m2: Page(perPage: 3) { media(search: $t2, type: MANGA)');
-        expect(query).not.toContain('m3:');
-    });
-});
-
-describe('AniList-only chips in an MU search', () => {
-    const media = {
-        id: 1,
-        genres: ['Action'],
-        tags: [
-            { name: 'Martial Arts', rank: 80 },
-            { name: 'Revenge', rank: 40 },
-        ],
-    } as RecMedia;
-
-    it('included tags need rank >= 60, excluded tags any rank, genres as they are', () => {
+    it('AniList-only chips: included tags need rank >= 60, excluded tags any rank, genres as they are', () => {
+        const media = {
+            id: 1,
+            genres: ['Action'],
+            tags: [
+                { name: 'Martial Arts', rank: 80 },
+                { name: 'Revenge', rank: 40 },
+            ],
+        } as RecMedia;
         expect(passesAniListChips(media, { genres: {}, tags: { 'Martial Arts': 'include' } })).toBe(true);
         expect(passesAniListChips(media, { genres: {}, tags: { Revenge: 'include' } })).toBe(false);
         expect(passesAniListChips(media, { genres: {}, tags: { Revenge: 'exclude' } })).toBe(false);
-        expect(passesAniListChips(media, { genres: { Action: 'include' }, tags: {} })).toBe(true);
         expect(passesAniListChips(media, { genres: { Romance: 'include' }, tags: {} })).toBe(false);
-    });
-
-    it('unmatched cards drop out only when such a chip is included', () => {
-        expect(passesAniListChips(null, { genres: {}, tags: {} })).toBe(true);
         expect(passesAniListChips(null, { genres: {}, tags: { Revenge: 'exclude' } })).toBe(true);
-        expect(passesAniListChips(null, { genres: {}, tags: { 'Martial Arts': 'include' } })).toBe(false);
-    });
-
-    it('unmatched MU series become cards with a negative id (no list state)', () => {
-        expect(
-            toUnmatchedMedia(muSeries('Raw Only', { seriesId: 77, rating: 7.25, image: 'https://img' })),
-        ).toMatchObject({
-            id: -77,
-            title: { userPreferred: 'Raw Only' },
-            coverImage: { large: 'https://img' },
-            averageScore: 73,
-            countryOfOrigin: 'KR',
-        });
-    });
-});
-
-describe('MU genres from AniList chips', () => {
-    it('chips MU knows as genres go server side, the rest stay a post-filter', () => {
-        expect(toMuGenre('Sci-Fi')).toBe('Sci-fi');
-        expect(toMuGenre('Martial Arts')).toBe('Martial Arts');
-        expect(toMuGenre('Revenge')).toBeNull();
-        const { muGenres, postFilter } = splitAniListChips({
-            genres: { Romance: 'exclude' },
-            tags: { 'Martial Arts': 'include', Revenge: 'include' },
-        });
-        expect(muGenres).toEqual({ include: ['Martial Arts'], exclude: ['Romance'] });
-        expect(postFilter).toEqual({ genres: {}, tags: { Revenge: 'include' } });
-        const [query] = buildMuQueries({
-            mu: { system: { state: 'include', label: 'System', categories: ['System'] } },
-            muGenres,
-            types: ['MANHWA'],
-            sort: 'SCORE',
-            showAdult: false,
-            page: 1,
-        });
-        expect(query).toMatchObject({
-            category: ['System'],
-            genre: ['Martial Arts'],
-            exclude_genre: ['Romance', 'Adult', 'Hentai', 'Smut'],
-            type: ['Manhwa'],
-        });
-    });
-});
-
-describe('MU cards while matches land', () => {
-    const first = muSeries('First', { seriesId: 1 });
-    const second = muSeries('Second', { seriesId: 2 });
-    const third = muSeries('Third', { seriesId: 3 });
-    const matched = {
-        id: 50,
-        genres: [],
-        tags: [{ name: 'Revenge', rank: 90 }],
-        isAdult: false,
-    } as unknown as RecMedia;
-    const noChips = { postFilter: { genres: {}, tags: {} }, showAdult: false };
-
-    it('cards show before any match, as MU cards', () => {
-        expect(toMuCards([[first, second]], new Map(), noChips)[0].map(({ id }) => id)).toEqual([-1, -2]);
-    });
-
-    it('matches replace their cards; filters apply once a verdict is in; one card per AniList id', () => {
-        const matches = new Map<number, RecMedia | null>([
-            [1, matched],
-            [2, null],
-            [3, matched],
-        ]);
-        expect(toMuCards([[first, second], [third]], matches, noChips).map((page) => page.map(({ id }) => id))).toEqual(
-            [[50, -2], []],
-        );
-        const revenge = { postFilter: { genres: {}, tags: { Revenge: 'include' as const } }, showAdult: false };
-        expect(toMuCards([[first, second]], matches, revenge)[0].map(({ id }) => id)).toEqual([50]);
-        const adult = new Map<number, RecMedia | null>([[1, { ...matched, isAdult: true }]]);
-        expect(toMuCards([[first, second]], adult, noChips)[0].map(({ id }) => id)).toEqual([-2]);
+        expect(passesAniListChips(null, { genres: {}, tags: { Revenge: 'include' } })).toBe(false);
     });
 });

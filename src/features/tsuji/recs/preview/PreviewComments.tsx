@@ -21,7 +21,7 @@ import { findCommentedChapter } from '@/features/tsuji/comments/chapterNav.ts';
 import { comickSource, resolveComickSeriesByAniList } from '@/features/tsuji/comments/commentsService.ts';
 import { useCommentsSettings } from '@/features/tsuji/comments/useComments.ts';
 import { CommentsView } from '@/features/tsuji/comments/components/CommentsPanel.tsx';
-import { isUnmatchedMedia } from '@/features/tsuji/tags/muSearch.ts';
+import { isUnmatchedMedia } from '@/features/tsuji/tags/baka.ts';
 
 type State =
     | { status: 'loading' }

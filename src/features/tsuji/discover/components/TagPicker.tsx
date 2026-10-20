@@ -28,7 +28,7 @@ import type { TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import { setTriState, TriStateChip } from '@/features/tsuji/recs/components/TriStateChip.tsx';
 import type { CatalogTag } from '@/features/tsuji/recs/aniListQueries.ts';
 import type { TriState } from '@/features/tsuji/recs/components/TriStateChip.tsx';
-import type { MuChip } from '@/features/tsuji/tags/muSearch.ts';
+import type { BakaChip } from '@/features/tsuji/tags/baka.ts';
 import type { TagSuggestion } from '@/features/tsuji/tags/tagKeys.ts';
 import { describeChip } from '@/features/tsuji/tags/tagKeys.ts';
 import { useTagSuggestions } from '@/features/tsuji/tags/useTagSuggestions.ts';
@@ -37,26 +37,29 @@ type SelectionKind = 'genres' | 'tags';
 
 const MAX_SEARCH_RESULTS = 60;
 
-/** A suggestion goes where its backing is: MU-backed (or merged) chips in `mu`, AniList-only as before. */
-const setSuggestionState = (selection: DiscoverSelection, chip: TagSuggestion, state: TriState): DiscoverSelection => {
-    if (!chip.categories.length) {
+type ChipBacking = Pick<TagSuggestion, 'key' | 'label' | 'genre' | 'tag' | 'bakaTag' | 'path'>;
+
+/** A suggestion goes where its backing is: MangaBaka-backed (or merged) chips in `baka`, AniList-only as before. */
+const setSuggestionState = (selection: DiscoverSelection, chip: ChipBacking, state: TriState): DiscoverSelection => {
+    if (!chip.bakaTag) {
         const kind: SelectionKind = chip.genre ? 'genres' : 'tags';
         return { ...selection, [kind]: setTriState(selection[kind], (chip.genre ?? chip.tag)!, state) };
     }
-    const { [chip.key]: _removed, ...rest } = selection.mu ?? {};
-    const next: MuChip = {
+    const { [chip.key]: _removed, ...rest } = selection.baka ?? {};
+    const next: BakaChip = {
         state: state!,
         label: chip.label,
-        categories: chip.categories,
+        bakaTag: chip.bakaTag,
+        path: chip.path ?? null,
         genre: chip.genre,
         tag: chip.tag,
     };
-    return { ...selection, mu: state ? { ...rest, [chip.key]: next } : rest };
+    return { ...selection, baka: state ? { ...rest, [chip.key]: next } : rest };
 };
 
 const getSuggestionState = (selection: DiscoverSelection, chip: TagSuggestion): TriState => {
-    if (chip.categories.length) {
-        return selection.mu?.[chip.key]?.state;
+    if (chip.bakaTag) {
+        return selection.baka?.[chip.key]?.state;
     }
     return chip.genre ? selection.genres[chip.genre] : selection.tags[chip.tag!];
 };
@@ -120,12 +123,12 @@ export const TagPicker = ({
         />
     );
 
-    // One chip per name: the size hint in the label, where it searches (AniList / MangaUpdates) on hover.
+    // One chip per name: the size hint in the label, MangaBaka's parent path and the sources on hover.
     const renderSuggestion = (chip: TagSuggestion) => (
         <CustomTooltip key={chip.key} title={describeChip(chip)}>
             <span>
                 <TriStateChip
-                    label={chip.count ? t`${chip.label} · ${chip.count} titles` : chip.label}
+                    label={chip.count ? `${chip.label} · ${chip.count}` : chip.label}
                     state={getSuggestionState(selection, chip)}
                     onChange={(state) => onChange(setSuggestionState(selection, chip, state))}
                 />
@@ -133,27 +136,13 @@ export const TagPicker = ({
         </CustomTooltip>
     );
 
-    const renderMuChip = (key: string, chip: MuChip) => (
-        <CustomTooltip key={`mu-${key}`} title={describeChip(chip)}>
+    const renderBakaChip = (key: string, chip: BakaChip) => (
+        <CustomTooltip key={`baka-${key}`} title={describeChip(chip)}>
             <span>
                 <TriStateChip
                     label={chip.label}
                     state={chip.state}
-                    onChange={(state) =>
-                        onChange(
-                            setSuggestionState(
-                                selection,
-                                {
-                                    key,
-                                    label: chip.label,
-                                    categories: chip.categories,
-                                    genre: chip.genre,
-                                    tag: chip.tag,
-                                },
-                                state,
-                            ),
-                        )
-                    }
+                    onChange={(state) => onChange(setSuggestionState(selection, { key, ...chip }, state))}
                 />
             </span>
         </CustomTooltip>
@@ -162,7 +151,7 @@ export const TagPicker = ({
     const selected = [
         ...Object.keys(selection.genres).map((name) => renderChip('genres', name)),
         ...Object.keys(selection.tags).map((name) => renderChip('tags', name)),
-        ...Object.entries(selection.mu ?? {}).map(([key, chip]) => renderMuChip(key, chip)),
+        ...Object.entries(selection.baka ?? {}).map(([key, chip]) => renderBakaChip(key, chip)),
     ];
 
     return (

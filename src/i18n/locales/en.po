@@ -136,12 +136,6 @@ msgstr "{0, plural, one {Second} other {Seconds}}"
 msgid "{0, plural, one {Show # more chapter} other {Show # more chapters}}"
 msgstr "{0, plural, one {Show # more chapter} other {Show # more chapters}}"
 
-#. placeholder {0}: chip.label
-#. placeholder {1}: chip.count
-#: src/features/tsuji/discover/components/TagPicker.tsx
-msgid "{0} · {1} titles"
-msgstr "{0} · {1} titles"
-
 #. placeholder {0}: searchProgress.completed
 #. placeholder {1}: searchProgress.total
 #: src/features/migration/screens/MigrationSearch.tsx
@@ -2784,8 +2778,8 @@ msgid "Manga thumbnail as background"
 msgstr "Manga thumbnail as background"
 
 #: src/features/tsuji/discover/screens/Discover.tsx
-msgid "MangaUpdates didn't answer in time."
-msgstr "MangaUpdates didn't answer in time."
+msgid "MangaBaka didn't answer in time."
+msgstr "MangaBaka didn't answer in time."
 
 #: src/features/tracker/Tracker.constants.ts
 #: src/features/tsuji/recs/Recs.constants.ts

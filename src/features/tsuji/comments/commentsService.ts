@@ -33,7 +33,7 @@ export const setCommentsRelayUrl = (url: string) => {
 };
 
 /** The relay base URL in use (set from `tsuji_commentsRelay` by useCommentsSettings; the default until then). */
-export const getCommentsRelayUrl = () => relayUrl || getDefaultRelayUrl();
+const getCommentsRelayUrl = () => relayUrl || getDefaultRelayUrl();
 
 const memoryThreads = new Map<string, { expiresAt: number; value: unknown }>();
 

@@ -7,8 +7,8 @@
  */
 
 import type { RecFilters, TagFilterState } from '@/features/tsuji/recs/filters.ts';
-import type { MuSelection } from '@/features/tsuji/tags/muSearch.ts';
-import { getAniListNames } from '@/features/tsuji/tags/muSearch.ts';
+import type { BakaSelection } from '@/features/tsuji/tags/baka.ts';
+import { getAniListNames } from '@/features/tsuji/tags/baka.ts';
 
 export type DiscoverSort = 'BEST' | 'TRENDING' | 'SCORE' | 'POPULARITY' | 'NEWEST';
 
@@ -37,8 +37,8 @@ export const SORT_FALLBACKS: Partial<Record<string, string>> = {
 export type DiscoverSelection = {
     genres: Record<string, TagFilterState>;
     tags: Record<string, TagFilterState>;
-    /** Chips from the universal tag search with MangaUpdates categories behind them (brief #8), by tag key. */
-    mu?: MuSelection;
+    /** Chips from the universal tag search with a MangaBaka tag behind them (brief #9), by tag key. */
+    baka?: BakaSelection;
 };
 
 export const EMPTY_SELECTION: DiscoverSelection = { genres: {}, tags: {} };
@@ -49,11 +49,11 @@ const namesWithState = (states: Record<string, TagFilterState>, wanted: TagFilte
         .map(([name]) => name)
         .sort();
 
-export const hasSelection = ({ genres, tags, mu }: DiscoverSelection): boolean =>
-    Object.keys(genres).length > 0 || Object.keys(tags).length > 0 || Object.keys(mu ?? {}).length > 0;
+export const hasSelection = ({ genres, tags, baka }: DiscoverSelection): boolean =>
+    Object.keys(genres).length > 0 || Object.keys(tags).length > 0 || Object.keys(baka ?? {}).length > 0;
 
-export const getIncludedTags = ({ tags, mu }: DiscoverSelection): string[] =>
-    [...new Set([...namesWithState(tags, 'include'), ...getAniListNames(mu, 'include').tags])].sort();
+export const getIncludedTags = ({ tags, baka }: DiscoverSelection): string[] =>
+    [...new Set([...namesWithState(tags, 'include'), ...getAniListNames(baka, 'include').tags])].sort();
 
 const COUNTRY_BY_TYPE = { MANHWA: 'KR', MANGA: 'JP' } as const;
 
@@ -73,9 +73,9 @@ export const buildDiscoverVariables = (selection: DiscoverSelection, filters: Re
     const [onlyType] = filters.types;
     const country = filters.types.length === 1 && onlyType !== 'MANHUA' ? COUNTRY_BY_TYPE[onlyType] : undefined;
 
-    // Merged chips (AniList + MU names) search AniList by their AniList name.
-    const included = getAniListNames(selection.mu, 'include');
-    const excluded = getAniListNames(selection.mu, 'exclude');
+    // Merged chips (AniList + MangaBaka names) search AniList by their AniList name.
+    const included = getAniListNames(selection.baka, 'include');
+    const excluded = getAniListNames(selection.baka, 'exclude');
     const variables: DiscoverVariables = {
         genreIn: nonEmpty(withMerged(namesWithState(selection.genres, 'include'), included.genres)),
         genreNotIn: nonEmpty(withMerged(namesWithState(selection.genres, 'exclude'), excluded.genres)),

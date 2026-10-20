@@ -6,14 +6,13 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// Browser test of the universal tag search and the preview's Comments / Reviews tabs (brief #8 v2) on the production
-// build: mocked Suwayomi, fixture AniList (graphql.anilist.co answered by the test), and a fake relay serving
-// MangaUpdates (/mangaupdates/v1/categories/search, /v1/series/search), Comick and MangaDex. Checks one "System"
-// chip, the MU search (categories OR inside a chip, AND across chips, Manhwa, adult genres excluded), cards before
-// matches, matching back to AniList (list hiding, Planned badge, isAdult dropped, unmatched cards, colliding names),
-// MU covers without CORS, the merged "Dungeon" chip, System + an AniList tag that MU knows as a genre, no repeated
-// MU searches, zero MU calls for AniList-only searches, and comments resolved by links.al, lazily, on the newest
-// chapter with comments.
+// Browser test of the universal tag search on MangaBaka (brief #9) and the preview's Comments / Reviews tabs (brief
+// #8 v2) on the production build: mocked Suwayomi (one started library title), fixture AniList and a fake
+// MangaBaka (api.mangabaka.org answered by the test), a fake relay for Comick / MangaDex. Ethan's filters: Manhwa +
+// Manhua, at least 50 chapters, 18+ on, hide library and list. Checks one "System" chip, MangaBaka search params,
+// popular order, hiding (list, library, read mark, chapters, type), Planned badges, cards without an AniList id,
+// one AniList id_in request per page and no AniList searches, no MangaUpdates calls, System + Murim (AND),
+// merged chips staying on AniList, no repeated searches, CORS-free covers, comments by links.al.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/discover-tags.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -25,6 +24,7 @@ import { createMockSuwayomi } from './mockSuwayomi.mjs';
 const BUILD_DIR = resolve(process.env.BUILD_DIR ?? 'build');
 const ORIGIN = 'http://suwayomi.test';
 const RELAY = 'http://suwayomi.test:4568';
+const BAKA_HOST = 'api.mangabaka.org';
 const CONTENT_TYPES = {
     '.html': 'text/html',
     '.js': 'text/javascript',
@@ -37,23 +37,97 @@ const CONTENT_TYPES = {
     '.woff2': 'font/woff2',
 };
 
-const TAG = (name, rank) => ({
-    name,
-    rank,
-    category: 'Theme',
-    isMediaSpoiler: false,
-    isGeneralSpoiler: false,
-    isAdult: false,
-});
+const BAKA_TAGS = [
+    { id: 11, name: 'System', name_path: 'Settings > Game Elements > System', series_count: 316 },
+    { id: 12, name: 'Level System', name_path: 'Settings > Game Elements > Level System', series_count: 250 },
+    { id: 13, name: 'Stat System', name_path: 'Settings > Game Elements > Stat System', series_count: 90 },
+    { id: 14, name: 'System Sidekick', name_path: 'Settings > Game Elements > System Sidekick', series_count: 0 },
+    { id: 20, name: 'Dungeon', name_path: 'Settings > Dungeon', series_count: 586 },
+    { id: 40, name: 'Murim', name_path: 'Settings > Murim', series_count: 420 },
+].map((tag) => ({ content_rating: 'safe', is_genre: false, ...tag }));
+
+/** [MangaBaka id, title, AniList id, popularity rank, total chapters, tags, overrides]. */
+const BAKA_SERIES = [
+    [1, 'Solo Leveling', 105398, 1, 201, ['System', 'Dungeon']],
+    [2, 'Tower of God', 85143, 2, 600, ['System']],
+    [3, 'The Greatest Estate Developer', 137280, 3, 180, ['System']],
+    [4, 'SSS-Class Revival Hunter', 140000, 4, 120, ['System']],
+    [5, 'Pick Me Up', 159441, 5, 140, ['System']],
+    [6, "I'm the Max-Level Newbie", 125000, 6, 190, ['System']],
+    [7, "The Heavenly Demon Doesn't Want to Level Up", 170001, 7, 60, ['System', 'Murim']],
+    [8, 'I Came Back as a Martial Genius', 170002, 8, 70, ['System', 'Murim']],
+    [9, 'Master of the Martial Arts Library', 170003, 9, 90, ['System', 'Murim']],
+    [10, 'Psychopath in Murim', 170004, 10, 55, ['System', 'Murim']],
+    [11, 'Short Murim System', 170005, 11, 20, ['System', 'Murim']],
+    [12, 'Ongoing Unknown System', 170006, 12, null, ['System']],
+    [13, 'Raw Only System', null, 13, 80, ['System']],
+    [14, 'System Manga From Japan', 170008, 14, 100, ['System'], { type: 'manga' }],
+    [15, 'Adult System', 170007, 15, 100, ['System'], { content_rating: 'erotica' }],
+].map(([id, title, anilistId, popularity, chapters, tags, overrides = {}]) => ({
+    id,
+    title,
+    titles: [{ language: 'en', title, is_primary: true, traits: ['official'] }],
+    cover: { x250: { x1: `https://cdn.mangabaka.org/covers/${id}.jpg` } },
+    type: 'manhwa',
+    status: 'releasing',
+    rating: 80,
+    popularity,
+    total_chapters: chapters === null ? null : String(chapters),
+    content_rating: 'safe',
+    year: 2020,
+    source: { anilist: { id: anilistId }, my_anime_list: { id: null } },
+    tags,
+    ...overrides,
+}));
+
+/** Fake MangaBaka: tags search, and series search honouring the verified semantics. */
+const answerBaka = (url, requests) => {
+    requests.push(`${url.pathname}?${url.searchParams.toString()}`);
+    const params = url.searchParams;
+    if (url.pathname === '/v1/tags') {
+        const query = (params.get('q') ?? '').toLowerCase();
+        return { status: 200, data: BAKA_TAGS.filter(({ name }) => name.toLowerCase().includes(query)) };
+    }
+    if (url.pathname === '/v1/series/search') {
+        const tags = params.getAll('tag');
+        const notTags = params.getAll('tag_not').map((id) => BAKA_TAGS.find((tag) => String(tag.id) === id)?.name);
+        const types = params.getAll('type');
+        const ratings = params.getAll('content_rating');
+        const allowedRatings = ratings.length ? ratings : ['safe', 'suggestive'];
+        const ratingLower = Number(params.get('rating_lower') ?? 0);
+        const hits = BAKA_SERIES.filter(
+            (series) =>
+                tags.every((tag) => series.tags.includes(tag)) &&
+                !notTags.some((tag) => series.tags.includes(tag)) &&
+                (!types.length || types.includes(series.type)) &&
+                allowedRatings.includes(series.content_rating) &&
+                series.rating >= ratingLower,
+        ).sort((a, b) => a.popularity - b.popularity);
+        const page = Number(params.get('page') ?? 1);
+        const limit = Number(params.get('limit') ?? 50);
+        const data = hits.slice((page - 1) * limit, page * limit);
+        return {
+            status: 200,
+            data,
+            pagination: {
+                count: hits.length,
+                page,
+                limit,
+                next: page * limit < hits.length ? `?page=${page + 1}` : null,
+            },
+        };
+    }
+    return null;
+};
+
 const media = (id, title, overrides = {}) => ({
     id,
     idMal: null,
     siteUrl: `https://anilist.co/manga/${id}`,
-    title: { userPreferred: title, english: title, romaji: title, native: null },
-    synonyms: [],
+    title: { userPreferred: title, english: title, romaji: title },
     coverImage: { large: null },
     description: `${title} synopsis.`,
-    averageScore: 80,
+    averageScore: 75,
     meanScore: null,
     popularity: 10_000,
     favourites: 0,
@@ -67,26 +141,21 @@ const media = (id, title, overrides = {}) => ({
     genres: ['Action'],
     ...overrides,
 });
-
-// AniList side: the search hits for each MU title. "Pick Me Up!" collides with an older Japanese title's synonym,
-// listed first, as on AniList.
-const ANILIST_BY_TITLE = {
-    'Solo Leveling': [media(105398, 'Solo Leveling', { startDate: { year: 2018, month: 3, day: 4 } })],
-    'SSS-Class Revival Hunter': [media(140000, 'SSS-Class Revival Hunter')],
-    'Pick Me Up!': [
-        media(94792, 'Gekka Bijin', {
-            countryOfOrigin: 'JP',
-            startDate: { year: 2008, month: 1, day: 1 },
-            synonyms: ['Pick Me Up'],
-        }),
-        media(150000, 'Pick Me Up!', { startDate: { year: 2022, month: 1, day: 1 } }),
-    ],
-    'Log-In Murim': [media(160000, 'Log-In Murim', { tags: [TAG('Martial Arts', 80)] })],
-    'Grown-Up Match': [media(170000, 'Grown-Up Match', { isAdult: true })],
-};
 const ANILIST_BY_ID = Object.fromEntries(
-    Object.values(ANILIST_BY_TITLE).flatMap((hits) => hits.map((each) => [each.id, each])),
+    BAKA_SERIES.filter(({ source }) => source.anilist.id).map(({ title, source }) => [
+        source.anilist.id,
+        media(source.anilist.id, title),
+    ]),
 );
+
+/** AniList operations the MangaBaka path may use; anything else (a title search) is a failure. */
+const ALLOWED_ANILIST = new Set([
+    'TsujiMyList',
+    'TsujiTagCatalog',
+    'TsujiBakaDetails',
+    'TsujiDiscoverPage',
+    'TsujiReviews',
+]);
 
 /** Fixture AniList: answers by operation name and counts requests per operation. */
 const createAniList = () => {
@@ -103,7 +172,8 @@ const createAniList = () => {
                                 isCustomList: false,
                                 entries: [
                                     { mediaId: 105398, status: 'COMPLETED', progress: 200 },
-                                    { mediaId: 150000, status: 'PLANNING', progress: 0 },
+                                    { mediaId: 170002, status: 'PLANNING', progress: 0 },
+                                    { mediaId: 170003, status: 'PLANNING', progress: 0 },
                                 ],
                             },
                         ],
@@ -117,22 +187,10 @@ const createAniList = () => {
                         { name: 'Martial Arts', description: '', category: 'Theme-Action', isAdult: false },
                     ],
                 };
-            case 'TsujiMuMatch':
-                return Object.fromEntries(
-                    Object.entries(variables).map(([key, title]) => [
-                        `m${key.slice(1)}`,
-                        { media: ANILIST_BY_TITLE[title] ?? [] },
-                    ]),
-                );
-            case 'TsujiMuById':
+            case 'TsujiBakaDetails':
                 return { Page: { media: (variables.ids ?? []).map((id) => ANILIST_BY_ID[id]).filter(Boolean) } };
             case 'TsujiDiscoverPage':
-                return {
-                    Page: {
-                        pageInfo: { hasNextPage: false },
-                        media: [media(200000, 'AniList Dungeon Title', { tags: [TAG('Dungeon', 90)] })],
-                    },
-                };
+                return { Page: { pageInfo: { hasNextPage: false }, media: [media(200000, 'AniList Dungeon Title')] } };
             case 'TsujiReviews':
                 return {
                     Media: {
@@ -157,74 +215,8 @@ const createAniList = () => {
     return { counts, answer };
 };
 
-const MU_CATEGORIES = [
-    { category: 'System', usage: 602 },
-    { category: 'Level System', usage: 427 },
-    { category: 'Stat System', usage: 46 },
-    { category: 'System Admin', usage: 3 },
-    { category: 'Dungeon/s', usage: 586 },
-];
-
-const muRecord = (seriesId, title, categories, { genres = [], type = 'Manhwa', year = 2020 } = {}) => ({
-    seriesId,
-    categories,
-    genres,
-    record: {
-        series_id: seriesId,
-        title,
-        url: `https://www.mangaupdates.com/series/${seriesId}`,
-        image: { url: { original: `https://cdn.mangaupdates.com/image/i${seriesId}.jpg`, thumb: null } },
-        type,
-        year: String(year),
-        bayesian_rating: 8,
-    },
-});
-
-const MU_SERIES = [
-    muRecord(1, 'Solo Leveling', ['System', 'Level System', 'Dungeon/s'], { year: 2018 }),
-    muRecord(2, 'SSS-Class Revival Hunter', ['System', 'Regression']),
-    muRecord(3, 'Pick Me Up!', ['Level System', 'Dungeon/s'], { year: 2022 }),
-    muRecord(4, 'Log-In Murim', ['Stat System'], { genres: ['Martial Arts'] }),
-    muRecord(5, 'Sextopwatch', ['System'], { genres: ['Adult', 'Smut'] }),
-    muRecord(6, 'Grown-Up Match', ['System']),
-    muRecord(7, 'Raw Only Title', ['System']),
-    muRecord(8, 'System Manga From Japan', ['System'], { type: 'Manga' }),
-];
-
-/** Fake MangaUpdates behind the relay: categories search, and series search honouring the documented filters. */
-const answerMu = (path, body, requests) => {
-    requests.push({ path, body });
-    if (path === '/v1/categories/search') {
-        const search = (body.search ?? '').toLowerCase();
-        return {
-            total_hits: 0,
-            results: MU_CATEGORIES.filter(({ category }) => category.toLowerCase().includes(search)).map((record) => ({
-                record,
-            })),
-        };
-    }
-    if (path === '/v1/series/search') {
-        const hits = MU_SERIES.filter(
-            ({ categories, genres, record }) =>
-                (body.category ?? []).every((category) => categories.includes(category)) &&
-                (body.genre ?? []).every((genre) => genres.includes(genre)) &&
-                !(body.exclude_category ?? []).some((category) => categories.includes(category)) &&
-                !(body.exclude_genre ?? []).some((genre) => genres.includes(genre)) &&
-                (!body.type || body.type.includes(record.type)),
-        );
-        return {
-            total_hits: hits.length,
-            page: body.page,
-            per_page: body.perpage,
-            results: hits.map(({ record }) => ({ record })),
-        };
-    }
-    return null;
-};
-
 const COMICK_SEARCH = {
     'SSS-Class Revival Hunter': [{ id: 9, hid: 'sss', slug: 'sss-class', title: 'SSS-Class Revival Hunter' }],
-    'Log-In Murim': [{ id: 10, hid: 'other', slug: 'other', title: 'Log-In Murim', links: { al: '1' } }],
 };
 
 const serveFile = (pathname) => {
@@ -274,26 +266,34 @@ const runBrowser = async (browserName) => {
     const label = (text) => `[${browserName}] ${text}`;
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const server = createMockSuwayomi({
+        // A started library title (one chapter read): hidden by "hide what I've started".
         manga: {
             id: 1,
-            title: 'Unused',
+            title: 'Tower of God',
             sourceId: '1',
             inLibrary: true,
+            unreadCount: 4,
+            chapters: { totalCount: 5 },
+            trackRecords: { nodes: [] },
             genre: [],
             source: { id: '1', name: 'Local' },
         },
         chapters: [],
         pageCount: 0,
-        // Type = Manhwa, as in the acceptance check.
-        globalMeta: { tsuji_recFilters: JSON.stringify({ types: ['MANHWA'] }) },
+        globalMeta: {
+            tsuji_recFilters: JSON.stringify({
+                types: ['MANHWA', 'MANHUA'],
+                minChapters: 50,
+                showAdult: true,
+                hideInLibrary: true,
+                hideOnMyList: true,
+            }),
+            // Ethan's "read" mark on Pick Me Up (159441 % 16 = 1).
+            tsuji_seen_1: JSON.stringify({ r: [159441], s: [] }),
+        },
     });
     const aniList = createAniList();
-    // AniList matching is held until the test lets it go, to see MU cards before any match.
-    let releaseMatches;
-    const matchGate = new Promise((resolveGate) => {
-        releaseMatches = resolveGate;
-    });
-    const muRequests = [];
+    const bakaRequests = [];
     const relayRequests = [];
 
     await context.route('**/*', async (route) => {
@@ -303,17 +303,22 @@ const runBrowser = async (browserName) => {
             if (request.method() === 'OPTIONS') {
                 return route.fulfill({ status: 204, headers: CORS });
             }
-            const body = request.postDataJSON();
-            if (/query\s+TsujiMuMatch/.test(body.query)) {
-                await matchGate;
+            return route.fulfill({
+                status: 200,
+                headers: { ...CORS, 'content-type': 'application/json' },
+                body: JSON.stringify({ data: aniList.answer(request.postDataJSON()) }),
+            });
+        }
+        if (url.host === BAKA_HOST) {
+            if (request.method() === 'OPTIONS') {
+                return route.fulfill({ status: 204, headers: CORS });
             }
-            return route
-                .fulfill({
-                    status: 200,
-                    headers: { ...CORS, 'content-type': 'application/json' },
-                    body: JSON.stringify({ data: aniList.answer(body) }),
-                })
-                .catch(() => {});
+            const body = answerBaka(url, bakaRequests);
+            return route.fulfill({
+                status: body ? 200 : 404,
+                headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+                body: JSON.stringify(body ?? { status: 404 }),
+            });
         }
         if (url.origin === RELAY) {
             if (request.method() === 'OPTIONS') {
@@ -326,12 +331,6 @@ const runBrowser = async (browserName) => {
                     headers: { ...CORS, 'content-type': 'application/json' },
                     body: JSON.stringify(body ?? {}),
                 });
-            if (url.pathname.startsWith('/mangaupdates/')) {
-                if (request.method() !== 'POST') {
-                    return route.fulfill({ status: 405, headers: CORS, body: '' });
-                }
-                return json(answerMu(url.pathname.replace('/mangaupdates', ''), request.postDataJSON(), muRequests));
-            }
             if (url.pathname === '/comick/v1.0/search') {
                 return json(COMICK_SEARCH[url.searchParams.get('q')] ?? []);
             }
@@ -381,156 +380,154 @@ const runBrowser = async (browserName) => {
     const page = await context.newPage();
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    const seriesSearches = () => muRequests.filter(({ path }) => path === '/v1/series/search');
+    const seriesSearches = () => bakaRequests.filter((request) => request.startsWith('/v1/series/search'));
     const cardTitles = () =>
+        page.evaluate(() =>
+            [...document.querySelectorAll('button[aria-label]')]
+                .map((button) => button.getAttribute('aria-label'))
+                .filter((name) => !['open drawer', 'Discover settings', 'More actions'].includes(name)),
+        );
+    const cardText = (title) =>
         page
-            .locator('[aria-label] img')
-            .evaluateAll(() => [])
-            .then(() =>
-                page.evaluate(() =>
-                    [...document.querySelectorAll('button[aria-label]')].map((button) =>
-                        button.getAttribute('aria-label'),
-                    ),
-                ),
-            );
+            .locator(`button[aria-label="${title}"]`)
+            .locator('xpath=..')
+            .innerText()
+            .catch(() => '');
 
     await page.goto(`${ORIGIN}/discover`);
     await page.getByRole('button', { name: 'Tags & genres' }).click();
     const search = page.getByRole('textbox', { name: 'Search tags' });
     await search.fill('system');
     await page
-        .getByRole('button', { name: /^System · 602 titles$/ })
+        .getByRole('button', { name: /^System · 316$/ })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
     const suggestions = page.getByRole('group', { name: 'Tag suggestions' });
     const chipLabels = await suggestions.locator('.MuiChip-label').allTextContents();
     check(
-        label('typing "system" offers one System chip (602 titles), plus the other MU system categories'),
+        label('typing "system" offers one System chip (316), Level System and Stat System next to it'),
         chipLabels.filter((text) => text.startsWith('System ·')).length === 1 &&
             chipLabels.some((text) => text.startsWith('Level System')) &&
-            !chipLabels.some((text) => text.startsWith('System Admin')),
+            !chipLabels.some((text) => text.startsWith('System Sidekick')),
         chipLabels,
     );
-    check(label('no MU series search before a chip is picked'), seriesSearches().length === 0, muRequests.length);
+    check(label('no MangaBaka series search before a chip is picked'), seriesSearches().length === 0, bakaRequests);
 
-    await page.getByRole('button', { name: /^System · 602 titles$/ }).click();
+    const pickedAt = Date.now();
+    await page.getByRole('button', { name: /^System · 316$/ }).click();
     await page
-        .getByRole('button', { name: 'Raw Only Title' })
-        .waitFor({ timeout: 20_000 })
+        .getByRole('button', { name: 'The Greatest Estate Developer' })
+        .waitFor({ timeout: 10_000 })
         .catch(() => {});
-    const beforeMatch = await cardTitles();
-    check(
-        label('MU cards show before any AniList match lands (matching held back)'),
-        !aniList.counts.TsujiMuMatch &&
-            ['SSS-Class Revival Hunter', 'Pick Me Up!', 'Log-In Murim', 'Raw Only Title'].every((title) =>
-                beforeMatch.includes(title),
-            ),
-        { beforeMatch, counts: aniList.counts },
-    );
-    const muCovers = await page
-        .locator('img[src*="cdn.mangaupdates.com"]')
-        .evaluateAll((images) => images.map((image) => image.getAttribute('crossorigin')));
-    check(
-        label('MU covers load without crossOrigin (MU sends no CORS headers)'),
-        muCovers.length > 0 && muCovers.every((value) => value === null),
-        muCovers,
-    );
-    releaseMatches();
-    await page
-        .getByRole('button', { name: 'Solo Leveling' })
-        .waitFor({ state: 'detached', timeout: 20_000 })
-        .catch(() => {});
+    const firstCardMs = Date.now() - pickedAt;
+    check(label('first cards in under 2 s'), firstCardMs < 2000, firstCardMs);
     await page.waitForTimeout(800);
     const titles = await cardTitles();
     check(
-        label('System (Manhwa): SSS-Class, Pick Me Up!, Log-In Murim and the unmatched raw-only title'),
-        ['SSS-Class Revival Hunter', 'Pick Me Up!', 'Log-In Murim', 'Raw Only Title'].every((title) =>
-            titles.includes(title),
+        label('Popular order: the most popular System titles not hidden by list, library or marks'),
+        JSON.stringify(titles.slice(0, 3)) ===
+            JSON.stringify(['The Greatest Estate Developer', 'SSS-Class Revival Hunter', "I'm the Max-Level Newbie"]),
+        titles,
+    );
+    check(
+        label('hidden: Completed on AniList, started in the library, read mark, under 50 chapters, a manga'),
+        !['Solo Leveling', 'Tower of God', 'Pick Me Up', 'Short Murim System', 'System Manga From Japan'].some(
+            (title) => titles.includes(title),
         ),
         titles,
     );
     check(
-        label(
-            'hidden: on my AniList as Completed (Solo Leveling), adult on MU (Sextopwatch), adult on AniList, a manga',
-        ),
-        !['Solo Leveling', 'Sextopwatch', 'Grown-Up Match', 'System Manga From Japan'].some((title) =>
-            titles.includes(title),
-        ),
+        label('shown: unknown chapter count, no AniList id (no badge), adult with 18+ on'),
+        ['Ongoing Unknown System', 'Raw Only System', 'Adult System'].every((title) => titles.includes(title)) &&
+            !(await cardText('Raw Only System')).includes('Planned'),
         titles,
     );
-    const pickMe = page.locator('button[aria-label="Pick Me Up!"]').locator('xpath=..');
+    const [systemSearch] = seriesSearches();
+    const params = new URLSearchParams(systemSearch?.split('?')[1] ?? '');
     check(
-        label('"Pick Me Up!" matches the Korean 2022 entry, not the Japanese title with that synonym; Planned badge'),
-        (await pickMe.innerText().catch(() => '')).includes('Planned'),
-        await pickMe.innerText().catch(() => ''),
+        label('MangaBaka search: tag=System, Manhwa + Manhua, every rating (18+ on), most popular first'),
+        seriesSearches().length === 1 &&
+            JSON.stringify(params.getAll('tag')) === '["System"]' &&
+            JSON.stringify(params.getAll('type')) === '["manhua","manhwa"]' &&
+            params.getAll('content_rating').length === 4 &&
+            params.get('sort_by') === 'popularity_asc',
+        systemSearch,
     );
-    const systemQueries = seriesSearches().map(({ body }) => body);
+    // The details request queues behind the landing page's AniList calls (shared 30/min budget).
+    for (let waited = 0; !aniList.counts.TsujiBakaDetails && waited < 15_000; waited += 250) {
+        // oxlint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(250);
+    }
+    await page.waitForTimeout(500);
+    const otherAniList = Object.keys(aniList.counts).filter((operation) => !ALLOWED_ANILIST.has(operation));
     check(
-        label('MU queries: one per category of the chip, type Manhwa, adult genres excluded'),
-        JSON.stringify(systemQueries.map(({ category }) => category)) ===
-            JSON.stringify([['System'], ['Level System'], ['Stat System']]) &&
-            systemQueries.every(
-                ({ type, exclude_genre: excludeGenre, orderby }) =>
-                    JSON.stringify(type) === '["Manhwa"]' &&
-                    JSON.stringify(excludeGenre) === '["Adult","Hentai","Smut"]' &&
-                    orderby === 'rating',
-            ),
-        systemQueries,
+        label('AniList: one id_in details request for the page, no searches; no /mangaupdates/ calls'),
+        aniList.counts.TsujiBakaDetails === 1 &&
+            !otherAniList.length &&
+            !relayRequests.some((request) => request.includes('/mangaupdates/')),
+        { counts: aniList.counts, relayRequests },
     );
+    const covers = await page
+        .locator('img[src*="cdn.mangabaka.org"]')
+        .evaluateAll((images) => images.map((image) => image.getAttribute('crossorigin')));
     check(
-        label('MU titles matched to AniList in one batched request'),
-        aniList.counts.TsujiMuMatch === 1,
-        aniList.counts,
+        label('MangaBaka covers load without crossOrigin'),
+        covers.length > 0 && covers.every((value) => value === null),
+        covers,
     );
 
-    // System + Martial Arts (AniList tag, also an MU genre): MU filters by genre, only murim system titles stay.
-    await search.fill('martial');
+    // System + Murim: AND on MangaBaka.
+    await search.fill('murim');
     await page
-        .getByRole('button', { name: 'Martial Arts' })
-        .first()
+        .getByRole('button', { name: /^Murim · 420$/ })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
-    await suggestions.getByRole('button', { name: 'Martial Arts' }).click();
-    // MU's own budget (20/min) spaces the new queries out: wait for the result, not a fixed time.
+    await suggestions.getByRole('button', { name: /^Murim · 420$/ }).click();
+    await page
+        .getByRole('button', { name: 'The Greatest Estate Developer' })
+        .waitFor({ state: 'detached', timeout: 15_000 })
+        .catch(() => {});
+    await page
+        .getByRole('button', { name: 'Psychopath in Murim' })
+        .waitFor({ timeout: 15_000 })
+        .catch(() => {});
+    await page.waitForTimeout(500);
+    const murim = await cardTitles();
+    const murimParams = new URLSearchParams(seriesSearches().at(-1)?.split('?')[1] ?? '');
+    check(
+        label('System + Murim: tag=Murim&tag=System, four titles, Planned badges on the two planned'),
+        JSON.stringify(murimParams.getAll('tag')) === '["Murim","System"]' &&
+            JSON.stringify([...murim].sort()) ===
+                JSON.stringify(
+                    [
+                        "The Heavenly Demon Doesn't Want to Level Up",
+                        'I Came Back as a Martial Genius',
+                        'Master of the Martial Arts Library',
+                        'Psychopath in Murim',
+                    ].sort(),
+                ) &&
+            (await cardText('I Came Back as a Martial Genius')).includes('Planned') &&
+            (await cardText('Master of the Martial Arts Library')).includes('Planned'),
+        { murim, tags: murimParams.getAll('tag') },
+    );
+
+    // Back to System alone: answered from the cache, no new search.
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await search.fill('system');
+    const searchesBefore = seriesSearches().length;
+    await page.getByRole('button', { name: /^System · 316$/ }).click();
     await page
         .getByRole('button', { name: 'SSS-Class Revival Hunter' })
-        .waitFor({ state: 'detached', timeout: 30_000 })
+        .waitFor({ timeout: 10_000 })
         .catch(() => {});
-    await page
-        .getByRole('button', { name: 'Log-In Murim' })
-        .waitFor({ timeout: 30_000 })
-        .catch(() => {});
-    const murim = await cardTitles();
-    const murimQueries = seriesSearches()
-        .slice(3)
-        .map(({ body }) => body);
     check(
-        label('System + Martial Arts: sent to MU as genre, leaves Log-In Murim only'),
-        murim.includes('Log-In Murim') &&
-            !murim.includes('SSS-Class Revival Hunter') &&
-            !murim.includes('Raw Only Title') &&
-            murimQueries.length === 3 &&
-            murimQueries.every(({ genre }) => JSON.stringify(genre) === '["Martial Arts"]'),
-        { murim, murimQueries },
+        label('picking System again asks MangaBaka nothing (cached an hour)'),
+        seriesSearches().length === searchesBefore,
+        seriesSearches().length - searchesBefore,
     );
 
     // Preview: no comments / reviews calls until a tab is opened; then verified by links.al.
-    await page.getByRole('button', { name: 'Clear' }).click();
-    await search.fill('system');
-    await page.getByRole('button', { name: /^System · 602 titles$/ }).click();
-    await page
-        .getByRole('button', { name: 'SSS-Class Revival Hunter' })
-        .waitFor({ timeout: 20_000 })
-        .catch(() => {});
-    await page.waitForTimeout(800);
-    check(
-        label('picking System again asks MU nothing (identical searches answered from memory)'),
-        seriesSearches().length === 6,
-        seriesSearches().length,
-    );
-    const commentsBefore = relayRequests.filter(
-        (request) => request.includes('/comick/') || request.includes('/mangadex/'),
-    ).length;
+    const commentsBefore = relayRequests.length;
     const reviewsBefore = aniList.counts.TsujiReviews ?? 0;
     await page.getByRole('button', { name: 'SSS-Class Revival Hunter' }).click({ button: 'right' });
     const dialog = page.getByRole('dialog');
@@ -541,9 +538,8 @@ const runBrowser = async (browserName) => {
     await page.waitForTimeout(800);
     check(
         label('opening a preview makes no comments or reviews calls'),
-        relayRequests.filter((request) => request.includes('/comick/') || request.includes('/mangadex/')).length ===
-            commentsBefore && (aniList.counts.TsujiReviews ?? 0) === reviewsBefore,
-        {},
+        relayRequests.length === commentsBefore && (aniList.counts.TsujiReviews ?? 0) === reviewsBefore,
+        relayRequests.slice(commentsBefore),
     );
     await dialog.getByRole('tab', { name: 'Comments' }).click();
     await dialog
@@ -551,7 +547,7 @@ const runBrowser = async (browserName) => {
         .waitFor({ timeout: 20_000 })
         .catch(() => {});
     check(
-        label('Comments: the Comick series whose links.al is the AniList id, on its newest chapter with comments'),
+        label('Comments: the Comick series whose links.al is the AniList id, newest chapter with comments'),
         (await dialog
             .getByText('Chapter 2 talk')
             .isVisible()
@@ -577,26 +573,10 @@ const runBrowser = async (browserName) => {
     );
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'Log-In Murim' }).click({ button: 'right' });
-    await dialog.getByRole('tab', { name: 'Comments' }).click();
-    await dialog
-        .getByText('No comments found')
-        .waitFor({ timeout: 15_000 })
-        .catch(() => {});
-    check(
-        label('a look-alike Comick title with another links.al: "No comments found"'),
-        await dialog
-            .getByText('No comments found')
-            .isVisible()
-            .catch(() => false),
-        {},
-    );
-    await page.keyboard.press('Escape');
-
-    await page.getByRole('button', { name: 'Raw Only Title' }).click({ button: 'right' });
+    await page.getByRole('button', { name: 'Raw Only System' }).click({ button: 'right' });
     await dialog.getByRole('tab', { name: 'Comments' }).click();
     check(
-        label('an MU card without AniList match: "No comments found", no Reviews tab'),
+        label('a card without an AniList id: "No comments found", no Reviews tab'),
         (await dialog
             .getByText('No comments found')
             .isVisible()
@@ -605,34 +585,34 @@ const runBrowser = async (browserName) => {
     );
     await page.keyboard.press('Escape');
 
-    // AniList-backed chips only (merged Dungeon): AniList search, zero MU series searches.
+    // AniList-backed chips only (merged Dungeon): AniList search, zero MangaBaka series searches.
     await page.getByRole('button', { name: 'Clear' }).click();
-    const searchesBefore = seriesSearches().length;
+    const bakaBefore = seriesSearches().length;
     await search.fill('dungeon');
     await page
-        .getByRole('button', { name: /^Dungeon · 586 titles$/ })
+        .getByRole('button', { name: /^Dungeon · 586$/ })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
     const dungeonChips = (await suggestions.locator('.MuiChip-label').allTextContents()).filter((text) =>
         text.startsWith('Dungeon'),
     );
     check(
-        label('"Dungeon" is one merged chip (AniList Dungeon + MU Dungeon/s)'),
+        label('"Dungeon" is one merged chip (AniList Dungeon + MangaBaka Dungeon)'),
         dungeonChips.length === 1,
         dungeonChips,
     );
-    await page.getByRole('button', { name: /^Dungeon · 586 titles$/ }).click();
+    await page.getByRole('button', { name: /^Dungeon · 586$/ }).click();
     await page
         .getByRole('button', { name: 'AniList Dungeon Title' })
         .waitFor({ timeout: 15_000 })
         .catch(() => {});
     check(
-        label('a search whose chips all have AniList backing runs on AniList and makes no MU series search'),
+        label('a search whose chips all have AniList backing runs on AniList and makes no MangaBaka search'),
         (await page
             .getByRole('button', { name: 'AniList Dungeon Title' })
             .isVisible()
-            .catch(() => false)) && seriesSearches().length === searchesBefore,
-        { searches: seriesSearches().length - searchesBefore },
+            .catch(() => false)) && seriesSearches().length === bakaBefore,
+        { searches: seriesSearches().length - bakaBefore },
     );
 
     check(label('no page errors'), pageErrors.length === 0, pageErrors);

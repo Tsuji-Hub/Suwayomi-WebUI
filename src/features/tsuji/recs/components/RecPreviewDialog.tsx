@@ -35,7 +35,7 @@ import {
     htmlToPlainText,
     isAniListUrl,
 } from '@/features/tsuji/recs/media.ts';
-import { isUnmatchedMedia } from '@/features/tsuji/tags/muSearch.ts';
+import { isUnmatchedMedia } from '@/features/tsuji/tags/baka.ts';
 
 // Comments and reviews load with their tab (code and requests): opening a preview costs nothing extra.
 const { PreviewComments } = loadable(() => import('@/features/tsuji/recs/preview/PreviewComments.tsx'));

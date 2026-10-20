@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch                        | Commit             | What                                                                                                                                           |
-| ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`                      | `e2e36f27` (r3414) | Briefs #1-#8 v2 (universal tag search, preview Comments / Reviews) + reader resume, schema v2.4.2366. r3414 shipped 2026-10-20, verified live. |
-| `chore/lint-staged-generated` | this               | Commit hook: oxlint no longer fails when only ignored (generated) files are staged. Docs. Rides along with the next ship.                      |
-| `master`                      | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                 |
+| Branch                | Commit             | What                                                                                                                                           |
+| --------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`              | `e2e36f27` (r3414) | Briefs #1-#8 v2 (universal tag search, preview Comments / Reviews) + reader resume, schema v2.4.2366. r3414 shipped 2026-10-20, verified live. |
+| `feat/mangabaka-tags` | this               | Brief #9: tag search on MangaBaka (replaces #8's MangaUpdates engine), incl. the commit-hook fix (`6f703190`). Prerelease for Cowork's check.  |
+| `master`              | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                 |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -36,9 +36,9 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 6. Later option: write marks to AniList (status/progress) instead of `tsuji_seen`. Needs AniList OAuth in the
    browser.
 7. Comments relay: runs next to Suwayomi on CT100, port 4568 (not in this repo); it also serves the MTL action feed
-   `/mtl/raws.json` and the pre-signed translate / cancel pages (brief #6), and proxies MangaUpdates
-   (`/mangaupdates/`, POST only on `v1/series/search` and `v1/categories/search`, 30/min, 1 h cache) and MangaDex
-   (`/mangadex/`) for brief #8. The WebUI calls
+   `/mtl/raws.json` and the pre-signed translate / cancel pages (brief #6), and proxies MangaDex
+   (`/mangadex/`) for brief #8. Its `/mangaupdates/` route is unused since brief #9 (MangaBaka is called directly) and
+   goes once #9 ships. The WebUI calls
    `${tsuji_commentsRelay}/comick/...`; unset means the WebUI's own host on port 4568, so no address is in the bundle.
 8. External APIs: Jikan (MAL) returned 504 through 2026-09-24/25 (Similar degrades to AniList-only). AniList runs
    in a degraded mode (30 req/min; latency 0.3-10 s; TRENDING_DESC / START_DATE_DESC and `format_not_in` /

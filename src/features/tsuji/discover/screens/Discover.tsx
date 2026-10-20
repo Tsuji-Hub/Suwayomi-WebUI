@@ -49,8 +49,8 @@ import { TsujiSettingsDialog } from '@/features/tsuji/seen/components/TsujiSetti
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { useSessionState } from '@/features/tsuji/services/useSessionState.ts';
 import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
-import { getSearchEngine, isUnmatchedMedia } from '@/features/tsuji/tags/muSearch.ts';
-import { useMuFeed } from '@/features/tsuji/tags/useMuFeed.ts';
+import { getSearchEngine, isUnmatchedMedia } from '@/features/tsuji/tags/baka.ts';
+import { useBakaFeed } from '@/features/tsuji/tags/useBakaFeed.ts';
 
 /**
  * Stop auto-loading after this many consecutive pages that client filters leave (nearly) empty; the user continues
@@ -114,22 +114,23 @@ const DiscoverBrowse = () => {
         allowSortFallback: false,
     });
     const popular = useDiscoverFeed({ variables, serverSort: SERVER_SORTS.POPULARITY, isEnabled: isLanding });
-    // A chip with nothing on AniList (e.g. "System") moves the search to MangaUpdates; AniList-only selections
-    // stay on today's path and never call MU.
-    const engine = getSearchEngine(selection.mu);
+    // A chip with nothing on AniList (e.g. "System") moves the search to MangaBaka; AniList-only selections stay
+    // on today's path and never call MangaBaka.
+    const engine = getSearchEngine(selection.baka);
     const aniListChips = useMemo(() => ({ genres: selection.genres, tags: selection.tags }), [selection]);
     const browse = useDiscoverFeed({
         variables,
         serverSort: SERVER_SORTS[sort],
         isEnabled: !isLanding && engine === 'anilist',
     });
-    const muBrowse = useMuFeed({
-        mu: selection.mu ?? {},
+    const bakaBrowse = useBakaFeed({
+        baka: selection.baka ?? {},
         aniListChips,
         types: filters.types,
         sort,
+        minScore: filters.minScore,
         showAdult: filters.showAdult,
-        isEnabled: !isLanding && engine === 'mu',
+        isEnabled: !isLanding && engine === 'baka',
     });
 
     const [landingSource, setLandingSource] = useState<LandingSource>('loading');
@@ -160,7 +161,7 @@ const DiscoverBrowse = () => {
     }, [isLanding, popular.phase, trending.phase]);
 
     const landingFeed = landingSource === 'trending' ? trending : popular;
-    const browseFeed = engine === 'mu' ? muBrowse : browse;
+    const browseFeed = engine === 'baka' ? bakaBrowse : browse;
     const feed = isLanding ? landingFeed : browseFeed;
     const hasFellBack = isLanding
         ? landingSource === 'popular' && isTrendingOut
@@ -293,8 +294,8 @@ const DiscoverBrowse = () => {
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                         {!!feed.pages.length && t`Couldn't load more titles.`}
                         {!feed.pages.length &&
-                            (engine === 'mu' && !isLanding
-                                ? t`MangaUpdates didn't answer in time.`
+                            (engine === 'baka' && !isLanding
+                                ? t`MangaBaka didn't answer in time.`
                                 : t`AniList didn't answer in time.`)}
                     </Typography>
                     <Button size="small" onClick={feed.retry}>

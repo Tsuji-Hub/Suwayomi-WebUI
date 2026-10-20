@@ -12,7 +12,7 @@ import type { SxProps, Theme } from '@mui/material/styles';
 
 const CORS_HOSTS = /(^|\.)(anilist\.co|anili\.st)$/;
 
-/** Only AniList's CDN answers CORS requests; other hosts (MangaUpdates) would fail one and log an error. */
+/** Only AniList's CDN answers CORS requests for images; other hosts (MangaBaka covers) would fail one and log an error. */
 export const isCorsCoverHost = (src: string) => {
     try {
         return CORS_HOSTS.test(new URL(src).hostname);
