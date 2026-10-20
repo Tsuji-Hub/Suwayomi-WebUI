@@ -16,7 +16,9 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Follow-up: preview comments start at chapter 1 (branch `feat/preview-comments-ch1`)
 
-Off `custom` (r3419, the bell). The Discover / For You / Similar preview's Comments tab
+Off `custom` (r3419, the bell). **Shipped as r3421** (2026-10-20; Cowork live: The Top Dungeon Farmer, Debut or
+Die! and The World After the Fall open on Ch. 1 from Comick, 149 / 42 / 194 comments, one comment request (chap=1)
+per preview). The Discover / For You / Similar preview's Comments tab
 opens on the first of chapters 1-5 that has comments (else chapter 1; a series without those numbers opens on its
 lowest chapter), never the newest: a preview decides whether to start a series, so late comments are spoilers
 (`findPreviewChapter` in `comments/chapterNav.ts`, replacing #8's "newest of the last 3"). The chapter picker stays;
