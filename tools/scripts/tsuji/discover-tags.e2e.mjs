@@ -594,7 +594,7 @@ const runBrowser = async (browserName) => {
         { murim, murimTags },
     );
 
-    // Back to System alone: answered from the cache, no new search.
+    // Back to System alone: answered from the cache, no search repeated.
     await page.getByRole('button', { name: 'Clear' }).click();
     await search.fill('system');
     const searchesBefore = seriesSearches().length;
@@ -603,10 +603,17 @@ const runBrowser = async (browserName) => {
         .getByRole('button', { name: 'SSS-Class Revival Hunter' })
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
+    // Only a page the first visit never reached may go out (infinite scroll can ask for one in a slower browser).
+    const repeated = seriesSearches()
+        .slice(0, searchesBefore)
+        .filter((request) => seriesSearches().slice(searchesBefore).includes(request));
     check(
-        label('picking System again asks MangaBaka nothing (cached an hour)'),
-        seriesSearches().length === searchesBefore,
-        seriesSearches().length - searchesBefore,
+        label('picking System again repeats no MangaBaka search (cached an hour)'),
+        !repeated.length &&
+            seriesSearches()
+                .slice(searchesBefore)
+                .every((request) => !request.includes('page=1&')),
+        seriesSearches().slice(searchesBefore),
     );
 
     // Preview: no comments / reviews calls until a tab is opened; then verified by links.al.
