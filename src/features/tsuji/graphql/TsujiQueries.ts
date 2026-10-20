@@ -51,3 +51,49 @@ export const TSUJI_CHAPTER_COPIES = gql`
         }
     }
 `;
+
+/**
+ * New-chapter bell (brief #10), one light request: unread library chapters fetched since `$since` (newest first,
+ * capped), each with a few fields of its series, plus the category list for the bell's settings. Never a series'
+ * whole chapter list (a nested mangas -> chapters query ran the server out of heap before).
+ */
+export const TSUJI_CHAPTER_BELL = gql`
+    query TSUJI_CHAPTER_BELL($since: LongString!, $first: Int!) {
+        categories {
+            nodes {
+                id
+                name
+            }
+        }
+        chapters(
+            filter: { inLibrary: { equalTo: true }, isRead: { equalTo: false }, fetchedAt: { greaterThan: $since } }
+            order: [{ by: FETCHED_AT, byType: DESC }]
+            first: $first
+        ) {
+            nodes {
+                id
+                mangaId
+                chapterNumber
+                fetchedAt
+                sourceOrder
+                isRead
+                manga {
+                    id
+                    title
+                    thumbnailUrl
+                    unreadCount
+                    latestReadChapter {
+                        id
+                        chapterNumber
+                    }
+                    categories {
+                        nodes {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        }
+    }
+`;

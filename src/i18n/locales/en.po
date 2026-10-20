@@ -715,6 +715,10 @@ msgstr "Because you read {0}"
 msgid "Behaviour"
 msgstr "Behaviour"
 
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Bell settings"
+msgstr "Bell settings"
+
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Best match"
 msgstr "Best match"
@@ -851,6 +855,7 @@ msgstr "Can't migrate an entry to itself"
 #: src/features/source/configuration/components/MultiSelectListPreference.tsx
 #: src/features/theme/components/CreateThemeDialog.tsx
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 #: src/features/tsuji/raws/components/RawChips.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
@@ -893,6 +898,14 @@ msgstr "CBZ MIME-Type"
 #: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
 msgid "Center"
 msgstr "Center"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Ch {range}"
+msgstr "Ch {range}"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Ch {range} · {count} new"
+msgstr "Ch {range} · {count} new"
 
 #: src/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx
 msgid "Ch {read}"
@@ -1449,6 +1462,10 @@ msgstr "Couldn't load {userName}'s AniList list, so nothing is hidden."
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "Couldn't load more titles."
 msgstr "Couldn't load more titles."
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Couldn't load new chapters."
+msgstr "Couldn't load new chapters."
 
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Couldn't load recommendations."
@@ -2817,6 +2834,10 @@ msgstr "Manual search"
 msgid "Mark all as read"
 msgstr "Mark all as read"
 
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Mark all seen"
+msgstr "Mark all seen"
+
 #: src/features/chapter/Chapter.constants.ts
 #: src/features/tsuji/recs/components/RecPreviewDialog.tsx
 #: src/features/tsuji/seen/components/SeenControls.tsx
@@ -2834,6 +2855,10 @@ msgstr "Mark chapters as read on download"
 #: src/features/chapter/components/actions/ChapterActionMenuItems.tsx
 msgid "Mark previous as read"
 msgstr "Mark previous as read"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Mark seen"
+msgstr "Mark seen"
 
 #: src/features/chapter/Chapter.constants.ts
 msgid "Mark selected as read"
@@ -2988,6 +3013,7 @@ msgstr "More"
 msgid "More ({hiddenCount})"
 msgstr "More ({hiddenCount})"
 
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "More actions"
 msgstr "More actions"
@@ -3031,6 +3057,18 @@ msgstr "Never"
 #: src/features/category/components/CreateOrEditCategoryDialog.tsx
 msgid "New category"
 msgstr "New category"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "New chapters"
+msgstr "New chapters"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "New chapters of series you were caught up on in these categories show in the bell."
+msgstr "New chapters of series you were caught up on in these categories show in the bell."
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "New chapters: {count}"
+msgstr "New chapters: {count}"
 
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Newest"
@@ -3178,6 +3216,10 @@ msgstr "Nothing left after filters."
 msgid "Nothing matched your filters in the titles loaded so far."
 msgstr "Nothing matched your filters in the titles loaded so far."
 
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Nothing new in the series you're caught up on."
+msgstr "Nothing new in the series you're caught up on."
+
 #: src/features/tracker/Tracker.constants.ts
 msgid "Novel"
 msgstr "Novel"
@@ -3295,6 +3337,10 @@ msgstr "Open page on exit"
 #: src/features/library/components/LibraryToolbarMenu.tsx
 msgid "Open random entry"
 msgstr "Open random entry"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Open series"
+msgstr "Open series"
 
 #: src/features/settings/screens/WebUISettings.tsx
 msgid "Open the WebUI when starting the server"
@@ -3679,6 +3725,7 @@ msgstr "Resume"
 #: src/features/chapter/components/buttons/ChapterDownloadRetryButton.tsx
 #: src/features/manga/hooks/useManageMangaLibraryState.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 #: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
@@ -3720,6 +3767,7 @@ msgstr "Rosegold"
 
 #: src/features/settings/screens/ImageProcessingSetting.tsx
 #: src/features/theme/components/CreateThemeDialog.tsx
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 msgid "Save"
 msgstr "Save"
 
@@ -4892,6 +4940,10 @@ msgstr "VUI"
 #: src/base/components/feedback/SnackbarWithDescription.tsx
 msgid "Warning"
 msgstr "Warning"
+
+#: src/features/tsuji/bell/components/TsujiChapterBell.tsx
+msgid "Watched categories"
+msgstr "Watched categories"
 
 #: src/features/settings/screens/Appearance.tsx
 msgid "Weblate"

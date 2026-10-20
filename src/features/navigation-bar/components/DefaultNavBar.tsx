@@ -27,6 +27,7 @@ import { useNavBarContext } from '@/features/navigation-bar/NavbarContext.tsx';
 import { useMetadataServerSettings } from '@/features/settings/services/ServerSettingsMetadata.ts';
 import { NAVIGATION_BAR_ITEMS } from '@/features/navigation-bar/NavigationBar.constants.ts';
 import { NavigationBarUtil } from '@/features/navigation-bar/NavigationBar.util.ts';
+import { TsujiChapterBell } from '@/features/tsuji/bell/components/TsujiChapterBell.tsx';
 
 export function DefaultNavBar() {
     const { title, action, override, isCollapsed, setIsCollapsed, setAppBarHeight, navBarWidth, setNavBarWidth } =
@@ -167,6 +168,7 @@ export function DefaultNavBar() {
                             {title}
                         </Typography>
                         {action}
+                        <TsujiChapterBell />
                     </Stack>
                 </Toolbar>
             </AppBar>

@@ -14,6 +14,35 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #10: new-chapter bell (branch `feat/chapter-bell`)
+
+Off `custom` (r3416) + `chore/docs-r3416`. Replaces Cowork's Discord chapter pings: a bell in the app bar for series
+Ethan is caught up on in `ongoing` / `Completed`. One upstream hook: `DefaultNavBar.tsx` (the reader has its own bar,
+so no bell there).
+
+**Done:**
+
+- Data (`TSUJI_CHAPTER_BELL`, `bell/useChapterBell.ts`): one request on load and every 10 minutes while mounted
+  (skipped while the tab is hidden): unread library chapters fetched in the last 60 days (newest first, at most
+  1500; flat `chapters` with a few fields of their series: title, cover, unread count, latest read chapter number,
+  categories) plus the category list. Never a series' whole chapter list (the heavy nested query that ran the server
+  out of heap). Reading a chapter anywhere updates Apollo's cache, which clears its entry without a request.
+- Rules (`bell/chapterBell.ts`): an entry per series in a watched category that is caught up (its unread count equals
+  its unread chapters in the window, so no older backlog; something read) with unread chapters numbered above the
+  highest read one. Copies of one number are one chapter (brief #4); a new copy of a chapter already read and
+  chapters without a number are ignored. Row: cover, title, category chip, "Ch 152" / "Ch 152-154 · 3 new", relative
+  time of the newest fetch; newest first. Limits: an old unread extra or pre-#4 duplicate makes a series count as a
+  backlog; a series whose new chapters are older than 60 days drops out.
+- UI (`bell/components/TsujiChapterBell.tsx`): bell + badge (hidden at 0, 99+), popover on desktop, bottom sheet
+  under 600 px. Row = open the first new chapter (earliest copy of the lowest new number) and mark seen; overflow:
+  Mark seen, Open series; header: Mark all seen, settings (watched categories, default the ones named ongoing /
+  Completed). Page title "(3) ..." while something is unseen.
+- Seen (`tsuji_bell_0` .. `tsuji_bell_15`, bucket = mangaId % 16): per-series watermark (highest number seen), only
+  rising, merge-on-write against the server's buckets, serialized, 3800-char bucket limit. First run (no
+  `tsuji_bellStart`): the newest 30 entries start unseen, older ones are written as seen.
+- Unit (8 in `chapterBell.test.ts`) and browser (`chapter-bell.e2e.mjs`, 13 checks; the mock takes per-test root
+  handlers now).
+
 # Brief #9: universal tag search on MangaBaka (branch `feat/mangabaka-tags`)
 
 Off `custom` (r3414) + `chore/lint-staged-generated`. Replaces #8's MangaUpdates engine: MU needed the relay, title

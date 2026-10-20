@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch             | Commit             | What                                                                                                                            |
-| ------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`           | `b3055a98` (r3416) | Briefs #1-#9 (tag search on MangaBaka, preview Comments / Reviews) + reader resume, schema v2.4.2366. Shipped 2026-10-20, live. |
-| `chore/docs-r3416` | this               | Docs only: r3416 shipped. Rides along with the next ship.                                                                       |
-| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                  |
+| Branch              | Commit             | What                                                                                                                            |
+| ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`            | `b3055a98` (r3416) | Briefs #1-#9 (tag search on MangaBaka, preview Comments / Reviews) + reader resume, schema v2.4.2366. Shipped 2026-10-20, live. |
+| `feat/chapter-bell` | this               | Brief #10: new-chapter bell in the app bar (replaces the Discord chapter pings), incl. `chore/docs-r3416`. Prerelease to check. |
+| `master`            | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                  |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -59,11 +59,13 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
   `tsuji_similarLayout`, `tsuji_comments`, `tsuji_commentsComick`, `tsuji_commentsRelay`, `tsuji_commentsMatch`,
   per device preset `tsuji[_<device>]_pagePosition` and `tsuji[_<device>]_pageEdgeOffset` (brief #7),
   read-only manga meta `tsuji_raw_links` (written daily by the server's rawfinder / mtl-engine; never written here),
-  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted). Manga:
+  marks in `tsuji_seen_0` .. `tsuji_seen_15` (legacy `tsuji_seen` is migrated, then deleted), the chapter bell's
+  watermarks in `tsuji_bell_0` .. `tsuji_bell_15` (`{"<mangaId>": highest number seen}`), `tsuji_bellCategories`
+  (watched category ids) and `tsuji_bellStart` (first run, brief #10). Manga:
   `tsuji_anilistId`, `tsuji_readScanlator` (JSON scanlator last finished in the reader: duplicate chapters' Resume
   copy). Write through upstream's metadata updater with `isMetadataKey: true`, except read-patch-write values (marks
-  shards, `tsuji_commentsMatch`): they go through `writeTsujiRawGlobalMeta` (upstream's chunk cleanup would treat
-  `tsuji_seen_<n>` as chunks of `tsuji_seen`).
+  shards, bell shards, `tsuji_commentsMatch`): they go through `writeTsujiRawGlobalMeta` (upstream's chunk cleanup
+  would treat `tsuji_seen_<n>` as chunks of `tsuji_seen`; never write a bare `tsuji_bell` key for the same reason).
 - Global meta values are capped at 4096 chars by the server. Anything that grows with use must be sharded (see
   `seen/seenShards.ts`: bucket = mediaId % 16, refuse past 3800 chars with a visible error).
 - Ranking uses **Makimono's shipped constants** (RecommendationRanker.kt), not the brief #1 draft numbers.
@@ -72,7 +74,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 - Features go on `feat/**` off `custom`; commits wait for the owner's server check; `--force-with-lease` only with an
   explicit go. Never push `master`.
 
-## Upstream touch list (25 files)
+## Upstream touch list (26 files)
 
 | File                                                                                                 | Hook                                                                                                                                                                          |
 | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -91,6 +93,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
 | `src/App.tsx`                                                                                        | Discover route (lazy)                                                                                                                                                         |
 | `src/base/AppRoute.constants.ts`                                                                     | `discover` route constant                                                                                                                                                     |
 | `src/features/navigation-bar/NavigationBar.constants.ts`                                             | Discover nav item (desktop sidebar, More on mobile)                                                                                                                           |
+| `src/features/navigation-bar/components/DefaultNavBar.tsx`                                           | `<TsujiChapterBell />` after the app bar's `{action}` (brief #10)                                                                                                             |
 | `src/features/app-updates/components/WebUIUpdateChecker.tsx`                                         | wrapper: mount only after server settings load, never for Custom (brief #2)                                                                                                   |
 | `src/features/reader/viewer/ReaderChapterViewer.tsx`                                                 | `useTsujiReaderResume(...)` call (resume pin + in-page offset save); `getPagePositionSx(...)` in the viewer's sx (page position)                                              |
 | `src/features/reader/services/ReaderControls.ts`                                                     | `shouldSkipTsujiProgressWrite` guard before the lastPageRead write                                                                                                            |

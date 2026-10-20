@@ -385,7 +385,11 @@ const runBrowser = async (browserName) => {
         page.evaluate(() =>
             [...document.querySelectorAll('button[aria-label]')]
                 .map((button) => button.getAttribute('aria-label'))
-                .filter((name) => !['open drawer', 'Discover settings', 'More actions'].includes(name)),
+                .filter(
+                    (name) =>
+                        !['open drawer', 'Discover settings', 'More actions'].includes(name) &&
+                        !name.startsWith('New chapters'),
+                ),
         );
     const cardText = (title) =>
         page

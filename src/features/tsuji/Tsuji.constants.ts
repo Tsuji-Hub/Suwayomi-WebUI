@@ -36,6 +36,13 @@ export const TSUJI_META_KEYS = {
      * single-value JSON `{ [anilistMediaId]: "read" | "skip" }`, migrated into the shards and then deleted.
      */
     seen: 'tsuji_seen',
+    /** New-chapter bell: watched category ids, JSON `[id, ...]`; unset = the categories named ongoing / Completed. */
+    bellCategories: 'tsuji_bellCategories',
+    /**
+     * New-chapter bell: epoch ms of its first run (only the newest 30 entries started unseen). The seen watermarks
+     * live in the shards `tsuji_bell_0` .. `tsuji_bell_15` (bell/chapterBell.ts).
+     */
+    bellStart: 'tsuji_bellStart',
 } as const;
 
 export const DEFAULT_ANILIST_USER = 'ejustice';

@@ -52,8 +52,16 @@ const connection = (nodes) => ({
 /**
  * `manga` / `chapters` / `pageCount` is the manga a test is about; `extraMangas` (`[{ manga, chapters, pageCount }]`)
  * adds more (e.g. a raw and an MTL series), served by id with their own chapters and pages (manga meta as given).
+ * `handlers` (`{ 'Query.categories': (args) => ... }`) answer root fields for one test; undefined = the built-in one.
  */
-export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}, extraMangas = [] }) => {
+export const createMockSuwayomi = ({
+    manga,
+    chapters,
+    pageCount,
+    globalMeta = {},
+    extraMangas = [],
+    handlers: testHandlers = {},
+}) => {
     const schema = buildSchema(readFileSync(new URL('../../../docs/tsuji/schema.graphql', import.meta.url), 'utf8'));
     const meta = new Map(Object.entries(globalMeta));
     /** Manga meta of the (single) manga, e.g. tsuji_readScanlator. */
@@ -175,7 +183,15 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
         if (info.parentType.name === 'Mutation') {
             mutationLog.push({ name: info.fieldName, args });
         }
-        const handler = handlers[`${info.parentType.name}.${info.fieldName}`];
+        const key = `${info.parentType.name}.${info.fieldName}`;
+        const handler = handlers[key];
+        if (testHandlers[key] && (info.parentType.name === 'Query' || info.parentType.name === 'Mutation')) {
+            // A test's own handler; returning undefined falls back to the built-in one.
+            const answer = testHandlers[key](args);
+            if (answer !== undefined) {
+                return answer;
+            }
+        }
         if (handler && (info.parentType.name === 'Query' || info.parentType.name === 'Mutation')) {
             return handler(args);
         }
