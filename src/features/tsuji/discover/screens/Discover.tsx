@@ -49,6 +49,8 @@ import { TsujiSettingsDialog } from '@/features/tsuji/seen/components/TsujiSetti
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { useSessionState } from '@/features/tsuji/services/useSessionState.ts';
 import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
+import { getSearchEngine, isUnmatchedMedia } from '@/features/tsuji/tags/muSearch.ts';
+import { useMuFeed } from '@/features/tsuji/tags/useMuFeed.ts';
 
 /**
  * Stop auto-loading after this many consecutive pages that client filters leave (nearly) empty; the user continues
@@ -112,7 +114,23 @@ const DiscoverBrowse = () => {
         allowSortFallback: false,
     });
     const popular = useDiscoverFeed({ variables, serverSort: SERVER_SORTS.POPULARITY, isEnabled: isLanding });
-    const browse = useDiscoverFeed({ variables, serverSort: SERVER_SORTS[sort], isEnabled: !isLanding });
+    // A chip with nothing on AniList (e.g. "System") moves the search to MangaUpdates; AniList-only selections
+    // stay on today's path and never call MU.
+    const engine = getSearchEngine(selection.mu);
+    const aniListChips = useMemo(() => ({ genres: selection.genres, tags: selection.tags }), [selection]);
+    const browse = useDiscoverFeed({
+        variables,
+        serverSort: SERVER_SORTS[sort],
+        isEnabled: !isLanding && engine === 'anilist',
+    });
+    const muBrowse = useMuFeed({
+        mu: selection.mu ?? {},
+        aniListChips,
+        types: filters.types,
+        sort,
+        showAdult: filters.showAdult,
+        isEnabled: !isLanding && engine === 'mu',
+    });
 
     const [landingSource, setLandingSource] = useState<LandingSource>('loading');
     const variablesKey = JSON.stringify(variables);
@@ -142,10 +160,11 @@ const DiscoverBrowse = () => {
     }, [isLanding, popular.phase, trending.phase]);
 
     const landingFeed = landingSource === 'trending' ? trending : popular;
-    const feed = isLanding ? landingFeed : browse;
+    const browseFeed = engine === 'mu' ? muBrowse : browse;
+    const feed = isLanding ? landingFeed : browseFeed;
     const hasFellBack = isLanding
         ? landingSource === 'popular' && isTrendingOut
-        : !!browse.serverSort && browse.serverSort !== SERVER_SORTS[sort];
+        : engine === 'anilist' && !!browse.serverSort && browse.serverSort !== SERVER_SORTS[sort];
 
     const isVisible = useCallback(
         (media: RecMedia) =>
@@ -209,8 +228,9 @@ const DiscoverBrowse = () => {
             media={media}
             onOpen={findToRead}
             onPreview={preview.show}
-            seenState={seen.getSeenState(media.id)}
-            onMark={markSeen}
+            seenState={isUnmatchedMedia(media) ? null : seen.getSeenState(media.id)}
+            // An MU title without an AniList match has no list state to mark.
+            onMark={isUnmatchedMedia(media) ? undefined : markSeen}
         />
     );
 
@@ -271,7 +291,11 @@ const DiscoverBrowse = () => {
             {!isInitialLoading && feed.isError && (
                 <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                        {feed.pages.length ? t`Couldn't load more titles.` : t`AniList didn't answer in time.`}
+                        {!!feed.pages.length && t`Couldn't load more titles.`}
+                        {!feed.pages.length &&
+                            (engine === 'mu' && !isLanding
+                                ? t`MangaUpdates didn't answer in time.`
+                                : t`AniList didn't answer in time.`)}
                     </Typography>
                     <Button size="small" onClick={feed.retry}>
                         {t`Retry`}

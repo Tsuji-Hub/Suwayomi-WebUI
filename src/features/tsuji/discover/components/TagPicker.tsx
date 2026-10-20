@@ -21,15 +21,45 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TuneIcon from '@mui/icons-material/Tune';
 import { useLingui } from '@lingui/react/macro';
+import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
 import type { DiscoverSelection } from '@/features/tsuji/discover/discoverQuery.ts';
 import { EMPTY_SELECTION } from '@/features/tsuji/discover/discoverQuery.ts';
 import type { TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import { setTriState, TriStateChip } from '@/features/tsuji/recs/components/TriStateChip.tsx';
 import type { CatalogTag } from '@/features/tsuji/recs/aniListQueries.ts';
+import type { TriState } from '@/features/tsuji/recs/components/TriStateChip.tsx';
+import type { MuChip } from '@/features/tsuji/tags/muSearch.ts';
+import type { TagSuggestion } from '@/features/tsuji/tags/tagKeys.ts';
+import { describeChip } from '@/features/tsuji/tags/tagKeys.ts';
+import { useTagSuggestions } from '@/features/tsuji/tags/useTagSuggestions.ts';
 
-type SelectionKind = keyof DiscoverSelection;
+type SelectionKind = 'genres' | 'tags';
 
 const MAX_SEARCH_RESULTS = 60;
+
+/** A suggestion goes where its backing is: MU-backed (or merged) chips in `mu`, AniList-only as before. */
+const setSuggestionState = (selection: DiscoverSelection, chip: TagSuggestion, state: TriState): DiscoverSelection => {
+    if (!chip.categories.length) {
+        const kind: SelectionKind = chip.genre ? 'genres' : 'tags';
+        return { ...selection, [kind]: setTriState(selection[kind], (chip.genre ?? chip.tag)!, state) };
+    }
+    const { [chip.key]: _removed, ...rest } = selection.mu ?? {};
+    const next: MuChip = {
+        state: state!,
+        label: chip.label,
+        categories: chip.categories,
+        genre: chip.genre,
+        tag: chip.tag,
+    };
+    return { ...selection, mu: state ? { ...rest, [chip.key]: next } : rest };
+};
+
+const getSuggestionState = (selection: DiscoverSelection, chip: TagSuggestion): TriState => {
+    if (chip.categories.length) {
+        return selection.mu?.[chip.key]?.state;
+    }
+    return chip.genre ? selection.genres[chip.genre] : selection.tags[chip.tag!];
+};
 
 const formatCategory = (category: string | null) => (category ?? '').split('-').join(' · ');
 
@@ -75,13 +105,8 @@ export const TagPicker = ({
     );
     const groups = useMemo(() => groupByCategory(tags), [tags]);
     const normalizedQuery = query.trim().toLowerCase();
-    const matches = useMemo(
-        () =>
-            normalizedQuery
-                ? tags.filter(({ name }) => name.toLowerCase().includes(normalizedQuery)).slice(0, MAX_SEARCH_RESULTS)
-                : [],
-        [tags, normalizedQuery],
-    );
+    const { suggestions, isPending } = useTagSuggestions(query, catalog, showAdult);
+    const matches = suggestions.slice(0, MAX_SEARCH_RESULTS);
 
     const setState = (kind: SelectionKind, name: string, state: 'include' | 'exclude' | undefined) =>
         onChange({ ...selection, [kind]: setTriState(selection[kind], name, state) });
@@ -95,9 +120,49 @@ export const TagPicker = ({
         />
     );
 
+    // One chip per name: the size hint in the label, where it searches (AniList / MangaUpdates) on hover.
+    const renderSuggestion = (chip: TagSuggestion) => (
+        <CustomTooltip key={chip.key} title={describeChip(chip)}>
+            <span>
+                <TriStateChip
+                    label={chip.count ? t`${chip.label} · ${chip.count} titles` : chip.label}
+                    state={getSuggestionState(selection, chip)}
+                    onChange={(state) => onChange(setSuggestionState(selection, chip, state))}
+                />
+            </span>
+        </CustomTooltip>
+    );
+
+    const renderMuChip = (key: string, chip: MuChip) => (
+        <CustomTooltip key={`mu-${key}`} title={describeChip(chip)}>
+            <span>
+                <TriStateChip
+                    label={chip.label}
+                    state={chip.state}
+                    onChange={(state) =>
+                        onChange(
+                            setSuggestionState(
+                                selection,
+                                {
+                                    key,
+                                    label: chip.label,
+                                    categories: chip.categories,
+                                    genre: chip.genre,
+                                    tag: chip.tag,
+                                },
+                                state,
+                            ),
+                        )
+                    }
+                />
+            </span>
+        </CustomTooltip>
+    );
+
     const selected = [
         ...Object.keys(selection.genres).map((name) => renderChip('genres', name)),
         ...Object.keys(selection.tags).map((name) => renderChip('tags', name)),
+        ...Object.entries(selection.mu ?? {}).map(([key, chip]) => renderMuChip(key, chip)),
     ];
 
     return (
@@ -138,16 +203,20 @@ export const TagPicker = ({
                     )}
                     <TextField
                         size="small"
-                        disabled={!catalog}
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder={t`Search tags`}
                         slotProps={{ htmlInput: { 'aria-label': t`Search tags` } }}
                     />
                     {normalizedQuery ? (
-                        <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
-                            {matches.map(({ name }) => renderChip('tags', name))}
-                            {!matches.length && (
+                        <Stack
+                            role="group"
+                            aria-label={t`Tag suggestions`}
+                            direction="row"
+                            sx={{ gap: 0.5, flexWrap: 'wrap' }}
+                        >
+                            {matches.map(renderSuggestion)}
+                            {!matches.length && !isPending && (
                                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                                     {t`No matching tags.`}
                                 </Typography>

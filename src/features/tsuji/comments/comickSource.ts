@@ -40,11 +40,14 @@ type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 /** HTTP GET through the relay with a 5 s deadline; anything but an answer from Comick is a relay error. */
 export const createRelayClient = ({
     getBaseUrl,
+    prefix = '/comick',
     fetchFn = (input, init) => fetch(input, init),
     queue = new SpacedQueue(COMICK_SPACING_MS, { burst: COMICK_BURST }),
     timeoutMs = RELAY_TIMEOUT_MS,
 }: {
     getBaseUrl: () => string;
+    /** Relay route of the site (`/comick`, `/mangadex`). */
+    prefix?: string;
     fetchFn?: FetchFn;
     queue?: SpacedQueue;
     timeoutMs?: number;
@@ -58,7 +61,7 @@ export const createRelayClient = ({
             const timer = setTimeout(() => controller.abort(new CommentsRelayError('timeout')), timeoutMs);
 
             try {
-                const response = await fetchFn(`${getBaseUrl().replace(/\/+$/, '')}/comick${path}`, {
+                const response = await fetchFn(`${getBaseUrl().replace(/\/+$/, '')}${prefix}${path}`, {
                     signal: controller.signal,
                     headers: { Accept: 'application/json' },
                 });
@@ -133,6 +136,17 @@ export const createComickSource = ({ client, cache }: { client: RelayClient; cac
             const map = await loadChapterMap(series.hid, signal);
             const chapterKey = findChapterKey(map, chapterNumber);
             return chapterKey ? { seriesKey, chapterKey, threadKey: map[chapterKey] } : null;
+        },
+
+        chapterNumbers: async (seriesKey, signal) => {
+            const series = parseSeriesKey(seriesKey);
+            if (!series) {
+                return [];
+            }
+            return Object.keys(await loadChapterMap(series.hid, signal))
+                .map(Number)
+                .filter((number) => Number.isFinite(number) && number >= 0)
+                .sort((a, b) => a - b);
         },
 
         comments: async (thread, _cursor, signal): Promise<CommentPage> => {

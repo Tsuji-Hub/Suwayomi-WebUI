@@ -41,7 +41,12 @@ import { ChapterPicker } from '@/features/tsuji/comments/components/ChapterPicke
 const DESKTOP_QUERY = '(min-width: 900px)';
 const PAGE_SIZE = 50;
 
-export type CommentsTarget = { manga: { id: number; title: string }; chapterNumber: number };
+export type CommentsTarget = {
+    manga: { id: number; title: string };
+    chapterNumber: number;
+    /** Series verified by AniList id (preview): no "Wrong series?", no manual match. */
+    seriesKey?: string;
+};
 
 type SearchState =
     | { status: 'idle' }
@@ -210,7 +215,11 @@ const PanelBody = ({ target }: { target: CommentsTarget }) => {
         );
     }
 
-    const matchLine = (
+    const matchLine = target.seriesKey ? (
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {t`Comick: ${state.match.title} (linked to this AniList entry)`}
+        </Typography>
+    ) : (
         <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 {state.isManual ? t`Comick, matched by hand` : t`Comick: ${state.match.title}`}
@@ -317,10 +326,10 @@ const ChapterSelector = ({
 };
 
 /**
- * Header (title, chapter selector, close) and the selected chapter's thread. Mounted only while the panel is open,
+ * Header (title, chapter selector, close) and the selected chapter's thread. In the panel, mounted only while open,
  * so every open starts on the entry point's chapter (the selector's choice is not kept).
  */
-const PanelContent = ({
+export const CommentsView = ({
     target,
     chapters,
     isDesktop,
@@ -329,7 +338,8 @@ const PanelContent = ({
     target: CommentsTarget;
     chapters: CommentChapter[];
     isDesktop: boolean;
-    onClose: () => void;
+    /** Drawer: a close button; inline (preview dialog tab): none. */
+    onClose?: () => void;
 }) => {
     const { t } = useLingui();
     const [chapterNumber, setChapterNumber] = useState(target.chapterNumber);
@@ -367,9 +377,11 @@ const PanelContent = ({
                         onChange={setChapterNumber}
                     />
                 </Stack>
-                <IconButton onClick={onClose} aria-label={t`Close`}>
-                    <CloseIcon />
-                </IconButton>
+                {onClose && (
+                    <IconButton onClick={onClose} aria-label={t`Close`}>
+                        <CloseIcon />
+                    </IconButton>
+                )}
             </Stack>
             <Divider />
             <Stack key={chapterNumber} sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: 2 }}>
@@ -416,7 +428,7 @@ export const CommentsPanel = ({
                 },
             }}
         >
-            <PanelContent
+            <CommentsView
                 key={`${target.manga.id}:${target.chapterNumber}`}
                 target={target}
                 chapters={chapters}

@@ -38,6 +38,8 @@ export type RecMedia = {
     isAdult: boolean | null;
     startDate: { year: number | null; month: number | null; day: number | null } | null;
     tags: RecTag[] | null;
+    /** Only selected where a caller needs it (MU matching: AniList-only genre chips). */
+    genres?: string[] | null;
 };
 
 /** "anilist" = AniList recommendation edge, "mal" = Jikan (MAL) recommendation, "tags" = tag recall. */

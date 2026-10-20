@@ -51,15 +51,18 @@ export const useComments = ({
     manga,
     chapterNumber,
     isActive,
+    seriesKey,
 }: {
     manga: { id: number; title: string };
     chapterNumber: number;
     isActive: boolean;
+    /** A series already verified elsewhere (preview: by AniList id): no title search, no manual match. */
+    seriesKey?: string;
 }) => {
     const settings = useCommentsSettings();
     const [state, setState] = useState<CommentsState>({ status: 'loading' });
     const [reloadCount, setReloadCount] = useState(0);
-    const manualKey = settings.matches[String(manga.id)];
+    const manualKey = seriesKey ?? settings.matches[String(manga.id)];
     const isOn = settings.isEnabled && settings.isComickEnabled;
 
     useEffect(() => {
@@ -82,7 +85,7 @@ export const useComments = ({
             if (!match) {
                 return { status: 'no-match' };
             }
-            const isManual = !!manualKey;
+            const isManual = !!manualKey && !seriesKey;
             const thread = await comickSource.thread(match.seriesKey, chapterNumber, signal);
             if (!thread) {
                 return { status: 'no-thread', match, isManual };
@@ -115,7 +118,7 @@ export const useComments = ({
 
     const retry = useCallback(() => setReloadCount((count) => count + 1), []);
     const setManualMatch = useCallback(
-        (seriesKey: string | null) => updateCommentMatches({ [String(manga.id)]: seriesKey }),
+        (pickedKey: string | null) => updateCommentMatches({ [String(manga.id)]: pickedKey }),
         [manga.id],
     );
 

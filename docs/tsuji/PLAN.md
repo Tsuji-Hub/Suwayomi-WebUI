@@ -14,6 +14,45 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #8 v2: universal tag search + comments in the preview (branch `feat/discover-tags-comments`)
+
+Off `custom` (r3409). AniList has no "System" (428 tags, 19 genres); MangaUpdates has it as a category (602 series).
+One search box covers both; the user never picks a source. No upstream file touched.
+
+**Done** (r3410):
+
+- Suggestions (`tags/tagKeys.ts`, `useTagSuggestions`): 300 ms after typing, the AniList catalog (cached a week, as
+  before) merged with MU `v1/categories/search` (usage >= 20, cached a week per query). Names merge on a normalized
+  key (lowercase, MU's "/s" "/es" "/ies" and punctuation dropped, trailing plural s dropped): AniList "Dungeon" + MU
+  "Dungeon/s" = one chip. Aliases: system = System + Level System + Stat System; litrpg / game elements = Game
+  Elements + Level System; regression = Regression. Chip label "System · 602 titles" (MU's first category; AniList
+  gives no counts); the sources are only in the hover text ("includes: ..."). Tri-state as before.
+- Selection: AniList-only chips stay in `genres` / `tags` (unchanged path); chips with MU categories go to `mu`
+  (with their AniList name when merged, so AniList searches use it too).
+- Engine (`getSearchEngine`): AniList unless a selected chip (included or excluded) has no AniList backing; then MU
+  `v1/series/search` through the relay: `category` per query, `exclude_category`, `exclude_genre`
+  [Adult, Hentai, Smut] unless the Adult filter is on, `type` from the Type filter (comics only without one),
+  `orderby` rating (NEWEST: year), 50 per page. Categories inside a chip are OR (one query per combination, at most
+  6, merged and de-duplicated by series_id), chips are AND, assuming MU ANDs the `category` array (the website's
+  advanced search does; `MU_CATEGORY_ARRAY_IS_AND`, check live: System + Martial Arts must narrow). MU budget 20/min
+  client side (own queue), 8 s timeout.
+- Matching (`tags/muService.ts`): cached `mu:match:v1:<series_id>` (30 days) -> one `id_in` request; the rest 10
+  titles per aliased AniList request (m0..m9, 3 hits each) through the shared AniList queue. Accepted when the
+  normalized MU title equals any AniList name (synonyms too), else the top hit at similarity >= 0.9 from the MU
+  type's country and within a year. AniList-only chips post-filter matched media (tags rank >= 60, genres as is);
+  unmatched cards drop out only when such a chip is included. `isAdult` matches drop unless the Adult filter is on.
+  Unmatched series still show (MU title, cover, rating; negative id: no marks or badges; Find to read by title).
+- Preview (`RecPreviewDialog`): Overview / Comments / Reviews tabs, each loaded (code and requests) when opened.
+  Comments: the Comick series whose `links.al` is the AniList id (search by the AniList titles, top 3 candidates,
+  detail fetched when the search has no links; MangaDex `/mangadex/manga` supplies more titles of the manga linked to
+  the same id), cached a week (misses a day); "No comments found" otherwise and for unmatched MU cards. Opens on the
+  newest chapter Comick has, with the brief #5.1 picker (chapters from Comick's chapter map). Reviews: AniList's 5
+  best-rated (summary, score, helpful count, link).
+- Unit (22): tag keys, suggestions (System alias, Dungeon merge, adult, noise, aliases), engine, merged chips on
+  AniList, MU queries (OR/AND combinations, cap, adult, types, sort), MU parsing, matching, post-filter, unmatched
+  cards, Comick-by-AniList (links.al, look-alikes refused, MangaDex fallback, cache). Browser
+  (`discover-tags.e2e.mjs`, 16 checks) with a fake MU / Comick relay.
+
 # Brief #6 v2: Raws, Translate, Compare (branch `feat/raw-compare`)
 
 Replaces #6 v1 (no "Find raw": the server links raws itself). Stacked on `feat/reader-position` (Compare drives the

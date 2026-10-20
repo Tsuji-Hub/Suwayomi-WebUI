@@ -7,6 +7,8 @@
  */
 
 import type { RecFilters, TagFilterState } from '@/features/tsuji/recs/filters.ts';
+import type { MuSelection } from '@/features/tsuji/tags/muSearch.ts';
+import { getAniListNames } from '@/features/tsuji/tags/muSearch.ts';
 
 export type DiscoverSort = 'BEST' | 'TRENDING' | 'SCORE' | 'POPULARITY' | 'NEWEST';
 
@@ -35,6 +37,8 @@ export const SORT_FALLBACKS: Partial<Record<string, string>> = {
 export type DiscoverSelection = {
     genres: Record<string, TagFilterState>;
     tags: Record<string, TagFilterState>;
+    /** Chips from the universal tag search with MangaUpdates categories behind them (brief #8), by tag key. */
+    mu?: MuSelection;
 };
 
 export const EMPTY_SELECTION: DiscoverSelection = { genres: {}, tags: {} };
@@ -45,16 +49,19 @@ const namesWithState = (states: Record<string, TagFilterState>, wanted: TagFilte
         .map(([name]) => name)
         .sort();
 
-export const hasSelection = ({ genres, tags }: DiscoverSelection): boolean =>
-    Object.keys(genres).length > 0 || Object.keys(tags).length > 0;
+export const hasSelection = ({ genres, tags, mu }: DiscoverSelection): boolean =>
+    Object.keys(genres).length > 0 || Object.keys(tags).length > 0 || Object.keys(mu ?? {}).length > 0;
 
-export const getIncludedTags = ({ tags }: DiscoverSelection): string[] => namesWithState(tags, 'include');
+export const getIncludedTags = ({ tags, mu }: DiscoverSelection): string[] =>
+    [...new Set([...namesWithState(tags, 'include'), ...getAniListNames(mu, 'include').tags])].sort();
 
 const COUNTRY_BY_TYPE = { MANHWA: 'KR', MANGA: 'JP' } as const;
 
 const nonEmpty = <T>(list: T[]): T[] | undefined => (list.length ? list : undefined);
 
 export type DiscoverVariables = Record<string, unknown>;
+
+const withMerged = (names: string[], merged: string[]) => [...new Set([...names, ...merged])].sort();
 
 /**
  * AniList filter arguments. Status, score and a single country go server-side to save the 30 req/min budget. The rest
@@ -66,11 +73,14 @@ export const buildDiscoverVariables = (selection: DiscoverSelection, filters: Re
     const [onlyType] = filters.types;
     const country = filters.types.length === 1 && onlyType !== 'MANHUA' ? COUNTRY_BY_TYPE[onlyType] : undefined;
 
+    // Merged chips (AniList + MU names) search AniList by their AniList name.
+    const included = getAniListNames(selection.mu, 'include');
+    const excluded = getAniListNames(selection.mu, 'exclude');
     const variables: DiscoverVariables = {
-        genreIn: nonEmpty(namesWithState(selection.genres, 'include')),
-        genreNotIn: nonEmpty(namesWithState(selection.genres, 'exclude')),
-        tagIn: nonEmpty(namesWithState(selection.tags, 'include')),
-        tagNotIn: nonEmpty(namesWithState(selection.tags, 'exclude')),
+        genreIn: nonEmpty(withMerged(namesWithState(selection.genres, 'include'), included.genres)),
+        genreNotIn: nonEmpty(withMerged(namesWithState(selection.genres, 'exclude'), excluded.genres)),
+        tagIn: nonEmpty(withMerged(namesWithState(selection.tags, 'include'), included.tags)),
+        tagNotIn: nonEmpty(withMerged(namesWithState(selection.tags, 'exclude'), excluded.tags)),
         statusIn: nonEmpty([...filters.statuses].sort()),
         country,
         minScore: filters.minScore > 0 ? filters.minScore - 1 : undefined,

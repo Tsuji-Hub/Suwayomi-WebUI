@@ -11,6 +11,8 @@ import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 import { readFreshTsujiRawGlobalMeta, writeTsujiRawGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import type { CommentsCache } from '@/features/tsuji/comments/comickSource.ts';
 import { createComickSource, createRelayClient } from '@/features/tsuji/comments/comickSource.ts';
+import { resolveComickByAniList } from '@/features/tsuji/comments/aniListResolve.ts';
+import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 import { createMatchUpdater, parseCommentMatches } from '@/features/tsuji/comments/commentsMatch.ts';
 
 export const RELAY_PORT = 4568;
@@ -29,6 +31,9 @@ let relayUrl = '';
 export const setCommentsRelayUrl = (url: string) => {
     relayUrl = url;
 };
+
+/** The relay base URL in use (set from `tsuji_commentsRelay` by useCommentsSettings; the default until then). */
+export const getCommentsRelayUrl = () => relayUrl || getDefaultRelayUrl();
 
 const memoryThreads = new Map<string, { expiresAt: number; value: unknown }>();
 
@@ -50,10 +55,19 @@ const cache: CommentsCache = {
     },
 };
 
-export const comickSource = createComickSource({
-    client: createRelayClient({ getBaseUrl: () => relayUrl || getDefaultRelayUrl() }),
-    cache,
+const comickClient = createRelayClient({ getBaseUrl: getCommentsRelayUrl });
+
+export const comickSource = createComickSource({ client: comickClient, cache });
+
+const mangadexClient = createRelayClient({
+    getBaseUrl: getCommentsRelayUrl,
+    prefix: '/mangadex',
+    queue: new SpacedQueue(1000, { burst: 2 }),
 });
+
+/** Comick series of an AniList entry, verified by its `links.al` (preview comments). */
+export const resolveComickSeriesByAniList = (anilistId: number, titles: string[], signal: AbortSignal) =>
+    resolveComickByAniList({ anilistId, titles }, { comick: comickClient, mangadex: mangadexClient, cache }, signal);
 
 export const clearCommentCache = () => {
     memoryThreads.clear();

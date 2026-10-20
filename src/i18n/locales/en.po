@@ -136,6 +136,12 @@ msgstr "{0, plural, one {Second} other {Seconds}}"
 msgid "{0, plural, one {Show # more chapter} other {Show # more chapters}}"
 msgstr "{0, plural, one {Show # more chapter} other {Show # more chapters}}"
 
+#. placeholder {0}: chip.label
+#. placeholder {1}: chip.count
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "{0} · {1} titles"
+msgstr "{0} · {1} titles"
+
 #. placeholder {0}: searchProgress.completed
 #. placeholder {1}: searchProgress.total
 #: src/features/migration/screens/MigrationSearch.tsx
@@ -153,6 +159,12 @@ msgstr "{0} / {1}{2}"
 #: src/features/tsuji/recs/components/RecPreviewDialog.tsx
 msgid "{0} chapters"
 msgstr "{0} chapters"
+
+#. placeholder {0}: review.rating ?? 0
+#. placeholder {1}: review.ratingAmount
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
+msgid "{0} of {1} found it helpful"
+msgstr "{0} of {1} found it helpful"
 
 #. placeholder {0}: updateStatus.progress
 #: src/features/app-updates/components/WebUIUpdateChecker.tsx
@@ -1093,6 +1105,11 @@ msgstr "Comick, matched by hand"
 msgid "Comick: {0}"
 msgstr "Comick: {0}"
 
+#. placeholder {0}: state.match.title
+#: src/features/tsuji/comments/components/CommentsPanel.tsx
+msgid "Comick: {0} (linked to this AniList entry)"
+msgstr "Comick: {0} (linked to this AniList entry)"
+
 #. placeholder {0}: comment.author
 #: src/features/tsuji/comments/components/CommentItem.tsx
 msgid "Comment by {0}"
@@ -1105,10 +1122,12 @@ msgstr "Comment cache cleared"
 #: src/features/tsuji/comments/components/CommentsButton.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 #: src/features/tsuji/comments/components/CommentsSettings.tsx
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
 msgid "Comments"
 msgstr "Comments"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/recs/preview/PreviewComments.tsx
 msgid "Comments are off. Turn them on in Discover settings."
 msgstr "Comments are off. Turn them on in Discover settings."
 
@@ -1121,6 +1140,7 @@ msgid "Comments relay"
 msgstr "Comments relay"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/recs/preview/PreviewComments.tsx
 msgid "Comments relay unreachable"
 msgstr "Comments relay unreachable"
 
@@ -1439,6 +1459,10 @@ msgstr "Couldn't load more titles."
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Couldn't load recommendations."
 msgstr "Couldn't load recommendations."
+
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
+msgid "Couldn't load reviews."
+msgstr "Couldn't load reviews."
 
 #: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
 msgid "Couldn't load the raw chapter."
@@ -2651,12 +2675,17 @@ msgid "Load more"
 msgstr "Load more"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/recs/preview/PreviewComments.tsx
 msgid "Loading comments"
 msgstr "Loading comments"
 
 #: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
 msgid "Loading raw…"
 msgstr "Loading raw…"
+
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
+msgid "Loading reviews"
+msgstr "Loading reviews"
 
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Loading tags"
@@ -2753,6 +2782,10 @@ msgstr "Manga item width"
 #: src/features/settings/screens/Appearance.tsx
 msgid "Manga thumbnail as background"
 msgstr "Manga thumbnail as background"
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "MangaUpdates didn't answer in time."
+msgstr "MangaUpdates didn't answer in time."
 
 #: src/features/tracker/Tracker.constants.ts
 #: src/features/tsuji/recs/Recs.constants.ts
@@ -3048,6 +3081,10 @@ msgstr "No chapters matching filter"
 msgid "No Comick thread for this series"
 msgstr "No Comick thread for this series"
 
+#: src/features/tsuji/recs/preview/PreviewComments.tsx
+msgid "No comments found"
+msgstr "No comments found"
+
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "No comments yet."
 msgstr "No comments yet."
@@ -3087,6 +3124,10 @@ msgstr "No raw chapter {chapterNumber}"
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "No results."
 msgstr "No results."
+
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
+msgid "No reviews on AniList yet."
+msgstr "No reviews on AniList yet."
 
 #: src/features/migration/components/MigrationDestinationSourceList.tsx
 msgid "No sources available to migrate to"
@@ -3296,6 +3337,10 @@ msgstr "Overlay"
 msgid "Overlay mode"
 msgstr "Overlay mode"
 
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+msgid "Overview"
+msgstr "Overview"
+
 #: src/features/reader/overlay/navigation/desktop/components/ReaderNavBarDesktopPageNavigation.tsx
 msgid "Page"
 msgstr "Page"
@@ -3481,6 +3526,10 @@ msgstr "Read"
 msgid "Read MTL ch {0}"
 msgstr "Read MTL ch {0}"
 
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
+msgid "Read on AniList"
+msgstr "Read on AniList"
+
 #: src/features/reader/settings/screens/GlobalReaderSettings.tsx
 #: src/features/settings/screens/Settings.tsx
 msgid "Reader"
@@ -3640,6 +3689,8 @@ msgstr "Resume"
 #: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
+#: src/features/tsuji/recs/preview/PreviewComments.tsx
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
 #: src/features/tsuji/seen/components/MyListNotice.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Retry"
@@ -3648,6 +3699,11 @@ msgstr "Retry"
 #: src/features/reader/overlay/navigation/desktop/components/ReaderNavBarDesktopActions.tsx
 msgid "Retry errored pages"
 msgstr "Retry errored pages"
+
+#: src/features/tsuji/recs/components/RecPreviewDialog.tsx
+#: src/features/tsuji/recs/preview/PreviewReviews.tsx
+msgid "Reviews"
+msgstr "Reviews"
 
 #: src/features/reader/overlay/progress-bar/settings/components/ReaderSettingProgressBarPosition.tsx
 #: src/features/reader/settings/general/components/ReaderSettingSafeAreaInset.tsx
@@ -4301,6 +4357,10 @@ msgstr "System"
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Tabs"
 msgstr "Tabs"
+
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "Tag suggestions"
+msgstr "Tag suggestions"
 
 #: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/recs/components/RecFilterBar.tsx

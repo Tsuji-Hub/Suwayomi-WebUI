@@ -45,6 +45,8 @@ export interface CommentSource {
     searchSeries: (query: string, signal: AbortSignal) => Promise<SeriesCandidate[]>;
     /** The discussion of one chapter number, or null when the source has none for it. */
     thread: (seriesKey: string, chapterNumber: number, signal: AbortSignal) => Promise<ResolvedThread | null>;
+    /** Chapter numbers the source has threads for, ascending (from the cached chapter map). */
+    chapterNumbers: (seriesKey: string, signal: AbortSignal) => Promise<number[]>;
     /** One page of comments (Comick: everything in one page, replies inline, its own order). */
     comments: (thread: ResolvedThread, cursor: string | null, signal: AbortSignal) => Promise<CommentPage>;
 }
