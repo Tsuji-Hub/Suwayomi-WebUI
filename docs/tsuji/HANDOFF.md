@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch                | Commit             | What                                                                                                                                           |
-| --------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`              | `e2e36f27` (r3414) | Briefs #1-#8 v2 (universal tag search, preview Comments / Reviews) + reader resume, schema v2.4.2366. r3414 shipped 2026-10-20, verified live. |
-| `feat/mangabaka-tags` | this               | Brief #9: tag search on MangaBaka (replaces #8's MangaUpdates engine), incl. the commit-hook fix (`6f703190`). Prerelease for Cowork's check.  |
-| `master`              | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                 |
+| Branch             | Commit             | What                                                                                                                            |
+| ------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`           | `b3055a98` (r3416) | Briefs #1-#9 (tag search on MangaBaka, preview Comments / Reviews) + reader resume, schema v2.4.2366. Shipped 2026-10-20, live. |
+| `chore/docs-r3416` | this               | Docs only: r3416 shipped. Rides along with the next ship.                                                                       |
+| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                  |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -25,7 +25,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3414 (briefs #4-#8 v2). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+3. The server runs r3416 (briefs #4-#9). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
    `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
@@ -37,8 +37,9 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    browser.
 7. Comments relay: runs next to Suwayomi on CT100, port 4568 (not in this repo); it also serves the MTL action feed
    `/mtl/raws.json` and the pre-signed translate / cancel pages (brief #6), and proxies MangaDex
-   (`/mangadex/`) for brief #8. Its `/mangaupdates/` route is unused since brief #9 (MangaBaka is called directly) and
-   goes once #9 ships. The WebUI calls
+   (`/mangadex/`) for brief #8. Its `/mangaupdates/` route is retired (brief #9 calls MangaBaka directly).
+   MangaBaka's Cloudflare answers 403 to a "HeadlessChrome" User-Agent: a live browser test against
+   `api.mangabaka.org` must set a normal Chrome UA (the mocked e2e is unaffected). The WebUI calls
    `${tsuji_commentsRelay}/comick/...`; unset means the WebUI's own host on port 4568, so no address is in the bundle.
 8. External APIs: Jikan (MAL) returned 504 through 2026-09-24/25 (Similar degrades to AniList-only). AniList runs
    in a degraded mode (30 req/min; latency 0.3-10 s; TRENDING_DESC / START_DATE_DESC and `format_not_in` /

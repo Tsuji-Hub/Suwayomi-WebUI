@@ -21,6 +21,11 @@ matching back to AniList (extra AniList searches, a 429, "Pick Me Up!" ambiguity
 MangaBaka (`api.mangabaka.org`, upstream Mihon's new tracker) answers CORS with `*`, needs no login and carries the
 AniList id on every series. Comments / Reviews in the preview unchanged. No upstream file touched.
 
+**Shipped as r3416** (2026-10-20). Cowork live, Ethan's filters: System · 316, first cards 0.58 s; 0 AniList title
+searches, one id_in per page, 0 /mangaupdates/ calls; System + Murim 8 on MangaBaka, 2 shown (6 hidden by list /
+chapters), Planned badge; Pick Me Up / SSS-Class / Solo Leveling hidden; "Action · 35012" stays on AniList; comments
+unchanged. MangaBaka's `rating` is 0-100; `limit=50` (even 100) is accepted.
+
 **Done:**
 
 - Suggestions (`tags/tagKeys.ts`, `useTagSuggestions`): AniList catalog + MangaBaka `GET /v1/tags?q=` (300 ms
