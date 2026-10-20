@@ -604,7 +604,10 @@ const runBrowser = async (browserName) => {
     );
 
     check(label('no page errors'), pageErrors.length === 0, pageErrors);
-    const appErrors = consoleErrors.filter((text) => !/Failed to load resource|net::ERR_/.test(text));
+    // The browser's own network log for requests the test blocks (AniList) is not the app's.
+    const appErrors = consoleErrors.filter(
+        (text) => !/Failed to load resource|net::ERR_|Cross-Origin Request Blocked/.test(text),
+    );
     check(label('no console errors from the app'), appErrors.length === 0, appErrors);
     await browser.close();
 };

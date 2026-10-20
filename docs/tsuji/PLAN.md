@@ -21,7 +21,7 @@ English page position). Server side, already live and not rebuilt here: rawfinde
 each English copy; mtl-engine translates on request into "<title> [MTL]" (local source, "Raws" category, not in the
 library). The WebUI reads that meta and the relay's feed and opens the feed's pre-signed links; it writes nothing.
 
-**Done** (r3408):
+**Done** (r3409; r3408 failed one Firefox check that counted the browser's CORS log for blocked AniList calls):
 
 - `raws/rawLinks.ts` (pure): meta parse (raw + mtl ids, tolerant), feed parse (rows by `en_id`, URLs kept as sent),
   ids from server URLs, combined series links. `raws/rawFeed.ts`: `${tsuji_commentsRelay}/mtl/raws.json`, 5 s
