@@ -378,6 +378,10 @@ msgstr "{userName}'s AniList list has no manga being read or finished. For You b
 msgid "*: Active setting"
 msgstr "*: Active setting"
 
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "18+ raw"
+msgstr "18+ raw"
+
 #: src/features/manga/services/Mangas.ts
 msgid "A migration is already in progress"
 msgstr "A migration is already in progress"
@@ -476,6 +480,11 @@ msgstr "Age rating"
 #: src/features/global-search/screens/SearchAll.tsx
 msgid "All"
 msgstr "All"
+
+#. placeholder {0}: row.nAll
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "All {0}"
+msgstr "All {0}"
 
 #: src/features/downloads/screens/DownloadSettings.tsx
 msgid "Allow deleting bookmarked chapters"
@@ -837,9 +846,14 @@ msgstr "Can't migrate an entry to itself"
 #: src/features/theme/components/CreateThemeDialog.tsx
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/raws/components/RawChips.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Cancel"
 msgstr "Cancel"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Cancel translation"
+msgstr "Cancel translation"
 
 #: src/features/manga/Manga.constants.ts
 #: src/features/tracker/Tracker.constants.ts
@@ -1034,6 +1048,7 @@ msgstr "Client data"
 #: src/features/app-updates/components/VersionUpdateInfoDialog.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/raws/components/TranslateDialog.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Close"
 msgstr "Close"
@@ -1113,6 +1128,14 @@ msgstr "Comments relay unreachable"
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Compact grid"
 msgstr "Compact grid"
+
+#: src/features/tsuji/raws/components/TsujiReaderCompareButton.tsx
+msgid "Compare with raw"
+msgstr "Compare with raw"
+
+#: src/features/tsuji/raws/components/TsujiReaderCompareButton.tsx
+msgid "Compare: on"
+msgstr "Compare: on"
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Compatible"
@@ -1416,6 +1439,10 @@ msgstr "Couldn't load more titles."
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Couldn't load recommendations."
 msgstr "Couldn't load recommendations."
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Couldn't load the raw chapter."
+msgstr "Couldn't load the raw chapter."
 
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Couldn't load the tag list."
@@ -1859,6 +1886,10 @@ msgstr "Enable page read progress"
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Enable the WebView via CEF (Chromium)"
 msgstr "Enable the WebView via CEF (Chromium)"
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "End of the English release."
+msgstr "End of the English release."
 
 #: src/features/downloads/screens/DownloadSettings.tsx
 msgid "Entries in excluded categories will not be downloaded even if they are also in included categories"
@@ -2623,6 +2654,10 @@ msgstr "Load more"
 msgid "Loading comments"
 msgstr "Loading comments"
 
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Loading raw…"
+msgstr "Loading raw…"
+
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Loading tags"
 msgstr "Loading tags"
@@ -2938,6 +2973,15 @@ msgstr "Most popular"
 msgid "Mountain Sunset"
 msgstr "Mountain Sunset"
 
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "MTL"
+msgstr "MTL"
+
+#. placeholder {0}: row.done
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "MTL · {0} translated"
+msgstr "MTL · {0} translated"
+
 #: src/base/utils/Languages.ts
 #: src/features/extension/Extensions.constants.ts
 msgid "Multi"
@@ -2968,6 +3012,10 @@ msgstr "Newest"
 #: src/features/reader/tap-zones/ReaderTapZone.constants.ts
 msgid "Next"
 msgstr "Next"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Next 10"
+msgstr "Next 10"
 
 #: src/features/reader/hotkeys/settings/components/ReaderSettingHotkey.tsx
 #: src/features/reader/overlay/navigation/desktop/components/ReaderNavBarDesktopChapterNavigation.tsx
@@ -3031,6 +3079,10 @@ msgstr "No matching tags."
 #: src/features/reader/viewer/ReaderChapterViewer.tsx
 msgid "No pages found"
 msgstr "No pages found"
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "No raw chapter {chapterNumber}"
+msgstr "No raw chapter {chapterNumber}"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "No results."
@@ -3398,9 +3450,36 @@ msgstr "Quick settings"
 msgid "Random"
 msgstr "Random"
 
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Raw"
+msgstr "Raw"
+
+#. placeholder {0}: series.rawSource
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Raw · {0}"
+msgstr "Raw · {0}"
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Raw chapter"
+msgstr "Raw chapter"
+
+#. placeholder {0}: index + 1
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Raw page {0}"
+msgstr "Raw page {0}"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Raws"
+msgstr "Raws"
+
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Read"
 msgstr "Read"
+
+#. placeholder {0}: offer.number
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Read MTL ch {0}"
+msgstr "Read MTL ch {0}"
 
 #: src/features/reader/settings/screens/GlobalReaderSettings.tsx
 #: src/features/settings/screens/Settings.tsx
@@ -4466,6 +4545,34 @@ msgstr "Trackers"
 #: src/features/tracker/screens/TrackingSettings.tsx
 msgid "Tracking"
 msgstr "Tracking"
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Translate"
+msgstr "Translate"
+
+#. placeholder {0}: row.next
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Translate {0}"
+msgstr "Translate {0}"
+
+#. placeholder {0}: row.nAll
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Translate all {0}"
+msgstr "Translate all {0}"
+
+#. placeholder {0}: offer.number
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Translate ch {0}"
+msgstr "Translate ch {0}"
+
+#. placeholder {0}: row.next
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Translate chapter {0}"
+msgstr "Translate chapter {0}"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Translate the next 10"
+msgstr "Translate the next 10"
 
 #: src/features/theme/Themes.ts
 msgid "Tree Frog Green"

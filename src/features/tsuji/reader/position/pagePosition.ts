@@ -49,7 +49,7 @@ const CONTINUOUS_HORIZONTAL = 3;
 type PositionSx = {
     marginLeft?: string;
     marginRight?: string;
-    '& img'?: { marginLeft: string | number; marginRight: string | number };
+    '& img'?: { marginLeft: string | number; marginRight: string | number; maxWidth?: string };
 };
 
 /**
@@ -59,11 +59,22 @@ type PositionSx = {
  * upstream's `margin: unset`); double page keeps its spread joined (images untouched).
  */
 export const getPagePositionSx = (
-    { position, offset }: { position: PagePosition; offset: number },
+    { position, offset, isCompare = false }: { position: PagePosition; offset: number; isCompare?: boolean },
     readingMode: number,
     isHidden: boolean,
 ): PositionSx => {
-    if (position === 'CENTER' || isHidden || readingMode === CONTINUOUS_HORIZONTAL) {
+    if (isHidden || readingMode === CONTINUOUS_HORIZONTAL) {
+        return {};
+    }
+    // Compare (brief #6): English in the left half, whatever the setting; the raw pane covers the right half.
+    if (isCompare) {
+        return {
+            marginLeft: '0px',
+            marginRight: 'auto',
+            '& img': { marginLeft: 0, marginRight: 'auto', maxWidth: '50vw' },
+        };
+    }
+    if (position === 'CENTER') {
         return {};
     }
     const edge = `${parsePageEdgeOffset(offset)}px`;

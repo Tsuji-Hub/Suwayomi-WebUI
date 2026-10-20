@@ -14,13 +14,52 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #6 v2: Raws, Translate, Compare (branch `feat/raw-compare`)
+
+Replaces #6 v1 (no "Find raw": the server links raws itself). Stacked on `feat/reader-position` (Compare drives the
+English page position). Server side, already live and not rebuilt here: rawfinder (daily) writes `tsuji_raw_links` on
+each English copy; mtl-engine translates on request into "<title> [MTL]" (local source, "Raws" category, not in the
+library). The WebUI reads that meta and the relay's feed and opens the feed's pre-signed links; it writes nothing.
+
+**Done** (r3408):
+
+- `raws/rawLinks.ts` (pure): meta parse (raw + mtl ids, tolerant), feed parse (rows by `en_id`, URLs kept as sent),
+  ids from server URLs, combined series links. `raws/rawFeed.ts`: `${tsuji_commentsRelay}/mtl/raws.json`, 5 s
+  timeout, cached a minute, failures = no feed (the meta chips still show).
+- Series page (`RawChips`, mounted by the fork's Similar wrapper, no new upstream hook): "Raw · <source>" and
+  "MTL · <done> translated" (in-app links to the series), "18+ raw" when `uncensored`, and while the raw is ahead
+  Translate <next> / Next 10 / All <n> (+ Cancel while queued). They open the pre-signed link in a dialog with an
+  iframe (sandboxed, no parsing); the server's confirm page for big batches works inside it; the feed is re-fetched
+  when the dialog closes.
+- Numbering (`raws/rawNumbering.ts`): CN the LAST 第N话, KR the FIRST N화, JP 第N話 / N話 (full-width digits
+  too), else chapterNumber, extras never; 🔒 names never map; first by source order on duplicates. The `numbering`
+  string in meta is ignored (stale for KR). Origin from the feed row; without one, KR, CN, JP are tried in turn.
+- Compare (`TsujiReaderRawLayer`, `TsujiReaderCompareButton`): desktop reader menu button for series with a raw, in
+  continuous vertical / webtoon. English moves to the left half (page position LEFT, images capped at 50vw, whatever
+  the setting); the raw chapter with the same number fills a fixed right pane, all its pages loaded, scrolled to the
+  English chapter's scroll fraction (top-at-top 0 .. bottom-at-bottom 1, measured from the chapter's page elements,
+  which `useTsujiReaderResume` registers). The pane takes no input: wheel and clicks drive the English side. Off when
+  the reader closes.
+- End of the newest English chapter (>= 90 % scrolled): "Read MTL ch N" when the MTL series has N, else "Translate
+  ch <next>" (t_next in the dialog) when the raw is ahead. Never automatic.
+- Mock Suwayomi serves several manga now (`extraMangas`) and logs mutations (asserting no library writes). The
+  comments suite ignores the relay's `/mtl/` requests (the series page loads the feed too).
+- Unit (12): meta / feed parse, URL ids, series links, KR / CN / JP numbering, 🔒 and extras, duplicates, fraction
+  and pane scroll, end offers. Browser (`raws.e2e.mjs`, 21 checks): chips and actions for Return to Player (EN 12210,
+  raw 13858 GoodToon, MTL 14377 as in the brief), in-app links, 18+ badge, "All 108" -> server confirm page in the
+  dialog -> Yes (relative link) confirmed, feed re-fetched, Cancel, no library writes on opening the raw, no chips
+  without links, Compare on EN 138 -> the raw named "138화 (2부 12화)" (chapterNumber 7), split halves, English at 50 %
+  -> raw at 50 % (4 English strips vs 12 raw pages), "Read MTL ch 139" opens it, CN last 第N话, "Translate ch 46",
+  no page or app console errors.
+
 # Brief #7: reader page position (branch `feat/reader-position`)
 
 Off `custom` (r3401). The owner reads on a projector lying on his side: pages at the left edge of a maximized window,
 same size as centered, black on the right. Page widths are in vw, so shrinking the window shrank the pages; this
 replaces his bookmarklet (translateX on the viewer's children).
 
-**Done** (r3404):
+**Done** (r3407; r3404-r3406 failed only the test's Firefox menu step: headless Firefox has no fine pointer, so the
+reader showed its mobile overlay; Firefox now runs with mouse pointer prefs):
 
 - Settings `pagePosition` (LEFT / CENTER / RIGHT, default CENTER) and `pageEdgeOffset` (0-800 px, default 0), per
   device preset like the reader width, stored as raw global meta `tsuji_pagePosition` / `tsuji_<device>_pagePosition`

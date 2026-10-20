@@ -212,6 +212,10 @@ const openContext = async (browser, { server, relay, relayMode = () => 'up', con
     await context.route('**/*', async (route) => {
         const request = route.request();
         const url = new URL(request.url());
+        if (url.host === RELAY_HOST && url.pathname.startsWith('/mtl/')) {
+            // The series page also asks the relay for the MTL feed (brief #6): not part of these counts.
+            return route.fulfill({ status: 404, headers: CORS, body: '' });
+        }
         if (url.host === RELAY_HOST) {
             const mode = relayMode();
             if (mode === 'down') {

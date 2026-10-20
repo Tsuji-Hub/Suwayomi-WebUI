@@ -55,6 +55,7 @@ import { STABLE_EMPTY_OBJECT } from '@/base/Base.constants.ts';
 import { getPage } from '@/features/reader/overlay/progress-bar/ReaderProgressBar.utils.tsx';
 import { useTsujiRouteResumeMode } from '@/features/tsuji/reader/routeResumeMode.ts';
 import { useTsujiPagePositionHotkey } from '@/features/tsuji/reader/position/usePagePosition.ts';
+import { TsujiReaderRawLayer } from '@/features/tsuji/raws/components/TsujiReaderRawLayer.tsx';
 
 const READING_MODE_TO_IN_VIEWPORT_TYPE: Record<ReadingMode, PageInViewportType> = {
     [ReadingMode.SINGLE_PAGE]: PageInViewportType.X,
@@ -287,6 +288,7 @@ const BaseReaderViewer = ({
                 )
             }
         >
+            <TsujiReaderRawLayer scrollElementRef={scrollElementRef} />
             {chaptersToRender.map((_, index) => {
                 // chapters are sorted by latest to oldest, thus, loop over it in reversed order
                 const chapterIndex = Math.max(0, chaptersToRender.length - index - 1);

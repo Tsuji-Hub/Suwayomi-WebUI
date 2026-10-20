@@ -11,6 +11,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { useDeviceContext } from '@/features/device/DeviceContext.tsx';
 import { HOTKEY_SCOPES } from '@/features/hotkeys/Hotkeys.constants.ts';
 import type { TsujiMetaKey } from '@/features/tsuji/Tsuji.constants.ts';
+import { useCompareStore } from '@/features/tsuji/raws/compareStore.ts';
 import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import type { PagePosition } from '@/features/tsuji/reader/position/pagePosition.ts';
 import {
@@ -28,6 +29,7 @@ export const usePagePosition = () => {
     const positionKey = getPagePositionMetaKey(PAGE_POSITION_KEY, activeDevice);
     const offsetKey = getPagePositionMetaKey(PAGE_EDGE_OFFSET_KEY, activeDevice);
     const position = parsePagePosition(meta[positionKey]);
+    const isCompare = useCompareStore((state) => state.isActive);
     const offset = parsePageEdgeOffset(meta[offsetKey]);
 
     // Device-prefixed keys aren't in TSUJI_META_KEYS; they are raw tsuji_* keys all the same.
@@ -40,7 +42,10 @@ export const usePagePosition = () => {
         [offsetKey],
     );
 
-    return useMemo(() => ({ position, offset, setPosition, setOffset }), [position, offset, setPosition, setOffset]);
+    return useMemo(
+        () => ({ position, offset, isCompare, setPosition, setOffset }),
+        [position, offset, isCompare, setPosition, setOffset],
+    );
 };
 
 /** Shift+L cycles Left -> Center -> Right in the reader (the owner's bookmarklet key; unused by the reader). */

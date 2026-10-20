@@ -24,6 +24,8 @@ export const TSUJI_META_KEYS = {
     commentsMatch: 'tsuji_commentsMatch',
     /** Similar on the manga screen: "row" (scrolling row) or "grid" (wrapped); unset = grid on touch screens. */
     similarLayout: 'tsuji_similarLayout',
+    /** Server-written (rawfinder / mtl-engine), read-only here: JSON `[{kind:"raw",mangaId,...},{kind:"mtl",mangaId}]`. */
+    rawLinks: 'tsuji_raw_links',
     anilistId: 'tsuji_anilistId',
     /** Manga meta: JSON scanlator of the last chapter finished in the reader (duplicate chapters: Resume copy). */
     readScanlator: 'tsuji_readScanlator',

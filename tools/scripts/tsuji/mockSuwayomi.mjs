@@ -41,13 +41,19 @@ const defaultFor = (type) => {
     return {};
 };
 
+const pageUrl = (chapter, index) => `/api/v1/manga/${chapter.mangaId}/chapter/${chapter.sourceOrder}/page/${index}`;
+
 const connection = (nodes) => ({
     nodes,
     totalCount: nodes.length,
     pageInfo: { hasNextPage: false, hasPreviousPage: false },
 });
 
-export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {} }) => {
+/**
+ * `manga` / `chapters` / `pageCount` is the manga a test is about; `extraMangas` (`[{ manga, chapters, pageCount }]`)
+ * adds more (e.g. a raw and an MTL series), served by id with their own chapters and pages (manga meta as given).
+ */
+export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}, extraMangas = [] }) => {
     const schema = buildSchema(readFileSync(new URL('../../../docs/tsuji/schema.graphql', import.meta.url), 'utf8'));
     const meta = new Map(Object.entries(globalMeta));
     /** Manga meta of the (single) manga, e.g. tsuji_readScanlator. */
@@ -62,18 +68,27 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
                 __typename: 'MangaMetaType',
             })),
     });
-    const chapterById = new Map(chapters.map((chapter) => [chapter.id, chapter]));
+    const mangas = [{ manga, chapters, pageCount }, ...extraMangas];
+    extraMangas.forEach((extra) => {
+        // oxlint-disable-next-line no-param-reassign
+        extra.manga.meta = extra.manga.meta ?? [];
+    });
+    const entryByMangaId = new Map(mangas.map((entry) => [entry.manga.id, entry]));
+    const chapterById = new Map(mangas.flatMap((entry) => entry.chapters.map((chapter) => [chapter.id, chapter])));
+    const entryOf = (chapter) => entryByMangaId.get(chapter.mangaId) ?? mangas[0];
     /** Every chapter progress write the app sends: `{ ids, lastPageRead, isRead }`. */
     const chapterWrites = [];
 
     const metaNodes = () => [...meta.entries()].map(([key, value]) => ({ key, value, __typename: 'GlobalMetaType' }));
     // The manga as seen from a chapter lists every chapter (plain objects: no manga inside, so no cycle).
-    const chapterNode = (chapter) => ({
-        ...chapter,
-        manga: { ...manga, chapters: connection(chapters.map((each) => ({ ...each }))) },
-        meta: [],
-    });
-    const pageUrl = (chapter, index) => `/api/v1/manga/${manga.id}/chapter/${chapter.sourceOrder}/page/${index}`;
+    const chapterNode = (chapter) => {
+        const entry = entryOf(chapter);
+        return {
+            ...chapter,
+            manga: { ...entry.manga, chapters: connection(entry.chapters.map((each) => ({ ...each }))) },
+            meta: [],
+        };
+    };
 
     const applyChapterPatch = (ids, patch) => {
         chapterWrites.push({ ids, ...patch });
@@ -109,12 +124,14 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
             discord: '',
             github: '',
         }),
-        'Query.manga': ({ id }) => (Number(id) === manga.id ? manga : null),
+        'Query.manga': ({ id }) => entryByMangaId.get(Number(id))?.manga ?? null,
         'Query.mangas': () => connection([manga]),
         'Query.chapter': ({ id }) => chapterNode(chapterById.get(Number(id))),
-        'Query.chapters': ({ filter }) =>
+        'Query.chapters': ({ filter, condition }) =>
             connection(
-                chapters.filter((chapter) => !filter?.id?.in || filter.id.in.includes(chapter.id)).map(chapterNode),
+                (condition?.mangaId ? (entryByMangaId.get(Number(condition.mangaId))?.chapters ?? []) : chapters)
+                    .filter((chapter) => !filter?.id?.in || filter.id.in.includes(chapter.id))
+                    .map(chapterNode),
             ),
         'Query.metas': () => connection(metaNodes()),
         'Query.meta': ({ key }) => (meta.has(key) ? { key, value: meta.get(key) } : null),
@@ -122,11 +139,13 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
             const chapter = chapterById.get(Number(input.chapterId));
             return {
                 chapter: chapterNode(chapter),
-                pages: Array.from({ length: pageCount }, (_, index) => pageUrl(chapter, index)),
+                pages: Array.from({ length: entryOf(chapter).pageCount }, (_, index) => pageUrl(chapter, index)),
             };
         },
-        'Mutation.fetchChapters': () => ({ chapters: chapters.map(chapterNode) }),
-        'Mutation.fetchManga': () => ({ manga }),
+        'Mutation.fetchChapters': ({ input }) => ({
+            chapters: (entryByMangaId.get(Number(input?.mangaId))?.chapters ?? chapters).map(chapterNode),
+        }),
+        'Mutation.fetchManga': ({ input }) => ({ manga: entryByMangaId.get(Number(input?.id))?.manga ?? manga }),
         'Mutation.updateChapter': ({ input }) => ({ chapter: applyChapterPatch([input.id], input.patch)[0] }),
         'Mutation.updateChapters': ({ input }) => ({ chapters: applyChapterPatch(input.ids, input.patch) }),
         'Mutation.setMangaMeta': ({ input }) => {
@@ -149,7 +168,13 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
         'Mutation.deleteGlobalMetas': ({ input }) => deleteMetas(input),
     };
 
+    /** Every mutation the app sends: `{ name, args }` (e.g. to assert nothing touched the library). */
+    const mutationLog = [];
+
     const fieldResolver = (source, args, _context, info) => {
+        if (info.parentType.name === 'Mutation') {
+            mutationLog.push({ name: info.fieldName, args });
+        }
         const handler = handlers[`${info.parentType.name}.${info.fieldName}`];
         if (handler && (info.parentType.name === 'Query' || info.parentType.name === 'Mutation')) {
             return handler(args);
@@ -177,5 +202,5 @@ export const createMockSuwayomi = ({ manga, chapters, pageCount, globalMeta = {}
         return Array.isArray(body) ? Promise.all(body.map(run)) : run(body);
     };
 
-    return { handle, meta, mangaMeta, chapters: chapterById, chapterWrites };
+    return { handle, meta, mangaMeta, chapters: chapterById, chapterWrites, mutationLog };
 };

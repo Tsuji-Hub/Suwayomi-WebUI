@@ -20,6 +20,7 @@ import {
 } from '@/features/tsuji/reader/pageOffsets.ts';
 import { startResumePin } from '@/features/tsuji/reader/resumePin.ts';
 import { markTsujiReading } from '@/features/tsuji/reader/routeResumeMode.ts';
+import { registerChapterPages } from '@/features/tsuji/reader/chapterPagesRegistry.ts';
 import {
     describeResumeRestore,
     hasTsujiReaderUserInput,
@@ -132,6 +133,9 @@ export const useTsujiReaderResume = ({
     const isUpstreamScrollPending = useReaderPagesStore(
         (state) => isInitialChapter && !hasStartedRef.current && state.pageToScrollToIndex !== null,
     );
+
+    // Compare (brief #6) measures the current chapter through these.
+    useEffect(() => registerChapterPages(chapterId, imageRefs), [chapterId, imageRefs]);
 
     useEffect(() => {
         const canPin =
