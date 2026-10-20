@@ -48,7 +48,9 @@ One search box covers both; the user never picks a source. No upstream file touc
   the same id), cached a week (misses a day); "No comments found" otherwise and for unmatched MU cards. Opens on the
   newest chapter with comments (fix 6), with the brief #5.1 picker (chapters from Comick's chapter map). Reviews: AniList's 5
   best-rated (summary, score, helpful count, link).
-  **Fixed after Cowork's r3410 check** (MU verified live: the `category` array is AND, `type` is OR, an unknown
+  **Shipped as r3414** (2026-10-20; Cowork live: first cards 2.5 s, no repeated MU searches, Pick Me Up! -> 159441,
+  System + Martial Arts 105 cards, 0 MU CORS errors, comments stepping back 119 -> 117). **Fixed after Cowork's r3410
+  check** (MU verified live: the `category` array is AND, `type` is OR, an unknown
   category gives 0; "Martial Arts" is an MU genre, not a category):
 
 1. Speed: MU pages render as soon as MU answers (MU title / cover cards); AniList matching runs behind them, page by

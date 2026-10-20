@@ -7,7 +7,12 @@
  */
 
 export default {
-    '*.{ts,tsx,js,jsx}': ['oxfmt --write', 'oxlint --fix', () => `pnpm i18n:extract`, 'git add src/i18n/locales/*.po'],
+    '*.{ts,tsx,js,jsx}': [
+        'oxfmt --write',
+        'oxlint --fix --no-error-on-unmatched-pattern',
+        () => `pnpm i18n:extract`,
+        'git add src/i18n/locales/*.po',
+    ],
     '*.{json,md,yml,yaml,css,scss,html,graphql}': 'oxfmt --write',
     '*.{ts,tsx,json}': () => 'pnpm tsc',
 };

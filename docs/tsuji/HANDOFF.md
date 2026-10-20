@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch                        | Commit             | What                                                                                                                                                                   |
-| ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`                      | `201d139b` (r3409) | Briefs #1-#7 (incl. #6 v2 raws / MTL / Compare, #7 page position) + reader resume. r3409 shipped 2026-10-20, verified live on v2.4.2366.                               |
-| `feat/discover-tags-comments` | r3410 + fixes      | Brief #8 v2: universal tag search (AniList + MangaUpdates), Comments / Reviews in the preview; Cowork's six r3410 fixes; schema v2.4.2366 merged. Prerelease to check. |
-| `master`                      | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                         |
+| Branch                        | Commit             | What                                                                                                                                           |
+| ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`                      | `e2e36f27` (r3414) | Briefs #1-#8 v2 (universal tag search, preview Comments / Reviews) + reader resume, schema v2.4.2366. r3414 shipped 2026-10-20, verified live. |
+| `chore/lint-staged-generated` | this               | Commit hook: oxlint no longer fails when only ignored (generated) files are staged. Docs. Rides along with the next ship.                      |
+| `master`                      | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                 |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -25,7 +25,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3409 (briefs #4-#7). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+3. The server runs r3414 (briefs #4-#8 v2). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
    `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
