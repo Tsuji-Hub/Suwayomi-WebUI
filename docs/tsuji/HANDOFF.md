@@ -6,12 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch                 | Commit             | What                                                                                                                                                                                                                                                                                         |
-| ---------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`               | `c6a51cd4` (r3401) | Briefs #1-#5.1 + reader resume. r3401 shipped 2026-10-20 (desktop checks OK; phone pass waived: the owner doesn't read on the phone).                                                                                                                                                        |
-| `feat/reader-position` | `39accab9` (r3407) | Brief #7: reader page position (Left / Center / Right + edge offset, per device preset). r3404-r3406 failed only the Firefox menu step of the new e2e (headless Firefox reports no fine pointer, so the reader showed its mobile overlay); fixed in the test. Prerelease for Cowork's check. |
-| `feat/raw-compare`     | r3409              | Brief #6 v2: raws / MTL chips, translate dialog, Compare split view, end-of-release offers. Stacked on `feat/reader-position`. Prerelease for Cowork's check.                                                                                                                                |
-| `master`               | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                                                                                                               |
+| Branch                   | Commit             | What                                                                                                                                                  |
+| ------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`                 | `201d139b` (r3409) | Briefs #1-#7 (incl. #6 v2 raws / MTL / Compare and #7 page position) + reader resume. r3409 shipped 2026-10-20, verified live on v2.4.2366 by Cowork. |
+| `chore/schema-v2.4.2366` | (docs only so far) | `docs/tsuji/schema.graphql` from v2.4.2366 + `pnpm codegen:offline`; waiting for the LAN dump.                                                        |
+| `master`                 | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                        |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -26,7 +25,8 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3401 (briefs #4, #5, #5.1). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
+3. The server runs r3409 (briefs #4-#7). Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+   `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
    the service-worker image cache below. **The SW item is still a blocker before any HTTPS / secure-context
