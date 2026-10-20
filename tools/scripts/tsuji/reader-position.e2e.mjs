@@ -256,7 +256,8 @@ const runBrowser = async (browserName) => {
     );
 
     // The reader menu: the center tap zone still opens it, and its quick setting switches to RIGHT.
-    const rightButton = page.getByRole('button', { name: 'Right', exact: true });
+    // The toggle by its value (role names are computed slightly differently across browsers).
+    const rightButton = page.locator('[aria-label="Page position"] button[value="RIGHT"]');
     for (let attempt = 0; attempt < 6; attempt += 1) {
         // oxlint-disable-next-line no-await-in-loop
         if (await rightButton.isVisible().catch(() => false)) {
@@ -273,7 +274,16 @@ const runBrowser = async (browserName) => {
     check(
         label('reader menu (center tap, else m) has Left / Center / Right'),
         await rightButton.isVisible().catch(() => false),
-        {},
+        await page.evaluate(() => ({
+            group: document.querySelector('[aria-label="Page position"]')?.outerHTML.slice(0, 300) ?? null,
+            settingsButton: !!document.querySelector(
+                'button[aria-label="Settings"], button svg[data-testid="SettingsIcon"]',
+            ),
+            buttons: [...document.querySelectorAll('button')]
+                .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim())
+                .filter(Boolean)
+                .slice(0, 25),
+        })),
     );
     await rightButton.click().catch(() => {});
     await page.waitForTimeout(800);
