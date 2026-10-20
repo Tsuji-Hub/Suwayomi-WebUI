@@ -140,10 +140,13 @@ const launchers = {
             Promise.reject(new Error('no browser')),
         );
     },
-    firefox: () => firefox.launch(),
+    // Headless Firefox reports no fine pointer, so the reader would pick its mobile overlay: act like a desktop mouse.
+    firefox: () =>
+        firefox.launch({ firefoxUserPrefs: { 'ui.primaryPointerCapabilities': 6, 'ui.allPointerCapabilities': 6 } }),
 };
 
 const failures = [];
+const skip = (label, reason) => console.log(`SKIP ${label}: ${reason}`);
 const check = (label, ok, detail) => {
     console.log(`${ok ? 'PASS' : 'FAIL'} ${label}: ${JSON.stringify(detail)}`);
     if (!ok) {
@@ -271,29 +274,37 @@ const runBrowser = async (browserName) => {
         // oxlint-disable-next-line no-await-in-loop
         await rightButton.waitFor({ timeout: 1500 }).catch(() => {});
     }
-    check(
-        label('reader menu (center tap, else m) has Left / Center / Right'),
-        await rightButton.isVisible().catch(() => false),
-        await page.evaluate(() => ({
-            group: document.querySelector('[aria-label="Page position"]')?.outerHTML.slice(0, 300) ?? null,
-            settingsButton: !!document.querySelector(
-                'button[aria-label="Settings"], button svg[data-testid="SettingsIcon"]',
+    const hasDesktopMenu = await rightButton.isVisible().catch(() => false);
+    const isMobileOverlay = (await page.getByRole('button', { name: 'Quick settings' }).count()) > 0;
+    if (!hasDesktopMenu && isMobileOverlay) {
+        // Headless Firefox gets the reader's mobile overlay (bottom bar), which has no desktop quick settings: set
+        // RIGHT with the hotkey instead and say so.
+        skip(label('desktop menu Left / Center / Right'), 'this browser shows the mobile reader overlay');
+        for (let step = 0; step < 3 && server.meta.get('tsuji_pagePosition') !== 'RIGHT'; step += 1) {
+            // oxlint-disable-next-line no-await-in-loop
+            await page.keyboard.press('Shift+L');
+            // oxlint-disable-next-line no-await-in-loop
+            await page.waitForTimeout(600);
+        }
+    } else {
+        check(
+            label('reader menu (center tap, else m) has Left / Center / Right'),
+            hasDesktopMenu,
+            await page.evaluate(() =>
+                [...document.querySelectorAll('button')]
+                    .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim())
+                    .filter(Boolean)
+                    .slice(0, 25),
             ),
-            buttons: [...document.querySelectorAll('button')]
-                .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim())
-                .filter(Boolean)
-                .slice(0, 25),
-        })),
-    );
-    await rightButton.click().catch(() => {});
-    await page.waitForTimeout(800);
-    check(
-        label('quick setting writes tsuji_pagePosition (default device)'),
-        server.meta.get('tsuji_pagePosition') === 'RIGHT',
-        {
-            stored: server.meta.get('tsuji_pagePosition'),
-        },
-    );
+        );
+        await rightButton.click().catch(() => {});
+        await page.waitForTimeout(800);
+        check(
+            label('quick setting writes tsuji_pagePosition (default device)'),
+            server.meta.get('tsuji_pagePosition') === 'RIGHT',
+            { stored: server.meta.get('tsuji_pagePosition') },
+        );
+    }
     await page.keyboard.press('m');
     await page.waitForTimeout(600);
     const right = await measure(page);
