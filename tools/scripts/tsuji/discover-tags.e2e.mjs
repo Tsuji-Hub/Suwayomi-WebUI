@@ -191,10 +191,19 @@ const media = (id, title, overrides = {}) => ({
     genres: ['Action'],
     ...overrides,
 });
+/** Titles the cached For You taste likes (Medicine): Best match puts them first (brief #14). */
+const TASTE_TITLES = ['Ongoing Unknown System', 'Second Life Ranker'];
+const MEDICINE = {
+    name: 'Medicine',
+    rank: 90,
+    category: 'Theme-Other',
+    isMediaSpoiler: false,
+    isGeneralSpoiler: false,
+};
 const ANILIST_BY_ID = Object.fromEntries(
     BAKA_SERIES.filter(({ source }) => source.anilist.id).map(({ title, source }) => [
         source.anilist.id,
-        media(source.anilist.id, title),
+        media(source.anilist.id, title, TASTE_TITLES.includes(title) ? { tags: [MEDICINE] } : {}),
     ]),
 );
 
@@ -883,6 +892,58 @@ const runBrowser = async (browserName) => {
             .catch(() => false)) && seriesSearches().length === bakaBefore,
         { searches: seriesSearches().length - bakaBefore },
     );
+
+    // Best match (brief #14): System alone, signed out of For You (no taste cached), then with a cached taste.
+    const bestPage = await context.newPage();
+    bestPage.on('pageerror', (error) => pageErrors.push(error.message));
+    const bestTitles = () =>
+        bestPage.evaluate(() =>
+            [...document.querySelectorAll('button[aria-label]')]
+                .map((button) => button.getAttribute('aria-label'))
+                .filter(
+                    (name) =>
+                        !name.startsWith('Also match') &&
+                        /System|Ranker|Player|Lucky|Estate|Hunter|Newbie|Murim|Martial|Library/.test(name),
+                ),
+        );
+    await bestPage.goto(`${ORIGIN}/discover`);
+    await bestPage.getByRole('button', { name: 'Tags & genres' }).click();
+    await bestPage.getByRole('textbox', { name: 'Search tags' }).fill('system');
+    await bestPage.getByRole('button', { name: /^System · 839$/ }).click({ timeout: 10_000 });
+    await bestPage.locator('[aria-label="Sort"]').locator('xpath=..').click();
+    await bestPage.getByRole('option', { name: 'Best match' }).click();
+    await bestPage
+        .getByRole('button', { name: 'The Greatest Estate Developer' })
+        .waitFor({ timeout: 15_000 })
+        .catch(() => {});
+    await bestPage.waitForTimeout(1500);
+    const withoutTaste = await bestTitles();
+    check(
+        label('Best match without a For You taste: chip fit only, so MangaBaka popularity order; no profile request'),
+        withoutTaste[0] === 'The Greatest Estate Developer' && !aniList.counts.TsujiTasteList,
+        { titles: withoutTaste.slice(0, 5), counts: aniList.counts },
+    );
+    await bestPage.evaluate(() =>
+        localStorage.setItem(
+            'tsujiCache2:foryou:weights:v1:ejustice',
+            JSON.stringify({ expiresAt: Date.now() + 86_400_000, value: { Medicine: 1 } }),
+        ),
+    );
+    await bestPage.reload();
+    await bestPage
+        .getByRole('button', { name: TASTE_TITLES[0] })
+        .waitFor({ timeout: 15_000 })
+        .catch(() => {});
+    await bestPage.waitForTimeout(1500);
+    const withTaste = await bestTitles();
+    check(
+        label('Best match with a cached taste: the liked tags lead the page, still no profile request'),
+        TASTE_TITLES.every((title) => withTaste.slice(0, 2).includes(title)) &&
+            withTaste[2] === 'The Greatest Estate Developer' &&
+            !aniList.counts.TsujiTasteList,
+        { titles: withTaste.slice(0, 5), counts: aniList.counts },
+    );
+    await bestPage.close();
 
     check(label('no page errors'), pageErrors.length === 0, pageErrors);
     await browser.close();

@@ -20,7 +20,7 @@ export type RecSort = 'BEST' | 'SCORE' | 'POPULARITY' | 'NEWEST';
 export type TagFilterState = 'include' | 'exclude';
 
 export type RecFilters = {
-    /** "Hide what I've started": library titles with at least one read chapter (persisted key kept for old values). */
+    /** "Hide what's in my library": every library title, started or not (brief #14; persisted key kept). */
     hideInLibrary: boolean;
     /** Hide what's on the user's AniList (reading, completed, dropped, paused, rereading) and manual marks. */
     hideOnMyList: boolean;
@@ -128,27 +128,22 @@ export const countActiveFilters = (filters: RecFilters): number =>
         filters.hiddenGems !== DEFAULT_REC_FILTERS.hiddenGems,
     ].filter(Boolean).length + Object.keys(filters.tags).length;
 
-/** Library titles the user has started (>= 1 chapter read); unread library titles are not in it. */
-type LibraryKeys = { anilistIds: Set<number>; malIds: Set<number>; titles: Set<string> };
+/**
+ * Every library title, started or not (brief #14: one hide rule for Discover, Similar and For You; a Plan to Read
+ * title with no chapter read is no discovery either).
+ */
+export type LibraryIndex = { anilistIds: Set<number>; malIds: Set<number>; titles: Set<string> };
 
-/** Started library titles (for "Hide what I've started"), and every library title, started or not. */
-export type LibraryIndex = LibraryKeys & { all: LibraryKeys };
-
-const createKeys = (): LibraryKeys => ({ anilistIds: new Set(), malIds: new Set(), titles: new Set() });
+const createIndex = (): LibraryIndex => ({ anilistIds: new Set(), malIds: new Set(), titles: new Set() });
 
 export type LibraryIndexManga = {
     title: string;
-    unreadCount: number;
-    chapters: { totalCount: number };
     trackRecords: { nodes: { trackerId: number; remoteId: string }[] };
 };
 
-export const getReadChapterCount = ({ unreadCount, chapters }: Pick<LibraryIndexManga, 'unreadCount' | 'chapters'>) =>
-    Math.max(0, chapters.totalCount - unreadCount);
+export const EMPTY_LIBRARY_INDEX: LibraryIndex = createIndex();
 
-export const EMPTY_LIBRARY_INDEX: LibraryIndex = { ...createKeys(), all: createKeys() };
-
-const addManga = (keys: LibraryKeys, { title, trackRecords }: LibraryIndexManga) => {
+const addManga = (keys: LibraryIndex, { title, trackRecords }: LibraryIndexManga) => {
     const titleKey = normalizeTitle(title);
     if (titleKey) {
         keys.titles.add(titleKey);
@@ -168,17 +163,12 @@ const addManga = (keys: LibraryKeys, { title, trackRecords }: LibraryIndexManga)
 };
 
 export const buildLibraryIndex = (mangas: LibraryIndexManga[]): LibraryIndex => {
-    const index: LibraryIndex = { ...createKeys(), all: createKeys() };
-    mangas.forEach((manga) => {
-        addManga(index.all, manga);
-        if (getReadChapterCount(manga) > 0) {
-            addManga(index, manga);
-        }
-    });
+    const index = createIndex();
+    mangas.forEach((manga) => addManga(index, manga));
     return index;
 };
 
-export const isInLibrary = (media: Pick<RecMedia, 'id' | 'idMal' | 'title'>, index: LibraryKeys): boolean =>
+export const isInLibrary = (media: Pick<RecMedia, 'id' | 'idMal' | 'title'>, index: LibraryIndex): boolean =>
     index.anilistIds.has(media.id) ||
     (media.idMal !== null && index.malIds.has(media.idMal)) ||
     getAllTitles(media).some((title) => {

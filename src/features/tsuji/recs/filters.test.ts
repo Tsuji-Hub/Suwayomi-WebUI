@@ -13,7 +13,6 @@ import {
     countActiveFilters,
     DEFAULT_REC_FILTERS,
     EMPTY_LIBRARY_INDEX,
-    getReadChapterCount,
     getTagOptions,
     isInLibrary,
     parseRecFilters,
@@ -77,11 +76,11 @@ describe('library index', () => {
                 index,
             ),
         ).toBe(false));
-    it('hides started library titles by default', () =>
+    it('hides library titles by default', () =>
         expect(passesFilters(media({ id: 9, idMal: null }), DEFAULT_REC_FILTERS, index)).toBe(false));
 });
 
-describe('"Hide what I\'ve started"', () => {
+describe('"Hide what\'s in my library" (brief #14: every library title)', () => {
     const index = buildLibraryIndex([
         libraryManga('Started Title', [{ trackerId: 2, remoteId: '100' }], { read: 3, total: 50 }),
         libraryManga(
@@ -90,38 +89,26 @@ describe('"Hide what I\'ve started"', () => {
                 { trackerId: 2, remoteId: '200' },
                 { trackerId: 1, remoteId: '201' },
             ],
-            {
-                read: 0,
-                total: 80,
-            },
+            { read: 0, total: 80 },
         ),
         libraryManga('No Chapters Yet', [{ trackerId: 2, remoteId: '300' }], { read: 0, total: 0 }),
     ]);
     const titled = (id: number, idMal: number | null, english: string) =>
         media({ id, idMal, title: { english, romaji: null, userPreferred: null } });
 
-    it('counts read chapters from total minus unread', () => {
-        expect(getReadChapterCount({ unreadCount: 47, chapters: { totalCount: 50 } })).toBe(3);
-        expect(getReadChapterCount({ unreadCount: 80, chapters: { totalCount: 80 } })).toBe(0);
-        expect(getReadChapterCount({ unreadCount: 5, chapters: { totalCount: 0 } })).toBe(0);
-    });
-
-    it('hides a library title with at least one chapter read', () => {
+    it('hides started and unread library titles alike (by AniList id, MAL id and title)', () => {
         expect(isInLibrary(titled(100, null, 'x'), index)).toBe(true);
         expect(isInLibrary(titled(9, null, 'Started Title'), index)).toBe(true);
-        expect(passesFilters(titled(100, null, 'x'), DEFAULT_REC_FILTERS, index)).toBe(false);
+        expect(isInLibrary(titled(200, null, 'x'), index)).toBe(true);
+        expect(isInLibrary(titled(9, 201, 'x'), index)).toBe(true);
+        expect(isInLibrary(titled(9, null, 'Unread Title'), index)).toBe(true);
+        expect(isInLibrary(titled(300, null, 'No Chapters Yet'), index)).toBe(true);
+        expect(passesFilters(titled(200, null, 'Unread Title'), DEFAULT_REC_FILTERS, index)).toBe(false);
+        expect(passesFilters(titled(300, null, 'x'), DEFAULT_REC_FILTERS, index)).toBe(false);
     });
 
-    it('keeps unread library titles visible (by AniList id, MAL id and title)', () => {
-        expect(isInLibrary(titled(200, null, 'x'), index)).toBe(false);
-        expect(isInLibrary(titled(9, 201, 'x'), index)).toBe(false);
-        expect(isInLibrary(titled(9, null, 'Unread Title'), index)).toBe(false);
-        expect(isInLibrary(titled(300, null, 'No Chapters Yet'), index)).toBe(false);
-        expect(passesFilters(titled(200, null, 'Unread Title'), DEFAULT_REC_FILTERS, index)).toBe(true);
-    });
-
-    it('shows started titles again when the filter is off', () =>
-        expect(passesFilters(titled(100, null, 'x'), { ...DEFAULT_REC_FILTERS, hideInLibrary: false }, index)).toBe(
+    it('shows library titles again when the filter is off', () =>
+        expect(passesFilters(titled(200, null, 'x'), { ...DEFAULT_REC_FILTERS, hideInLibrary: false }, index)).toBe(
             true,
         ));
 });

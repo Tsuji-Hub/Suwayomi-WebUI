@@ -8,6 +8,7 @@
 
 import type { ComicType, RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import type { TagFilterState } from '@/features/tsuji/recs/filters.ts';
+import type { FitChips } from '@/features/tsuji/recs/bestMatch.ts';
 
 /*
  * MangaBaka (brief #9): the tag search engine for chips AniList doesn't have ("System"). Its series carry their
@@ -95,6 +96,28 @@ export const getAniListNames = (baka: BakaSelection | undefined, state: TagFilte
         tags: chips.map(({ tag }) => tag).filter((name): name is string => !!name),
     };
 };
+
+const includedNames = (states: Record<string, TagFilterState>) =>
+    Object.entries(states)
+        .filter(([, state]) => state === 'include')
+        .map(([name]) => name);
+
+/**
+ * The included chips as Best match scores them: every sub-search ANDs one tag of every MangaBaka-backed chip (a
+ * family through any member), so each series it returns matches all of them; AniList-only chips left as a
+ * post-filter are scored on the card's AniList details.
+ */
+export const getBakaFitChips = ({
+    includeSets,
+    postFilter,
+}: {
+    includeSets: number[][];
+    postFilter: AniListChips;
+}): FitChips => ({
+    matched: includeSets.filter((ids) => ids.length).length,
+    tags: includedNames(postFilter.tags),
+    genres: includedNames(postFilter.genres),
+});
 
 export type BakaTag = {
     id: number;
@@ -232,6 +255,50 @@ export const parseBakaSeries = (row: unknown): BakaSeries | null => {
     };
 };
 
+/** A MangaBaka tag on a series (`tags_v2`): `count` is how many series carry it (its global frequency). */
+export type BakaSeriesTag = { id: number; parentId: number | null; count: number; weight: string | null };
+
+/** Weights MangaBaka gives a series' tags, strongest first (`unweighted` = not voted on). */
+export const BAKA_TAG_WEIGHTS = ['core', 'defining', 'recurrent', 'incidental', 'unweighted'];
+
+/** A series' tags without spoilers (`tags_v2`; the plain `tags` are names only). */
+export const parseBakaSeriesTags = (row: unknown): BakaSeriesTag[] => {
+    const { tags_v2: tags } = asRecord(row);
+    return (Array.isArray(tags) ? tags : []).flatMap((each) => {
+        const tag = asRecord(each);
+        const id = asNumber(tag.id);
+        if (id === null || tag.is_spoiler === true) {
+            return [];
+        }
+        return [
+            {
+                id,
+                parentId: asNumber(tag.parent_id),
+                count: asNumber(tag.series_count) ?? 0,
+                weight: asString(tag.weight),
+            },
+        ];
+    });
+};
+
+/** Ids a series counts as carrying: its tags and their parents (a search by a parent id finds the subtags too). */
+export const getBakaTagIds = (tags: BakaSeriesTag[]): Set<number> =>
+    new Set(tags.flatMap(({ id, parentId }) => (parentId === null ? [id] : [id, parentId])));
+
+/** `/v1/source/anilist/{id}`: the MangaBaka series behind an AniList id (several can be; the first wins). */
+export const parseBakaSource = (json: unknown): { series: BakaSeries; tags: BakaSeriesTag[] } | null => {
+    const { series } = asRecord(asRecord(json).data);
+    const [row] = Array.isArray(series) ? series : [];
+    const parsed = parseBakaSeries(row);
+    return parsed ? { series: parsed, tags: parseBakaSeriesTags(row) } : null;
+};
+
+/** The MangaBaka families a series belongs to (any member tag, or a subtag of one). */
+export const getBakaFamilies = (tags: BakaSeriesTag[]): string[] => {
+    const ids = getBakaTagIds(tags);
+    return BAKA_FAMILIES.filter((family) => family.tags.some(({ id }) => ids.has(id))).map(({ key }) => key);
+};
+
 /** `/v1/series/search` page: series in order, and whether another page exists. */
 export const parseBakaSearch = (json: unknown, limit: number): { series: BakaSeries[]; hasNextPage: boolean } => {
     const record = asRecord(json);
@@ -304,7 +371,7 @@ export const getBakaCombinations = (includeSets: number[][]): number[][] =>
 export const countBakaCombinations = (includeSets: number[][]): number => listBakaCombinations(includeSets).length;
 
 /**
- * One page of one sub-search: tag ids only (AND), excluded tag ids, types from the Type filter (comics only without
+ * One page of one sub-search: tag ids only (AND, or OR with `tagMode: 'or'`), excluded tag ids, types from the Type filter (comics only without
  * one), the minimum score server side, adult ratings only with the Adult filter on. The minimum chapter count stays
  * client side: MangaBaka drops series without a count, Discover lets them pass.
  */
@@ -317,6 +384,7 @@ export const buildBakaSearch = ({
     showAdult,
     page,
     limit,
+    tagMode = 'and',
 }: {
     tagIds: number[];
     excludeIds: number[];
@@ -326,9 +394,13 @@ export const buildBakaSearch = ({
     showAdult: boolean;
     page: number;
     limit: number;
+    tagMode?: 'and' | 'or';
 }): string => {
     const params = new URLSearchParams();
     [...new Set(tagIds)].sort((a, b) => a - b).forEach((id) => params.append('tag', String(id)));
+    if (tagMode === 'or') {
+        params.set('tag_mode', 'or');
+    }
     [...new Set(excludeIds)].sort((a, b) => a - b).forEach((id) => params.append('tag_not', String(id)));
     (types.length ? types : (Object.keys(BAKA_TYPES) as ComicType[]))
         .map((type) => BAKA_TYPES[type])

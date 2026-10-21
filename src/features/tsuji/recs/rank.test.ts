@@ -13,10 +13,8 @@ import {
     cosineSimilarity,
     diversify,
     hiddenGemScore,
-    includeTagScore,
     minMaxNormalize,
     rankCandidates,
-    rerankByIncludeTags,
     toTagVector,
 } from '@/features/tsuji/recs/rank.ts';
 
@@ -146,27 +144,5 @@ describe('diversify (MMR, lambda 0.7)', () => {
         const same = [0, 1, 2].map((id) => ({ id, vector: new Map<string, number>() }));
 
         expect(diversify(same, () => 1).map((item) => item.id)).toEqual([0, 1, 2]);
-    });
-});
-
-describe('includeTagScore / rerankByIncludeTags', () => {
-    it('is the mean rank/100 over the included tags', () => {
-        expect(includeTagScore(['Revenge', 'Regression'], [tag('Revenge', 80), tag('Regression', 60)])).toBeCloseTo(
-            0.7,
-        );
-        expect(includeTagScore(['Revenge', 'Regression'], [tag('Revenge', 80)])).toBeCloseTo(0.4);
-    });
-
-    it('ignores spoiler tags', () =>
-        expect(includeTagScore(['Revenge'], [tag('Revenge', 80, { isMediaSpoiler: true })])).toBe(0));
-
-    it('sorts a page by score, then popularity', () => {
-        const page = [
-            { id: 1, popularity: 10, tags: [tag('Revenge', 50)] },
-            { id: 2, popularity: 99, tags: [tag('Revenge', 50)] },
-            { id: 3, popularity: 1, tags: [tag('Revenge', 90)] },
-        ];
-
-        expect(rerankByIncludeTags(page, ['Revenge']).map((media) => media.id)).toEqual([3, 2, 1]);
     });
 });

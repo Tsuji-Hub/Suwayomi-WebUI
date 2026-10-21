@@ -54,11 +54,15 @@ const week = (candidates: number, matches: number, overlap = 0): ForYouData => (
     weekStart: 0,
     seeds: [{ mediaId: 1000, title: 'Liked 0' }],
     profileTags: [{ name: 'Revenge', rank: 100 }],
+    tasteWeights: { Revenge: 1 },
     weekTags: { core: ['Revenge'], rotating: [] },
     entryCount: 329,
     candidates: Array.from({ length: candidates }, (_, index) => candidate(index + 1)),
     bestSeeds: [{ mediaId: 1000, title: 'Liked 0', weight: 1.2 }],
     bestMatches: Array.from({ length: matches }, (_, index) => best(index + 1 + candidates - overlap)),
+    familySeeds: Array.from({ length: 60 }, (_, index) => 1000 + index),
+    // A heavy reader's list (1,000 titles) still fits.
+    listedIds: Array.from({ length: 1000 }, (_, index) => 100_000 + index),
     isPartial: false,
 });
 
@@ -105,12 +109,10 @@ describe('stored week', () => {
 });
 
 describe('library index', () => {
-    it('a library title not started yet is in the whole-library set, matched through its AniList track record only', () => {
+    it('a library title not started yet is in the index, matched through its AniList track record only', () => {
         const index = buildLibraryIndex([
             {
                 title: 'Sword King in a Women’s World (Plan to Read)',
-                unreadCount: 40,
-                chapters: { totalCount: 40 },
                 trackRecords: { nodes: [{ trackerId: 2, remoteId: '116027' }] },
             },
         ]);
@@ -119,8 +121,6 @@ describe('library index', () => {
             idMal: null,
             title: { userPreferred: 'Another Name', english: null, romaji: null },
         };
-        expect(isInLibrary(swordKing, index.all)).toBe(true);
-        // Not started: "Hide what I've started" leaves it alone.
-        expect(isInLibrary(swordKing, index)).toBe(false);
+        expect(isInLibrary(swordKing, index)).toBe(true);
     });
 });

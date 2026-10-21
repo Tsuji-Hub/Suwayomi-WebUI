@@ -2335,8 +2335,8 @@ msgid "Hide replies"
 msgstr "Hide replies"
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
-msgid "Hide what I've started"
-msgstr "Hide what I've started"
+msgid "Hide what's in my library"
+msgstr "Hide what's in my library"
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Hide what's on my AniList"
@@ -3048,6 +3048,10 @@ msgstr "More"
 #: src/features/tsuji/recs/components/CardGrid.tsx
 msgid "More ({hiddenCount})"
 msgstr "More ({hiddenCount})"
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "More {familyLabel}"
+msgstr "More {familyLabel}"
 
 #: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 #: src/features/tsuji/seen/components/SeenControls.tsx
@@ -3800,6 +3804,11 @@ msgstr "Right to left"
 #: src/features/theme/Themes.ts
 msgid "Rosegold"
 msgstr "Rosegold"
+
+#. placeholder {0}: manga.title
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "Same tags as {0}"
+msgstr "Same tags as {0}"
 
 #: src/features/settings/screens/ImageProcessingSetting.tsx
 #: src/features/theme/components/CreateThemeDialog.tsx

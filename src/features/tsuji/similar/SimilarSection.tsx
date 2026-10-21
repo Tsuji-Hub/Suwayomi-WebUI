@@ -16,6 +16,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useLingui } from '@lingui/react/macro';
 import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
 import type { RecSort } from '@/features/tsuji/recs/filters.ts';
+import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { getTagOptions, passesFilters, REC_SORTS, sortRecs } from '@/features/tsuji/recs/filters.ts';
 import { rankCandidates } from '@/features/tsuji/recs/rank.ts';
 import { REC_SORT_LABELS } from '@/features/tsuji/recs/Recs.constants.ts';
@@ -34,6 +35,8 @@ import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
 import { CappedCardGrid } from '@/features/tsuji/recs/components/CardGrid.tsx';
 import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { CommentsPill, SeriesCommentsHost } from '@/features/tsuji/comments/components/CommentsButton.tsx';
+import { needsSameTagsFill, SIMILAR_MAX } from '@/features/tsuji/similar/sameTags.ts';
+import { useSameTags } from '@/features/tsuji/similar/useSameTags.ts';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
 
@@ -94,6 +97,26 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     // Cards wait for the library index and the AniList list (capped by its 4 s timeout), so they don't vanish after
     // rendering; the header and filters are usable meanwhile.
     const isLoading = state.status === 'loading' || (state.status === 'ready' && (!libraryIndex || !seen.isSettled));
+
+    // Too few cards (brief #14): MangaBaka fills in with titles sharing the series' most distinctive tags.
+    const isFillNeeded = !!data && !isLoading && needsSameTagsFill(visible.length);
+    const sameTags = useSameTags(data?.seedId ?? null, isFillNeeded);
+    const fill = useMemo(() => {
+        if (!sameTags || !data || !libraryIndex || !needsSameTagsFill(visible.length)) {
+            return [];
+        }
+        const shown = new Set([data.seedId, ...data.candidates.map(({ id }) => id)]);
+        return sameTags
+            .filter(
+                (item) =>
+                    !shown.has(item.id) &&
+                    passesFilters(item, filters, libraryIndex, {
+                        applyTagFilters: false,
+                        getSeenState: seen.getSeenState,
+                    }),
+            )
+            .slice(0, Math.max(0, SIMILAR_MAX - visible.length));
+    }, [sameTags, data, libraryIndex, visible.length, filters, seen.getSeenState]);
     const sourceLabel = data?.sources.includes('mal') ? t`AniList + MAL` : t`AniList`;
 
     const body = (() => {
@@ -133,7 +156,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
             );
         }
 
-        if (!visible.length) {
+        if (!visible.length && !fill.length) {
             return (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {t`Nothing left after filters.`}
@@ -141,7 +164,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
             );
         }
 
-        const renderCard = (item: (typeof visible)[number]) => (
+        const renderCard = (item: RecMedia & { agreement?: boolean }) => (
             <RecCard
                 key={item.id}
                 media={item}
@@ -153,10 +176,26 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
             />
         );
 
-        return layout === 'grid' ? (
-            <CappedCardGrid items={visible} renderItem={renderCard} />
-        ) : (
-            <ScrollRow label={t`Similar titles`}>{visible.map(renderCard)}</ScrollRow>
+        const fillLabel = t`Same tags as ${manga.title}`;
+        const renderCards = (items: (RecMedia & { agreement?: boolean })[], label: string) =>
+            layout === 'grid' ? (
+                <CappedCardGrid items={items} renderItem={renderCard} />
+            ) : (
+                <ScrollRow label={label}>{items.map(renderCard)}</ScrollRow>
+            );
+
+        return (
+            <Stack sx={{ gap: 1 }}>
+                {!!visible.length && renderCards(visible, t`Similar titles`)}
+                {!!fill.length && (
+                    <>
+                        <Typography variant="subtitle2" component="h4" sx={{ color: 'text.secondary' }}>
+                            {fillLabel}
+                        </Typography>
+                        {renderCards(fill, fillLabel)}
+                    </>
+                )}
+            </Stack>
         );
     })();
 

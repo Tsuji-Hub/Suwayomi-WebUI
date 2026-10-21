@@ -21,7 +21,7 @@ import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 
 /**
- * Started library titles (>= 1 chapter read) for "Hide what I've started"; null until the first result is in. On error it falls back to
+ * Every library title for "Hide what's in my library"; null until the first result is in. On error it falls back to
  * an empty index (nothing hidden) rather than leaving Similar/Discover on a skeleton.
  */
 export const useLibraryIndex = (): LibraryIndex | null => {

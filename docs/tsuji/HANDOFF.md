@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch             | Commit             | What                                                                                                                                           |
-| ------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`           | `bf9deea5` (r3429) | Briefs #1-#13 (For You Best matches, bell v2, MangaBaka tags by id, preview Comments from ch 1 / Reviews) + reader resume. Shipped 2026-10-21. |
-| `chore/docs-r3429` | this               | Docs only: r3429 shipped. Rides along with the next ship.                                                                                      |
-| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                 |
+| Branch                 | Commit             | What                                                                                                                                                    |
+| ---------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`               | `bf9deea5` (r3429) | Briefs #1-#13 (For You Best matches, bell v2, MangaBaka tags by id, preview Comments from ch 1 / Reviews) + reader resume. Shipped 2026-10-21.          |
+| `feat/smarter-ranking` | (prerelease)       | Brief #14: Best match = chip fit + taste, distinctive tags, "More <Family>" row, Similar fill, one hide rule. Includes the r3429 docs. Awaiting Cowork. |
+| `master`               | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                          |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and

@@ -7,9 +7,9 @@
  */
 
 // Browser test of Discover > For You on the production build (build/, or BUILD_DIR): an in-memory Suwayomi
-// (mockSuwayomi.mjs) and a fixture AniList (graphql.anilist.co answered by the test). Checks the tab renders the
-// week's picks and seed rows from 3 AniList requests, applies the list badges, and serves a reload from the week
-// cache without asking AniList again.
+// (mockSuwayomi.mjs), a fixture AniList (graphql.anilist.co answered by the test) and a fake MangaBaka. Checks the
+// tab renders the week's picks and seed rows from 3 AniList requests, applies the list badges, builds the weekly
+// "More System" row from MangaBaka (brief #14), and serves a reload from the week cache without asking again.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/for-you.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -74,6 +74,9 @@ const WEAK_ID = 900;
 const READ_MARK_ID = 805;
 /** In the library (Plan to Read, nothing read), matched only through its AniList track record. */
 const LIBRARY_ID = 806;
+/** Liked titles MangaBaka files under System (5 needed for the row), and the System sub-searches' AniList ids. */
+const SYSTEM_LIKED = [1000, 1001, 1002, 1003, 1004, 1005];
+const SYSTEM_IDS = Array.from({ length: 14 }, (_, index) => 3000 + index);
 /** AniList-sized titles: a long synopsis and 20 tags, as the real answers (the week must still fit the cache). */
 const EXTRA_TAGS = Array.from({ length: 16 }, (_, index) => ({
     name: `Extra Tag ${index}`,
@@ -222,6 +225,8 @@ const createAniList = () => {
                     core: { media: [media(PLANNED_ID), media(51), media(52)] },
                     rotating: { media: [media(53), media(54)] },
                 };
+            case 'TsujiBakaDetails':
+                return { Page: { media: (variables.ids ?? []).map((id) => media(id)) } };
             case 'TsujiDiscoverPage':
                 return { Page: { pageInfo: { hasNextPage: false }, media: [] } };
             case 'TsujiTagCatalog':
@@ -229,6 +234,48 @@ const createAniList = () => {
             default:
                 return {};
         }
+    };
+    return { counts, answer };
+};
+
+const bakaSeries = (id, anilistId, popularity, tags = []) => ({
+    id,
+    title: `Baka ${id}`,
+    type: 'manhwa',
+    status: 'releasing',
+    rating: 80,
+    popularity: { global: { current: popularity } },
+    source: { anilist: { id: anilistId } },
+    tags_v2: tags.map((tagId) => ({ id: tagId, parent_id: null, series_count: 900, weight: 'defining' })),
+});
+
+/** Fake MangaBaka: the source lookup and the search, counted per path. */
+const createBaka = () => {
+    const counts = { source: 0, search: 0 };
+    const answer = (url) => {
+        const sourceMatch = url.pathname.match(/^\/v1\/source\/anilist\/(\d+)$/);
+        if (sourceMatch) {
+            counts.source += 1;
+            const id = Number(sourceMatch[1]);
+            const tags = SYSTEM_LIKED.includes(id) ? [3081] : [77];
+            return { status: 200, data: { source_response: null, series: [bakaSeries(id + 50_000, id, 10, tags)] } };
+        }
+        if (url.pathname === '/v1/series/search') {
+            counts.search += 1;
+            const tag = url.searchParams.get('tag');
+            const rows =
+                tag === '3081'
+                    ? [
+                          ...SYSTEM_IDS.map((id, index) => bakaSeries(id, id, index + 1, [3081])),
+                          // Already in Best matches, in the library, read-marked, and on the list.
+                          ...[BEST_ID, LIBRARY_ID, READ_MARK_ID, 1003].map((id, index) =>
+                              bakaSeries(id + 70_000, id, 100 + index, [3081]),
+                          ),
+                      ]
+                    : [];
+            return { data: rows, pagination: { count: rows.length, next: null } };
+        }
+        return null;
     };
     return { counts, answer };
 };
@@ -296,6 +343,7 @@ const runBrowser = async (browserName) => {
         globalMeta: { tsuji_seen_5: JSON.stringify({ r: [READ_MARK_ID], s: [] }) },
     });
     const aniList = createAniList();
+    const baka = createBaka();
     const pageErrors = [];
 
     await context.route('**/*', async (route) => {
@@ -311,6 +359,18 @@ const runBrowser = async (browserName) => {
                 headers: { ...CORS, 'content-type': 'application/json' },
                 body: JSON.stringify({ data: aniList.answer(body) }),
             });
+        }
+        if (url.host === 'api.mangabaka.org') {
+            const result = baka.answer(url);
+            return route.fulfill(
+                result
+                    ? {
+                          status: 200,
+                          headers: { ...CORS, 'content-type': 'application/json' },
+                          body: JSON.stringify(result),
+                      }
+                    : { status: 404, headers: CORS, body: '' },
+            );
         }
         if (url.origin !== ORIGIN) {
             return route.abort();
@@ -408,6 +468,31 @@ const runBrowser = async (browserName) => {
         aniList.counts,
     );
 
+    // "More System" (brief #14): 6 of the 10 liked titles carry System on MangaBaka.
+    const familyRow = page.getByRole('group', { name: 'More System' });
+    await familyRow.waitFor({ timeout: 20_000 }).catch(() => {});
+    const familyTitles = await familyRow
+        .locator('[aria-label^="Pick "]')
+        .evaluateAll((cards) => cards.map((card) => card.getAttribute('aria-label')));
+    const rowsText = await page.locator('body').innerText();
+    check(
+        label('one "More System" row with 10+ cards: none in the library, read-marked, on the list or shown above'),
+        familyTitles.length >= 10 &&
+            [BEST_ID, LIBRARY_ID, READ_MARK_ID, 1003].every((id) => !familyTitles.includes(`Pick ${id}`)) &&
+            rowsText.split(`Pick ${BEST_ID}\n`).length - 1 === 1 &&
+            (await page.getByRole('heading', { name: /^More / }).count()) === 1,
+        familyTitles,
+    );
+    check(
+        label('MangaBaka for the row: one lookup per liked title, one search per System tag'),
+        baka.counts.source === LIST_SIZE && baka.counts.search === 3,
+        baka.counts,
+    );
+    const familyStored = await page.evaluate(() =>
+        Object.keys(localStorage).filter((key) => key.includes('foryou:family:v1:ejustice')),
+    );
+    check(label('the row is stored for the week'), familyStored.length === 1, familyStored);
+
     const stored = await page.evaluate(() =>
         Object.keys(localStorage)
             .filter((key) => key.includes('foryou:week:'))
@@ -415,7 +500,7 @@ const runBrowser = async (browserName) => {
     );
     check(
         label('the week (with Best matches) is stored in localStorage, under the cache limit'),
-        stored.length === 1 && stored[0][0].includes('foryou:week:v3:ejustice') && stored[0][1] < 300_000,
+        stored.length === 1 && stored[0][0].includes('foryou:week:v4:ejustice') && stored[0][1] < 300_000,
         stored,
     );
 
@@ -425,6 +510,17 @@ const runBrowser = async (browserName) => {
         .getByRole('heading', { name: 'Top picks' })
         .waitFor({ timeout: 20_000 })
         .catch(() => {});
+    await page
+        .getByRole('group', { name: 'More System' })
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+    check(
+        label('reload: the row again, 0 MangaBaka requests'),
+        (await page.getByRole('group', { name: 'More System' }).isVisible()) &&
+            baka.counts.source === LIST_SIZE &&
+            baka.counts.search === 3,
+        baka.counts,
+    );
     check(
         label('reload: For You again, from the stored week (0 recommendation requests)'),
         (await page.getByRole('heading', { name: 'Top picks' }).isVisible()) &&

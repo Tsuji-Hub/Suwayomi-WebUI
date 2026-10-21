@@ -18,6 +18,7 @@ import {
     compareBakaSeries,
     countBakaCombinations,
     getBakaCombinations,
+    getBakaFitChips,
     getChipTags,
     getMissingDetails,
     toBakaCards,
@@ -30,6 +31,7 @@ import {
     searchBakaTags,
 } from '@/features/tsuji/tags/bakaService.ts';
 import { normalizeTagKey } from '@/features/tsuji/tags/tagKeys.ts';
+import type { FitChips } from '@/features/tsuji/recs/bestMatch.ts';
 
 /** Tag ids per included chip (OR inside, AND across), excluded ids, and what stays an AniList post-filter. */
 export type ResolvedChips = { includeSets: number[][]; excludeIds: number[]; postFilter: AniListChips };
@@ -90,6 +92,7 @@ type BakaFeedState = {
     key: string;
     pages: BakaSeries[][];
     postFilter: AniListChips;
+    fitChips: FitChips | null;
     hasNextPage: boolean;
     status: 'idle' | 'loading' | 'error';
     /** Sub-searches run / needed without the cap (null until the chips are resolved). */
@@ -102,6 +105,7 @@ const createState = (key: string): BakaFeedState => ({
     key,
     pages: [],
     postFilter: { genres: {}, tags: {} },
+    fitChips: null,
     hasNextPage: true,
     status: 'idle',
     combinations: null,
@@ -124,6 +128,7 @@ export const useBakaFeed = ({
     showAdult,
     isEnabled,
     settleMs = 0,
+    waitForDetails = false,
 }: {
     baka: BakaSelection;
     aniListChips: AniListChips;
@@ -137,6 +142,11 @@ export const useBakaFeed = ({
      * three chips doesn't run every intermediate search against MangaBaka's 30/min); 0 = at once.
      */
     settleMs?: number;
+    /**
+     * Show a page only once its AniList details are in (Best match ranks on their tags, so the cards don't jump
+     * when the details land); a failed details request shows the page anyway.
+     */
+    waitForDetails?: boolean;
 }) => {
     const key = useMemo(
         () => JSON.stringify({ baka, aniListChips, types, sort, minScore, showAdult }),
@@ -226,9 +236,25 @@ export const useBakaFeed = ({
                 searchRef.current = null;
                 return readPage();
             })
-            .then(({ resolved, result }) => {
+            .then(async ({ resolved, result }) => {
                 if (signal.aborted) {
                     return;
+                }
+                const missing = getMissingDetails(result.series, detailsRef.current);
+                const detailsLoaded = missing.length
+                    ? fetchAniListDetails(missing, signal)
+                          .then(
+                              (batch) => !signal.aborted && setDetails((previous) => new Map([...previous, ...batch])),
+                          )
+                          .catch(
+                              (error) => !signal.aborted && defaultPromiseErrorHandler('useBakaFeed::details')(error),
+                          )
+                    : null;
+                if (waitForDetails && detailsLoaded) {
+                    await detailsLoaded;
+                    if (signal.aborted) {
+                        return;
+                    }
                 }
                 setState((previous) =>
                     previous.key === feed.key
@@ -236,17 +262,12 @@ export const useBakaFeed = ({
                               ...previous,
                               pages: [...previous.pages, result.series],
                               postFilter: resolved.postFilter,
+                              fitChips: getBakaFitChips(resolved),
                               hasNextPage: result.hasNextPage,
                               status: 'idle',
                           }
                         : previous,
                 );
-                const missing = getMissingDetails(result.series, detailsRef.current);
-                if (missing.length) {
-                    fetchAniListDetails(missing, signal)
-                        .then((batch) => !signal.aborted && setDetails((previous) => new Map([...previous, ...batch])))
-                        .catch((error) => !signal.aborted && defaultPromiseErrorHandler('useBakaFeed::details')(error));
-                }
             })
             .catch((error) => {
                 if (signal.aborted) {
@@ -255,7 +276,7 @@ export const useBakaFeed = ({
                 defaultPromiseErrorHandler('useBakaFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });
-    }, [isEnabled, isSettled, baka, aniListChips, types, sort, minScore, showAdult]);
+    }, [isEnabled, isSettled, baka, aniListChips, types, sort, minScore, showAdult, waitForDetails]);
 
     const shouldLoadFirstPage = isEnabled && isSettled && !current.pages.length && current.status === 'idle';
     useEffect(() => {
@@ -288,6 +309,7 @@ export const useBakaFeed = ({
         isError: current.status === 'error',
         serverSort: null as string | null,
         combinations: current.combinations,
+        fitChips: current.fitChips,
         firstPagesLoaded: current.firstPagesLoaded,
         loadMore,
         retry,

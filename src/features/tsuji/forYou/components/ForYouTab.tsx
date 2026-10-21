@@ -15,7 +15,14 @@ import { styled } from '@mui/material/styles';
 import { plural } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react/macro';
 import { DAY_MS } from '@/features/tsuji/Tsuji.constants.ts';
-import { getSeedRow, getTopSeeds, passesQualityFloor, rankForYou } from '@/features/tsuji/forYou/forYouCandidates.ts';
+import {
+    getSeedRow,
+    getTopSeeds,
+    passesQualityFloor,
+    QUALITY_MIN_POPULARITY,
+    rankForYou,
+} from '@/features/tsuji/forYou/forYouCandidates.ts';
+import { useFamilyRow } from '@/features/tsuji/forYou/useFamilyRow.ts';
 import { readShownIds, SHOWN_PER_WEEK, writeShownIds } from '@/features/tsuji/forYou/forYouHistory.ts';
 import { useForYou } from '@/features/tsuji/forYou/useForYou.ts';
 import { getIsoWeekKey } from '@/features/tsuji/forYou/weeklyRotation.ts';
@@ -35,6 +42,7 @@ const SKELETON_KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index
 const TOP_PICKS = 24;
 const BEST_MATCHES = 30;
 const ROW_LENGTH = 12;
+const FAMILY_ROW_LENGTH = 20;
 const TASTE_CHIPS = 8;
 
 const CardGrid = styled('div')(({ theme }) => ({
@@ -84,7 +92,7 @@ export const ForYouTab = () => {
     }, [data, lastWeekIds, filters, libraryIndex, seen.getSeenState]);
 
     // Best matches (brief #13): the strongest liked titles' recommendations, the same hide rules and filters, and
-    // never a library title, started or not (a Plan to Read title is no discovery).
+    // never a library title, started or not (a Plan to Read title is no discovery), even with that filter off.
     const bestMatches = useMemo(() => {
         if (!data || !libraryIndex) {
             return [];
@@ -93,7 +101,7 @@ export const ForYouTab = () => {
             .filter(
                 (item) =>
                     passesQualityFloor(item) &&
-                    !isInLibrary(item, libraryIndex.all) &&
+                    !isInLibrary(item, libraryIndex) &&
                     passesFilters(item, filters, libraryIndex, {
                         applyTagFilters: false,
                         getSeenState: seen.getSeenState,
@@ -112,6 +120,29 @@ export const ForYouTab = () => {
             ).slice(0, TOP_PICKS),
         [visible, filters, bestIds],
     );
+    // "More <Family>" (brief #14): MangaBaka's take on a family the liked titles share, same rules as Best matches,
+    // without what Best matches and Top picks show.
+    const familyRow = useFamilyRow(userName, data);
+    const familyItems = useMemo(() => {
+        if (!familyRow?.family || !libraryIndex) {
+            return [];
+        }
+        const shown = new Set([...bestIds, ...topPicks.map(({ id }) => id)]);
+        return familyRow.items
+            .filter(
+                (item) =>
+                    !shown.has(item.id) &&
+                    (item.averageScore !== null || (item.popularity ?? 0) >= QUALITY_MIN_POPULARITY) &&
+                    !isInLibrary(item, libraryIndex) &&
+                    passesFilters(item, filters, libraryIndex, {
+                        applyTagFilters: false,
+                        getSeenState: seen.getSeenState,
+                    }),
+            )
+            .slice(0, FAMILY_ROW_LENGTH);
+    }, [familyRow, libraryIndex, bestIds, topPicks, filters, seen.getSeenState]);
+    const familyLabel = familyRow?.family?.label ?? '';
+
     const seedRows = useMemo(
         () =>
             (data?.seeds ?? [])
@@ -244,6 +275,14 @@ export const ForYouTab = () => {
                             {t`Top picks`}
                         </Typography>
                         <CardGrid>{topPicks.map(renderCard)}</CardGrid>
+                    </Stack>
+                )}
+                {!!familyItems.length && (
+                    <Stack sx={{ gap: 1 }}>
+                        <Typography variant="h6" component="h2">
+                            {t`More ${familyLabel}`}
+                        </Typography>
+                        <ScrollRow label={t`More ${familyLabel}`}>{familyItems.map(renderCard)}</ScrollRow>
                     </Stack>
                 )}
                 {seedRows.map(({ seed, items }) => (

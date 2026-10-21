@@ -14,6 +14,59 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #14: put the tag work to use in ranking (branch `feat/smarter-ranking`)
+
+Off `custom` (r3429). Not shipped yet: Cowork checks the prerelease live.
+
+**Done:**
+
+1. **Best match = chip fit + taste** (`recs/bestMatch.ts`, both engines; replaces `rerankByIncludeTags`). Fit = share
+   of the included chips a card matches: AniList tag chips by rank / 100 as before; MangaBaka chips (a family through
+   any member) count as matched for every series a sub-search returns, because each sub-search ANDs one tag of every
+   chip (`getBakaFitChips`; no per-series record needed); AniList-only chips left as a post-filter score on the
+   card's AniList details; AniList genre chips are matched by the genre search. Taste = sum(weight x rank / 100) over
+   the card's content tags, normalized 0..1 per page, from For You's cached weights only
+   (`foryou:weights:v1:<user>`, 30 days; Discover never fetches a profile). Score = 0.6 fit + 0.4 taste; without
+   weights, fit alone. Ties: AniList popularity (AniList engine) or MangaBaka's order (MangaBaka engine). Each page
+   ranked on its own. On MangaBaka with Best match and weights (or an AniList-only include chip), a page waits for
+   its AniList details before it shows, so cards don't jump (`useBakaFeed` `waitForDetails`).
+2. **Distinctive tags** (`forYou/distinctive.ts`): weight = total x clamp(lift, 0.5, 3), lift = liked share / baseline
+   share. Baseline = tag share of the week's whole merged pool (weekly candidates + every Best match, 200+ titles),
+   else the committed snapshot `forYou/tagBaseline.json`, else no lift. **The snapshot is empty** (this container
+   can't reach AniList): run `node tools/scripts/tsuji/build-tag-baseline.mjs` (20 AniList requests, 2.5 s apart) and
+   commit the JSON. The week's recall tags are picked before the week's pool exists, so they use last week's pool
+   baseline (`foryou:baseline:v1:<user>`), else the snapshot. Profile now carries `tagStats` (120 tags with weighted
+   total and liked-title count), `likedCount`, `familySeeds`; keys bumped to `foryou:taste:v3` / `foryou:week:v4`
+   (one rebuild of the week on deploy).
+3. **"More <Family>"** (`forYou/familyRow.ts`, `FamilyRowService.ts`): after the week shows, the 60 strongest liked
+   titles are looked up on MangaBaka (`GET /v1/source/anilist/{id}`, its `tags_v2` ids and parents;
+   `baka:families:v1:<id>`, a week; the 180/min queue). A family on 5+ of them qualifies; one a week, qualifying
+   families take turns by ISO week. Its member tags are searched (one search each, all comic types, safe ratings),
+   merged by MangaBaka popularity without list titles, AniList details for the first 100 (2 `id_in`), ranked by
+   Best match (all match, so by taste), 40 kept (`foryou:family:v1:<user>:<week>`, until Monday; partial = 1 h).
+   Row: after Top picks, up to 20, same filters and seen marks, never a library title, nothing Best matches or Top
+   picks show, quality floor (score or 1,000+ users).
+4. **Similar fill** (`similar/sameTags.ts`, `SameTagsService.ts`): under 12 visible cards, MangaBaka fills in: the
+   series by AniList id, its 3 most distinctive tags (lowest `series_count`, 25+ series, core / defining /
+   recurrent before weaker), one search for any of them (`tag_mode=or`, all content ratings), ranked by tags shared
+   (a subtag counts for its parent) then popularity, AniList details in one `id_in`; 30 kept a week
+   (`similar:sametags:v1:<id>`). Shown under "Same tags as <title>", total capped at 24. 2 MangaBaka requests per
+   title.
+5. **One hide rule:** `LibraryIndex` is every library title, started or not; the filter reads "Hide what's in my
+   library" (same `hideInLibrary` key). Applies to Discover, Similar and For You; read marks and Not for me stay.
+
+**Tests:** unit for fit scoring (AniList rank, MangaBaka matched, post-filter, blend, no profile), lift clamp and
+baseline choice, distinctive order, family threshold (4 no, 5 yes) and rotation, Similar fill trigger (11 yes, 12
+no), distinctive MangaBaka tags, overlap ranking, source parsing, For You weights / recall baseline. Browser:
+`for-you.e2e.mjs` ("More System" with 14 cards, none in library / read-marked / listed / in Best matches; 10
+lookups + 3 searches, 0 on reload), new `similar-fill.e2e.mjs` (4 recs + 14 fill, library titles out, 2 MangaBaka
+requests with the right params, 0 on reload), `discover-tags.e2e.mjs` (Best match without taste = MangaBaka order,
+with a cached taste the Medicine titles lead; no profile request).
+
+**For Cowork's live check:** acceptance 4 (Male Protagonist out of the top 5) depends on Ethan's list and the pool:
+the clamp caps a rare tag's lift at 3, so a tag on most liked titles can stay high on its total. If it does, the
+fix is a tuning question for Ethan (lift exponent, or a lower floor), not a bug.
+
 # Brief #13 v2: For You "Best matches" (branch `feat/foryou-best-matches`)
 
 **Shipped as r3429** (2026-10-21).

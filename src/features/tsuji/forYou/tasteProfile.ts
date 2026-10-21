@@ -55,6 +55,10 @@ export const PROFILE_TAG_COUNT = 30;
 export const SEED_POOL_SIZE = 30;
 /** Liked titles whose recommendations make "Best matches" (brief #13): the strongest of everything read. */
 export const BEST_SEED_COUNT = 40;
+/** Liked titles looked up on MangaBaka for the weekly family row (brief #14). */
+export const FAMILY_SEED_COUNT = 60;
+/** Liked tags kept with their counts, for the distinctive-tag lift (distinctive.ts). */
+export const TAG_STAT_COUNT = 120;
 
 const progressFactor = ({ status, progress }: Pick<TasteEntry, 'status' | 'progress'>) =>
     status === 'CURRENT' || status === 'PAUSED' ? 0.4 + 0.6 * Math.min(1, progress / PROGRESS_FULL_CHAPTERS) : 1;
@@ -85,13 +89,24 @@ export const getEntryWeight = (entry: TasteEntry, now: number): number => {
 
 export type SeedCandidate = { mediaId: number; title: string; weight: number };
 
+/** A liked tag: its weighted total, and how many liked titles carry it (the lift's liked share). */
+export type TagStat = { name: string; total: number; titles: number };
+
 export type TasteProfile = {
-    /** Strongest liked content tags, rank = 0-100 relative to the strongest (the ranker's seed-tag shape). */
+    /**
+     * Strongest liked content tags by weighted total, rank = 0-100 relative to the strongest (the ranker's seed-tag
+     * shape). Before the lift: For You ranks with the distinctive tags (distinctive.ts).
+     */
     tags: RecTag[];
+    /** The liked tags with their counts (strongest TAG_STAT_COUNT), and how many titles are liked. */
+    tagStats: TagStat[];
+    likedCount: number;
     /** Liked titles, strongest first: this week's seeds are drawn from them. */
     seedPool: SeedCandidate[];
     /** The strongest liked titles (unscored entries count as neutral, never 0): the seeds of "Best matches". */
     bestSeeds: SeedCandidate[];
+    /** The strongest liked titles' AniList ids (FAMILY_SEED_COUNT), looked up on MangaBaka for the family row. */
+    familySeeds: number[];
     /** Every title on the list (any status in the profile query): never recommended back. */
     listedIds: number[];
     entryCount: number;
@@ -99,19 +114,23 @@ export type TasteProfile = {
 
 export const buildTasteProfile = (entries: TasteEntry[], now: number): TasteProfile => {
     const tagTotals = new Map<string, number>();
+    const tagTitles = new Map<string, number>();
     const weighted = entries.map((entry) => ({ entry, weight: getEntryWeight(entry, now) }));
 
     weighted.forEach(({ entry, weight }) =>
         getContentTags(entry).forEach((tag) => {
             const rank = Math.max(0, tag.rank ?? 0) / 100;
             tagTotals.set(tag.name, (tagTotals.get(tag.name) ?? 0) + weight * rank);
+            if (weight > 0) {
+                tagTitles.set(tag.name, (tagTitles.get(tag.name) ?? 0) + 1);
+            }
         }),
     );
 
-    const liked = [...tagTotals.entries()]
+    const positive = [...tagTotals.entries()]
         .filter(([, total]) => total > 0)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, PROFILE_TAG_COUNT);
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const liked = positive.slice(0, PROFILE_TAG_COUNT);
     const strongest = liked[0]?.[1] ?? 1;
 
     const likedTitles = weighted
@@ -121,8 +140,15 @@ export const buildTasteProfile = (entries: TasteEntry[], now: number): TasteProf
 
     return {
         tags: liked.map(([name, total]) => ({ name, rank: Math.max(1, Math.round((100 * total) / strongest)) })),
+        tagStats: positive.slice(0, TAG_STAT_COUNT).map(([name, total]) => ({
+            name,
+            total: Math.round(total * 1000) / 1000,
+            titles: tagTitles.get(name) ?? 0,
+        })),
+        likedCount: likedTitles.length,
         seedPool: likedTitles.slice(0, SEED_POOL_SIZE),
         bestSeeds: likedTitles.slice(0, BEST_SEED_COUNT),
+        familySeeds: likedTitles.slice(0, FAMILY_SEED_COUNT).map(({ mediaId }) => mediaId),
         listedIds: entries.map(({ mediaId }) => mediaId),
         entryCount: entries.length,
     };

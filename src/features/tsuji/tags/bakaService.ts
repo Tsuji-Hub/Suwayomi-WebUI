@@ -12,8 +12,15 @@ import { ParallelQueue, SpacedQueue } from '@/features/tsuji/services/RequestQue
 import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { MEDIA_FIELDS } from '@/features/tsuji/recs/aniListQueries.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
-import type { BakaSeries, BakaTag } from '@/features/tsuji/tags/baka.ts';
-import { parseBakaSearch, parseBakaTags } from '@/features/tsuji/tags/baka.ts';
+import type { BakaSeries, BakaSeriesTag, BakaTag } from '@/features/tsuji/tags/baka.ts';
+import {
+    getBakaFamilies,
+    parseBakaSearch,
+    parseBakaSeries,
+    parseBakaSeriesTags,
+    parseBakaSource,
+    parseBakaTags,
+} from '@/features/tsuji/tags/baka.ts';
 
 /*
  * MangaBaka's public API, straight from the browser (it answers CORS with `*`; no relay, no login, never a token).
@@ -145,6 +152,51 @@ export const searchBakaSeries = (query: string, signal?: AbortSignal): Promise<S
             searchLimit = 25;
         }
         throw error;
+    });
+};
+
+/**
+ * The MangaBaka series behind an AniList id, with its tags (null = MangaBaka doesn't know it). One request on the
+ * tag queue (180/min); callers cache what they keep.
+ */
+export const lookupBakaSource = async (
+    anilistId: number,
+    signal?: AbortSignal,
+): Promise<{ series: BakaSeries; tags: BakaSeriesTag[] } | null> => {
+    try {
+        return parseBakaSource(await getJson(defaultQueue, `/v1/source/anilist/${anilistId}`, signal));
+    } catch (error) {
+        if (error instanceof BakaError && error.message.endsWith(' 404')) {
+            return null;
+        }
+        throw error;
+    }
+};
+
+const FAMILIES_TTL_MS = 7 * DAY_MS;
+
+/** The MangaBaka families (BAKA_FAMILIES keys) of the series behind an AniList id, cached a week. */
+export const getBakaFamiliesOf = async (anilistId: number, signal?: AbortSignal): Promise<string[]> => {
+    const key = `baka:families:v1:${anilistId}`;
+    const cached = TsujiCache.get<string[]>(key);
+    if (cached) {
+        return cached;
+    }
+    const found = await lookupBakaSource(anilistId, signal);
+    const families = found ? getBakaFamilies(found.tags) : [];
+    TsujiCache.set(key, families, FAMILIES_TTL_MS);
+    return families;
+};
+
+/** One search page (`query` from buildBakaSearch) with each series' tags; not cached (callers keep the result). */
+export const searchBakaSeriesWithTags = async (
+    query: string,
+    signal?: AbortSignal,
+): Promise<{ series: BakaSeries; tags: BakaSeriesTag[] }[]> => {
+    const { data } = (await getJson(searchQueue, `/v1/series/search?${query}`, signal)) as { data?: unknown };
+    return (Array.isArray(data) ? data : []).flatMap((row) => {
+        const series = parseBakaSeries(row);
+        return series ? [{ series, tags: parseBakaSeriesTags(row) }] : [];
     });
 };
 

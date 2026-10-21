@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import type { RecCandidate, RecMedia, RecSourceId, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
+import type { RecCandidate, RecSourceId, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
 import { isSpoilerTag } from '@/features/tsuji/recs/media.ts';
 
 /*
@@ -174,30 +174,3 @@ export const diversify = <T extends { vector: TagVector }>(
 
     return [...selected, ...tail];
 };
-
-/**
- * Discover "best match" in [0,1]: mean over the selected include tags of the candidate's rank/100 for that tag
- * (0 when absent), rewarding both how many chosen tags a title carries and how strongly. Spoilers ignored.
- */
-export const includeTagScore = (includedTags: string[], candidateTags: RecTag[] | null | undefined): number => {
-    if (!includedTags.length) {
-        return 0;
-    }
-
-    const rankByName = new Map(
-        (candidateTags ?? []).filter((tag) => !isSpoilerTag(tag)).map((tag) => [tag.name, tag.rank ?? 0]),
-    );
-    const total = includedTags.reduce((sum, name) => sum + Math.max(0, rankByName.get(name) ?? 0) / 100, 0);
-
-    return total / includedTags.length;
-};
-
-/** Re-rank one fetched page by include-tag score (ties: popularity desc). Pages are appended, never reshuffled. */
-export const rerankByIncludeTags = <T extends Pick<RecMedia, 'tags' | 'popularity'>>(
-    page: T[],
-    includedTags: string[],
-): T[] =>
-    page
-        .map((media) => ({ media, score: includeTagScore(includedTags, media.tags) }))
-        .sort((a, b) => b.score - a.score || (b.media.popularity ?? 0) - (a.media.popularity ?? 0))
-        .map(({ media }) => media);

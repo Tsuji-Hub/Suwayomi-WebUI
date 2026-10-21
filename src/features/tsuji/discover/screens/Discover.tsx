@@ -38,7 +38,9 @@ import { TagPicker } from '@/features/tsuji/discover/components/TagPicker.tsx';
 import { ForYouTab } from '@/features/tsuji/forYou/components/ForYouTab.tsx';
 import type { RecFilters } from '@/features/tsuji/recs/filters.ts';
 import { passesFilters } from '@/features/tsuji/recs/filters.ts';
-import { rerankByIncludeTags } from '@/features/tsuji/recs/rank.ts';
+import type { FitChips } from '@/features/tsuji/recs/bestMatch.ts';
+import { countFitChips, NO_FIT_CHIPS, rankBestMatch } from '@/features/tsuji/recs/bestMatch.ts';
+import { useTasteWeights } from '@/features/tsuji/forYou/useTasteWeights.ts';
 import { REC_SORT_LABELS } from '@/features/tsuji/recs/Recs.constants.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { REC_CARD_WIDTH, RecCard, RecCardSkeleton } from '@/features/tsuji/recs/components/RecCard.tsx';
@@ -50,7 +52,7 @@ import { TsujiSettingsDialog } from '@/features/tsuji/seen/components/TsujiSetti
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { useSessionState } from '@/features/tsuji/services/useSessionState.ts';
 import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
-import { getSearchEngine, isUnmatchedMedia } from '@/features/tsuji/tags/baka.ts';
+import { getAniListNames, getSearchEngine, isUnmatchedMedia } from '@/features/tsuji/tags/baka.ts';
 import { useBakaFeed } from '@/features/tsuji/tags/useBakaFeed.ts';
 
 /**
@@ -105,6 +107,8 @@ const DiscoverBrowse = () => {
     const defaultSort = isBrowsing && sortOptions.includes(storedFilters.sort) ? storedFilters.sort : sortOptions[0];
     const sort: DiscoverSort = sortChoice && sortOptions.includes(sortChoice) ? sortChoice : defaultSort;
     const includedTags = useMemo(() => getIncludedTags(selection), [selection]);
+    // Best match = chip fit + taste (brief #14); the taste weights come from For You's cache, never a request.
+    const tasteWeights = useTasteWeights(isBrowsing);
     const variables = useMemo(() => buildDiscoverVariables(selection, filters), [selection, filters]);
 
     // Landing: Trending and Popular in parallel; whichever has cards first fills the grid (see pickLandingSource).
@@ -136,6 +140,12 @@ const DiscoverBrowse = () => {
         isEnabled: !isLanding && engine === 'baka',
         // While chips are being picked, search once they've been still for a moment; at once when the picker closes.
         settleMs: isPickerExpanded ? 800 : 0,
+        // Best match ranks on AniList tags: a page waits for its details when the taste or an AniList-only chip
+        // decides the order.
+        waitForDetails:
+            sort === 'BEST' &&
+            (!!tasteWeights ||
+                Object.values({ ...selection.genres, ...selection.tags }).some((state) => state === 'include')),
     });
 
     const [landingSource, setLandingSource] = useState<LandingSource>('loading');
@@ -183,25 +193,40 @@ const DiscoverBrowse = () => {
         [filters, libraryIndex, seen.getSeenState],
     );
 
+    // AniList searches AND their genres server side; tag chips score by the card's tag rank.
+    const fitChips: FitChips = useMemo(() => {
+        if (isBakaSearch) {
+            return bakaBrowse.fitChips ?? NO_FIT_CHIPS;
+        }
+        const includedGenres = new Set([
+            ...Object.keys(selection.genres).filter((name) => selection.genres[name] === 'include'),
+            ...getAniListNames(selection.baka, 'include').genres,
+        ]);
+        return { matched: includedGenres.size, tags: includedTags, genres: [] };
+    }, [isBakaSearch, bakaBrowse.fitChips, selection, includedTags]);
+    // Nothing to score (no included chip, no taste): the feed's own order stands.
+    const isBestMatch = sort === 'BEST' && !isLanding && (!!tasteWeights || countFitChips(fitChips) > 0);
+
     const { items, emptyStreak } = useMemo(() => {
         const seenIds = new Set<number>();
         const visiblePages = feed.pages.map((page) =>
-            (sort === 'BEST' && includedTags.length ? rerankByIncludeTags(page, includedTags) : page).filter(
-                (media) => {
-                    if (seenIds.has(media.id) || !isVisible(media)) {
-                        return false;
-                    }
-                    seenIds.add(media.id);
-                    return true;
-                },
-            ),
+            (isBestMatch
+                ? rankBestMatch(page, fitChips, tasteWeights, isBakaSearch ? 'order' : 'popularity')
+                : page
+            ).filter((media) => {
+                if (seenIds.has(media.id) || !isVisible(media)) {
+                    return false;
+                }
+                seenIds.add(media.id);
+                return true;
+            }),
         );
 
         return {
             items: visiblePages.flat(),
             emptyStreak: getTrailingSparseStreak(visiblePages.map((page) => page.length)),
         };
-    }, [feed.pages, sort, includedTags, isVisible]);
+    }, [feed.pages, isBestMatch, fitChips, tasteWeights, isBakaSearch, isVisible]);
 
     const popularRow = useMemo(
         () => (isLanding && landingSource === 'trending' ? (popular.pages[0] ?? []).filter(isVisible) : []),
