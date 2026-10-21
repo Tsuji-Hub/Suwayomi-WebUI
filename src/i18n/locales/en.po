@@ -149,10 +149,20 @@ msgstr "{0} / {1}"
 msgid "{0} / {1}{2}"
 msgstr "{0} / {1}{2}"
 
+#. placeholder {0}: variant.name
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "{0} also uses \"{otherWord}\" in ch {chapters}"
+msgstr "{0} also uses \"{otherWord}\" in ch {chapters}"
+
 #. placeholder {0}: media.chapters
 #: src/features/tsuji/recs/components/RecPreviewDialog.tsx
 msgid "{0} chapters"
 msgstr "{0} chapters"
+
+#. placeholder {0}: variant.tn
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "{0} in {sampledCount} chapters"
+msgstr "{0} in {sampledCount} chapters"
 
 #. placeholder {0}: review.rating ?? 0
 #. placeholder {1}: review.ratingAmount
@@ -1049,6 +1059,7 @@ msgstr "Chapter transition warning"
 
 #: src/features/backup/Backup.constants.ts
 #: src/features/tsuji/comments/components/ChapterPicker.tsx
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Chapters"
 msgstr "Chapters"
 
@@ -1067,6 +1078,14 @@ msgstr "Check out"
 #: src/features/app-updates/components/VersionInfo.tsx
 msgid "Checking for update"
 msgstr "Checking for update"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Checking…"
+msgstr "Checking…"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Checking… up to 30 min. You can keep browsing."
+msgstr "Checking… up to 30 min. You can keep browsing."
 
 #: src/features/tsuji/comments/components/ChapterPicker.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
@@ -1219,6 +1238,10 @@ msgstr "Comments relay unreachable"
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Compact grid"
 msgstr "Compact grid"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Compare translations"
+msgstr "Compare translations"
 
 #: src/features/tsuji/raws/components/TsujiReaderCompareButton.tsx
 msgid "Compare with raw"
@@ -1518,6 +1541,11 @@ msgstr "Couldn't build your picks: AniList didn't answer in time."
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Couldn't clear the marks. Check the connection to the server."
 msgstr "Couldn't clear the marks. Check the connection to the server."
+
+#. placeholder {0}: result?.error ?? t`unknown error`
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Couldn't compare: {0}"
+msgstr "Couldn't compare: {0}"
 
 #: src/features/tsuji/seen/components/MyListNotice.tsx
 msgid "Couldn't load {userName}'s AniList list, so nothing is hidden."
@@ -2827,6 +2855,10 @@ msgstr "Logging in to {trackerName}…"
 msgid "entry-type-detection-long-strip"
 msgstr "Long strip"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Made by"
+msgstr "Made by"
+
 #: src/features/device/screens/DeviceSetting.tsx
 msgid ""
 "Manage your existing devices.\n"
@@ -3253,6 +3285,10 @@ msgstr "No synopsis available."
 msgid "No titles match these tags and filters."
 msgstr "No titles match these tags and filters."
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "none"
+msgstr "none"
+
 #: src/features/backup/Backup.utils.ts
 #: src/features/category/components/CategoriesInclusionSetting.tsx
 #: src/features/downloads/screens/DownloadSettings.tsx
@@ -3465,6 +3501,10 @@ msgstr "Page gap"
 msgid "Page position"
 msgstr "Page position"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Pages"
+msgstr "Pages"
+
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "Parallel source requests"
 msgstr "Parallel source requests"
@@ -3633,9 +3673,22 @@ msgstr "Raw page {0}"
 msgid "Raws"
 msgstr "Raws"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Re-check"
+msgstr "Re-check"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Re-check translations"
+msgstr "Re-check translations"
+
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Read"
 msgstr "Read"
+
+#. placeholder {0}: variant.name
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Read {0}"
+msgstr "Read {0}"
 
 #. placeholder {0}: offer.number
 #: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
@@ -3810,6 +3863,7 @@ msgstr "Resume"
 #: src/features/tsuji/recs/preview/PreviewReviews.tsx
 #: src/features/tsuji/seen/components/MyListNotice.tsx
 #: src/features/tsuji/similar/SimilarSection.tsx
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Retry"
 msgstr "Retry"
 
@@ -3845,6 +3899,14 @@ msgstr "Rosegold"
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Same tags as {0}"
 msgstr "Same tags as {0}"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Same thing, different word"
+msgstr "Same thing, different word"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Sampled ch {sampled} · checked {checkedAt} · one-off wording slips in other chapters won't show here"
+msgstr "Sampled ch {sampled} · checked {checkedAt} · one-off wording slips in other chapters won't show here"
 
 #: src/features/settings/screens/ImageProcessingSetting.tsx
 #: src/features/theme/components/CreateThemeDialog.tsx
@@ -4128,6 +4190,7 @@ msgid "Show adult titles"
 msgstr "Show adult titles"
 
 #: src/features/tsuji/similar/SimilarSection.tsx
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Show all"
 msgstr "Show all"
 
@@ -4220,6 +4283,10 @@ msgstr "Show transition page"
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "Showing {0} of {1} tag combinations. Remove a family or a chip to search them all."
 msgstr "Showing {0} of {1} tag combinations. Remove a family or a chip to search them all."
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Showing only {activeVariant} chapters"
+msgstr "Showing only {activeVariant} chapters"
 
 #: src/features/settings/screens/ServerSettings.tsx
 #: src/features/settings/screens/WebUISettings.tsx
@@ -4777,6 +4844,10 @@ msgstr "Translate chapter {0}"
 msgid "Translate the next 10"
 msgstr "Translate the next 10"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Translator notes"
+msgstr "Translator notes"
+
 #: src/features/theme/Themes.ts
 msgid "Tree Frog Green"
 msgstr "Tree Frog Green"
@@ -4796,6 +4867,11 @@ msgstr "Trending on Comick"
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Try again"
 msgstr "Try again"
+
+#. placeholder {0}: compared.source
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Two English versions on {0}"
+msgstr "Two English versions on {0}"
 
 #: src/features/settings/screens/ServerSettings.tsx
 #: src/features/tracker/components/cards/TrackerMangaCard.tsx
@@ -4883,8 +4959,13 @@ msgstr "Uninstalling"
 #: src/features/migration/components/migration-entry/MigrationEntryMetadataText.tsx
 #: src/features/settings/components/koreaderSync/KoreaderSyncSettings.tsx
 #: src/features/tracker/Tracker.constants.ts
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Unknown"
 msgstr "Unknown"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "unknown error"
+msgstr "unknown error"
 
 #: src/features/migration/MigrationManager.ts
 msgid "Unknown source"
@@ -5133,6 +5214,10 @@ msgstr "With \"Completed\" status"
 #: src/features/settings/Settings.constants.ts
 msgid "With unread chapter(s)"
 msgstr "With unread chapter(s)"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Words only one uses"
+msgstr "Words only one uses"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Wrong series?"

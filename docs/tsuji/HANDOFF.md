@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-21)
 
-| Branch             | Commit             | What                                                                                                                                         |
-| ------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`           | `14d18cbb` (r3435) | Briefs #1-#15 (AniList outage fallback via Comick + MangaBaka, Comick in Similar, smarter ranking, ...) + reader resume. Shipped 2026-10-21. |
-| `chore/docs-r3435` | this               | Docs only: r3435 shipped. Rides along with the next ship.                                                                                    |
-| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                               |
+| Branch            | Commit             | What                                                                                                                                                           |
+| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`          | `14d18cbb` (r3435) | Briefs #1-#15 (AniList outage fallback via Comick + MangaBaka, Comick in Similar, smarter ranking, ...) + reader resume. Shipped 2026-10-21.                   |
+| `feat/tl-compare` | (prerelease)       | Brief #16: "Compare translations" card on the series page (tlcompare meta), Read <variant> via `excludedScanlators`. Includes the r3435 docs. Awaiting Cowork. |
+| `master`          | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                 |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and

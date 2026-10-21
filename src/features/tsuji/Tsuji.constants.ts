@@ -43,6 +43,11 @@ export const TSUJI_META_KEYS = {
      * live in the shards `tsuji_bell_0` .. `tsuji_bell_15` (bell/chapterBell.ts).
      */
     bellStart: 'tsuji_bellStart',
+    /**
+     * Manga meta, server-written (VM110 `tlcompare`, read-only here): JSON comparison of a series' two English
+     * uploads (brief #16). Asked for with the global meta `tsuji_tlRequest_<mangaId>` = epoch seconds.
+     */
+    tlCompare: 'tsuji_tlCompare',
 } as const;
 
 export const DEFAULT_ANILIST_USER = 'ejustice';

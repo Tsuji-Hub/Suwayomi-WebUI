@@ -14,6 +14,35 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #16: "Compare translations" card on the series page (branch `feat/tl-compare`)
+
+Off `custom` (r3435). Not shipped yet: Cowork checks the prerelease live.
+
+**Done:**
+
+1. **Card** (`tlCompare/components/TlCompareCard.tsx`, mounted by `TsujiSimilarSection` under the description, lazy):
+   the manga meta `tsuji_tlCompare` (VM110 `tlcompare` v2) when `status = ok` with 2 variants: "Two English
+   versions on <source>", columns headed "<variant> · <first group>", rows Made by (group or Unknown; the per-chapter
+   line collapses runs of the first name: "ch 1-200 Asura Scans · 251 Manhwa Freak · 301-351 UTOON (re-upload
+   site)", re-upload sites muted), Same thing, different word (up to 5, drift notes "<variant> also uses "<word>" in
+   ch ..."), Words only one uses (up to 6 chips each, "heavenland ×8"; hidden when both empty), Translator notes ("3
+   in 8 chapters" / "none"), Pages (width range), Chapters; footer "Sampled ch ... · checked <relative> · one-off
+   wording slips in other chapters won't show here · Re-check".
+2. **Read <variant>:** sets the existing chapter option `excludedScanlators` to the other variant (the chapter list,
+   Continue, next chapter and download-ahead follow it); "Showing only <variant> chapters · Show all" (clears it); the
+   active button is filled.
+3. **No result, 2+ scanlators:** "Compare translations" writes the global meta `tsuji_tlRequest_<mangaId>` = epoch
+   seconds; "Checking… up to 30 min. You can keep browsing."; the manga meta is polled every 30 s
+   (`GET_MANGA_META`, network-only) until a result at least as new as the request (2 min clock slack) lands. A
+   request key already on the server (another device, the service's own 7-day run) shows "Checking…" too.
+4. `single-upload`: nothing. `error`: "Couldn't compare: <error>" + Retry. `v: 1` (or no `v`): only "Re-check
+   translations". Works for any manga id (not in the library too). Only Suwayomi meta is read and written.
+
+**Tests:** unit on the live 3526 value (parse, group runs, views, request matching, scanlators, active variant).
+Browser `tl-compare.e2e.mjs` (mocked Suwayomi only): the card with every live value, re-upload names muted, Read
+unofficial = 3 of 6 rows and only `webUI_excludedScanlators` written, Show all = 6, Compare -> request written ->
+card after the 30 s poll without a reload, single upload = nothing, v1 = Re-check only.
+
 # Brief #15: keep Discover, Similar and For You working when AniList is down (branch `feat/anilist-fallback`)
 
 **Shipped as r3435** (2026-10-21). Off `custom` (r3432); r3434 checked live during the real AniList outage, fixed in

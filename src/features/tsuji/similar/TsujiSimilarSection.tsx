@@ -12,10 +12,15 @@ import type { SimilarManga } from '@/features/tsuji/similar/useSimilarRecs.ts';
 // Lazy so the manga page chunk only grows by this wrapper; recs code loads with the section.
 const { SimilarSection } = loadable(() => import('@/features/tsuji/similar/SimilarSection.tsx'));
 const { TsujiRawChips } = loadable(() => import('@/features/tsuji/raws/components/RawChips.tsx'));
+const { TlCompareCard } = loadable(() => import('@/features/tsuji/tlCompare/components/TlCompareCard.tsx'));
 
-/** Hook point on the series page (MangaDetails): raws / MTL row (brief #6), then Similar. */
+/**
+ * Hook point on the series page (MangaDetails), under the description: "Compare translations" (brief #16), raws /
+ * MTL row (brief #6), then Similar.
+ */
 export const TsujiSimilarSection = ({ manga }: { manga: SimilarManga }) => (
     <>
+        <TlCompareCard manga={manga} />
         <TsujiRawChips manga={manga} />
         <SimilarSection manga={manga} />
     </>
