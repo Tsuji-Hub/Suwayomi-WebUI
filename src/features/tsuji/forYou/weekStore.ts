@@ -53,6 +53,7 @@ export const compactMedia = (media: RecMedia): RecMedia => ({
     tags: getContentTags(media)
         .slice(0, MAX_STORED_TAGS)
         .map(({ name, rank }) => ({ name, rank })),
+    ...(media.via ? { via: media.via } : {}),
 });
 
 const toRef = ({ id, edgeRating, sources, seedRatings }: ForYouCandidate): CandidateRef => ({

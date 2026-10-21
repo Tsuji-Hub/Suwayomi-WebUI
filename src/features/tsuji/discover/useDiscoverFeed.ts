@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import type { DiscoverVariables } from '@/features/tsuji/discover/discoverQuery.ts';
-import type { TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
+import type { ComickFallback, FeedSource, TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
+import { AniListHealth } from '@/features/tsuji/services/aniListHealth.ts';
 import { loadDiscoverPage, loadTagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import type { FeedPhase } from '@/features/tsuji/discover/landing.ts';
@@ -21,6 +22,8 @@ type FeedState = {
     /** Sort actually used by AniList (differs from the requested one after a fallback). */
     serverSort: string | null;
     isRelaxed: boolean;
+    /** Where page 1 came from; later pages follow it. */
+    source: FeedSource | null;
     status: 'idle' | 'loading' | 'error';
 };
 
@@ -30,23 +33,34 @@ const createFeedState = (key: string): FeedState => ({
     hasNextPage: true,
     serverSort: null,
     isRelaxed: false,
+    source: null,
     status: 'idle',
 });
 
-/** Paged AniList feed. Page 1 loads automatically; later pages load via `loadMore` (infinite scroll). */
+/**
+ * Paged AniList feed, from Comick while AniList is down (`comick`, brief #15). Page 1 loads automatically; later
+ * pages load via `loadMore` (infinite scroll). `isAniListDown` restarts the feed when AniList goes down or comes back.
+ */
 export const useDiscoverFeed = ({
     variables,
     serverSort,
     isEnabled = true,
     allowSortFallback = true,
+    comick,
+    isAniListDown = false,
 }: {
     variables: DiscoverVariables;
     serverSort: string;
     isEnabled?: boolean;
     /** Off for landing Trending: Popular is loaded in parallel anyway. */
     allowSortFallback?: boolean;
+    comick?: ComickFallback;
+    isAniListDown?: boolean;
 }) => {
-    const key = useMemo(() => JSON.stringify({ variables, serverSort }), [variables, serverSort]);
+    const key = useMemo(
+        () => JSON.stringify({ variables, serverSort, comick, isAniListDown }),
+        [variables, serverSort, comick, isAniListDown],
+    );
     const [state, setState] = useState<FeedState>(() => createFeedState(key));
     const controllerRef = useRef<AbortController | null>(null);
 
@@ -77,6 +91,8 @@ export const useDiscoverFeed = ({
             page: feed.pages.length + 1,
             isRelaxed: feed.isRelaxed,
             allowSortFallback,
+            comick,
+            source: feed.source ?? undefined,
             signal: controller.signal,
         })
             .then((page) => {
@@ -92,6 +108,7 @@ export const useDiscoverFeed = ({
                               hasNextPage: page.hasNextPage,
                               serverSort: page.serverSort,
                               isRelaxed: page.isRelaxed,
+                              source: page.source,
                               status: 'idle',
                           }
                         : previous,
@@ -105,7 +122,7 @@ export const useDiscoverFeed = ({
                 defaultPromiseErrorHandler('useDiscoverFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });
-    }, [isEnabled, variables, serverSort, allowSortFallback]);
+    }, [isEnabled, variables, serverSort, allowSortFallback, comick]);
 
     const shouldLoadFirstPage = isEnabled && !current.pages.length && current.status === 'idle';
     useEffect(() => {
@@ -133,6 +150,7 @@ export const useDiscoverFeed = ({
         isLoading: current.status === 'loading' || (isEnabled && !current.pages.length && current.status === 'idle'),
         isError: current.status === 'error',
         serverSort: current.serverSort,
+        source: current.source,
         loadMore,
         retry,
     };
@@ -155,10 +173,16 @@ export const useTagCatalog = (isEnabled: boolean) => {
         loadTagCatalog()
             .then((result) => isActive && setCatalog(result))
             .catch((error) => {
-                defaultPromiseErrorHandler('useTagCatalog')(error);
-                if (isActive) {
-                    setIsError(true);
+                if (!isActive) {
+                    return;
                 }
+                // AniList down (brief #15): the picker works on MangaBaka's tags alone, no error.
+                if (AniListHealth.isDown()) {
+                    setCatalog({ tags: [], genres: [] });
+                    return;
+                }
+                defaultPromiseErrorHandler('useTagCatalog')(error);
+                setIsError(true);
             });
 
         return () => {

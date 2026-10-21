@@ -41,6 +41,8 @@ export const SEED_QUERY = `
         Media(id: $id, type: MANGA) {
             id
             idMal
+            title { userPreferred english romaji }
+            synonyms
             tags { name rank category isMediaSpoiler isGeneralSpoiler isAdult }
             recommendations(sort: RATING_DESC, perPage: 25) {
                 nodes { rating mediaRecommendation { ...TsujiMedia } }
@@ -53,6 +55,8 @@ export type SeedResponse = {
     Media: {
         id: number;
         idMal: number | null;
+        title?: { userPreferred: string | null; english: string | null; romaji: string | null } | null;
+        synonyms?: string[] | null;
         tags: RecTag[] | null;
         recommendations: { nodes: { rating: number | null; mediaRecommendation: RecMedia | null }[] } | null;
     } | null;

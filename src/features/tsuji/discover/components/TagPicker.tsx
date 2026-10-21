@@ -116,6 +116,7 @@ export const TagPicker = ({
     selection,
     onChange,
     showAdult,
+    unavailable = [],
 }: {
     catalog: TagCatalog | null;
     isCatalogError: boolean;
@@ -125,6 +126,8 @@ export const TagPicker = ({
     selection: DiscoverSelection;
     onChange: (selection: DiscoverSelection) => void;
     showAdult: boolean;
+    /** AniList-only chips left out of the search while AniList is down (brief #15). */
+    unavailable?: string[];
 }) => {
     const { t } = useLingui();
     const [query, setQuery] = useState('');
@@ -144,7 +147,7 @@ export const TagPicker = ({
     const renderChip = (kind: SelectionKind, name: string) => (
         <TriStateChip
             key={`${kind}-${name}`}
-            label={name}
+            label={unavailable.includes(name) ? t`${name} (not available while AniList is down)` : name}
             state={selection[kind][name]}
             onChange={(state) => setState(kind, name, state)}
         />

@@ -12,6 +12,7 @@ import { DEFAULT_ANILIST_USER, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.co
 import type { ForYouData } from '@/features/tsuji/forYou/ForYouService.ts';
 import { loadForYou } from '@/features/tsuji/forYou/ForYouService.ts';
 import { useTsujiGlobalMetaQuery } from '@/features/tsuji/services/TsujiMetadata.ts';
+import { useAniListHealth } from '@/features/tsuji/services/useAniListHealth.ts';
 
 export type ForYouState =
     | { status: 'loading' }
@@ -28,6 +29,8 @@ export const useForYou = () => {
     const [result, setResult] = useState<{ userName: string; state: ForYouState }>({ userName, state: LOADING });
     const [reloadCount, setReloadCount] = useState(0);
     const shouldForceRef = useRef(false);
+    // AniList going down or coming back loads again (brief #15): Comick picks while down, AniList's after.
+    const { isDown: isAniListDown } = useAniListHealth();
 
     useEffect(() => {
         if (isMetaLoading) {
@@ -61,7 +64,7 @@ export const useForYou = () => {
             });
 
         return () => controller.abort();
-    }, [userName, isMetaLoading, reloadCount]);
+    }, [userName, isMetaLoading, reloadCount, isAniListDown]);
 
     const retry = useCallback(() => setReloadCount((count) => count + 1), []);
     const refresh = useCallback(() => {

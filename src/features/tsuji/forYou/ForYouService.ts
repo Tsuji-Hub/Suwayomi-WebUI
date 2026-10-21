@@ -29,7 +29,9 @@ import { fromStoredWeek, toStoredWeek } from '@/features/tsuji/forYou/weekStore.
 import { buildTasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
 import type { TasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
 import { getBaseline, getDistinctiveTags, toProfileTags, toTasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
-import { readTasteWeights, writeTasteWeights } from '@/features/tsuji/forYou/tasteStore.ts';
+import { readTasteWeights, writeLastProfile, writeTasteWeights } from '@/features/tsuji/forYou/tasteStore.ts';
+import { AniListHealth } from '@/features/tsuji/services/aniListHealth.ts';
+import { loadComickWeek } from '@/features/tsuji/forYou/comickWeek.ts';
 import {
     createWeeklyRandom,
     getIsoWeekKey,
@@ -67,12 +69,15 @@ export type ForYouData = {
     /** Every title on the list: never recommended back (the family row is built after the week). */
     listedIds: number[];
     isPartial: boolean;
+    /** Built from Comick while AniList is down (brief #15), on the list as it was then. */
+    fallback?: { listFetchedAt: number } | null;
 };
 
 export type ForYouResult = { kind: 'ready'; data: ForYouData } | { kind: 'empty'; entryCount: number };
 
 // v3 (brief #14): the profile has tag counts (the lift) and family seeds.
 const profileKey = (userName: string) => `foryou:taste:v3:${userName.toLowerCase()}`;
+
 // v5 (brief #14 fix): distinctive tags against the snapshot. v4: the family row's inputs. v3: stored compact.
 const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v5:${userName.toLowerCase()}:${weekKey}`;
 
@@ -170,6 +175,7 @@ const loadProfile = async (userName: string, force: boolean, signal: AbortSignal
     const profile = buildTasteProfile(parseTasteList(response), Date.now());
     signal.throwIfAborted();
     TsujiCache.set(profileKey(userName), profile, PROFILE_TTL_MS);
+    writeLastProfile(userName, profile);
     return profile;
 };
 
@@ -204,7 +210,20 @@ export const loadForYou = async ({
         }
     }
 
-    const profile = await loadProfile(userName, force, signal);
+    // AniList down (brief #15): picks from Comick on the last list AniList gave.
+    const fromComick = () => loadComickWeek({ userName, now, signal });
+    if (AniListHealth.isDown()) {
+        return fromComick();
+    }
+    let profile: TasteProfile;
+    try {
+        profile = await loadProfile(userName, force, signal);
+    } catch (error) {
+        if (!signal.aborted && AniListHealth.isDown()) {
+            return fromComick();
+        }
+        throw error;
+    }
     if (!profile.seedPool.length || !profile.tags.length) {
         return { kind: 'empty', entryCount: profile.entryCount };
     }
@@ -233,6 +252,9 @@ export const loadForYou = async ({
     signal.throwIfAborted();
 
     if (seedsResult.status === 'rejected' && recallResult.status === 'rejected') {
+        if (AniListHealth.isDown()) {
+            return fromComick();
+        }
         throw seedsResult.reason;
     }
 

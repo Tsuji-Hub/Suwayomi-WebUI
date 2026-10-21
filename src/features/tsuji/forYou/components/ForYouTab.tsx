@@ -37,6 +37,7 @@ import { useFindToRead, useLibraryIndex, useRecFilters } from '@/features/tsuji/
 import { MyListNotice } from '@/features/tsuji/seen/components/MyListNotice.tsx';
 import { useSeen, useSeenActions } from '@/features/tsuji/seen/useSeen.tsx';
 import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
+import { AniListFallbackNote } from '@/features/tsuji/recs/components/AniListFallbackNote.tsx';
 
 const SKELETON_KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index}`);
 const TOP_PICKS = 24;
@@ -293,6 +294,9 @@ export const ForYouTab = () => {
         );
     })();
 
+    const fallbackListDate = data?.fallback
+        ? new Date(data.fallback.listFetchedAt).toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
+        : null;
     const weekStartLabel = data
         ? new Date(data.weekStart).toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
         : null;
@@ -328,7 +332,12 @@ export const ForYouTab = () => {
             {seen.myList.isUnavailable && (
                 <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
             )}
-            {data?.isPartial && !isLoading && (
+            {!!fallbackListDate && (
+                <AniListFallbackNote
+                    message={t`AniList is down: picks from Comick, based on your list from ${fallbackListDate}.`}
+                />
+            )}
+            {data?.isPartial && !data.fallback && !isLoading && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {t`Part of AniList's answer is missing this time, so the picks are thinner. Refresh to try again.`}
                 </Typography>

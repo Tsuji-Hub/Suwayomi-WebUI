@@ -33,19 +33,28 @@ import {
 import { normalizeTagKey } from '@/features/tsuji/tags/tagKeys.ts';
 import type { FitChips } from '@/features/tsuji/recs/bestMatch.ts';
 
-/** Tag ids per included chip (OR inside, AND across), excluded ids, and what stays an AniList post-filter. */
-export type ResolvedChips = { includeSets: number[][]; excludeIds: number[]; postFilter: AniListChips };
+/**
+ * Tag ids per included chip (OR inside, AND across), excluded ids, what stays an AniList post-filter, and the AniList
+ * chips left out because AniList is down and MangaBaka has nothing like them.
+ */
+export type ResolvedChips = {
+    includeSets: number[][];
+    excludeIds: number[];
+    postFilter: AniListChips;
+    unavailable: string[];
+};
 
 /**
  * The search terms of a selection, as MangaBaka tag ids only (a name would miss the tag's subtags, and a name mixed
  * with an id finds nothing): MangaBaka chips by their tags; AniList-only chips ride along as the family or the
  * MangaBaka tag with the same name when there is one (tag lookups are cached a week), else they stay a post-filter
- * on AniList details.
+ * on AniList details; while AniList is down there are none, so such a chip is left out and named in `unavailable`.
  */
 export const resolveChips = async (
     baka: BakaSelection,
     aniListChips: AniListChips,
     signal: AbortSignal,
+    isAniListDown = false,
 ): Promise<ResolvedChips> => {
     const chips = Object.values(baka);
     const resolved: ResolvedChips = {
@@ -56,6 +65,7 @@ export const resolveChips = async (
             .filter(({ state }) => state === 'exclude')
             .flatMap((chip) => getChipTags(chip).map(({ id }) => id)),
         postFilter: { genres: {}, tags: {} },
+        unavailable: [],
     };
     const aniListOnly = (['genres', 'tags'] as const).flatMap((kind) =>
         Object.entries(aniListChips[kind]).map(([name, state]) => ({ kind, name, state })),
@@ -75,7 +85,9 @@ export const resolveChips = async (
     );
     aniListOnly.forEach(({ kind, name, state }, index) => {
         const ids = lookups[index];
-        if (!ids.length) {
+        if (!ids.length && isAniListDown) {
+            resolved.unavailable.push(name);
+        } else if (!ids.length) {
             resolved.postFilter[kind][name] = state;
         } else if (state === 'include') {
             resolved.includeSets.push(ids);
@@ -93,6 +105,7 @@ type BakaFeedState = {
     pages: BakaSeries[][];
     postFilter: AniListChips;
     fitChips: FitChips | null;
+    unavailable: string[];
     hasNextPage: boolean;
     status: 'idle' | 'loading' | 'error';
     /** Sub-searches run / needed without the cap (null until the chips are resolved). */
@@ -106,6 +119,7 @@ const createState = (key: string): BakaFeedState => ({
     pages: [],
     postFilter: { genres: {}, tags: {} },
     fitChips: null,
+    unavailable: [],
     hasNextPage: true,
     status: 'idle',
     combinations: null,
@@ -129,6 +143,7 @@ export const useBakaFeed = ({
     isEnabled,
     settleMs = 0,
     waitForDetails = false,
+    isAniListDown = false,
 }: {
     baka: BakaSelection;
     aniListChips: AniListChips;
@@ -147,10 +162,12 @@ export const useBakaFeed = ({
      * when the details land); a failed details request shows the page anyway.
      */
     waitForDetails?: boolean;
+    /** AniList down (brief #15): no AniList details, and AniList-only chips without a MangaBaka tag are left out. */
+    isAniListDown?: boolean;
 }) => {
     const key = useMemo(
-        () => JSON.stringify({ baka, aniListChips, types, sort, minScore, showAdult }),
-        [baka, aniListChips, types, sort, minScore, showAdult],
+        () => JSON.stringify({ baka, aniListChips, types, sort, minScore, showAdult, isAniListDown }),
+        [baka, aniListChips, types, sort, minScore, showAdult, isAniListDown],
     );
     const settledKey = useDebounce(key, settleMs);
     const isSettled = !settleMs || settledKey === key;
@@ -182,7 +199,7 @@ export const useBakaFeed = ({
         const { signal } = controller;
         setState({ ...feed, status: 'loading' });
         const start = async (): Promise<MergedSearch> => {
-            const resolved = await resolveChips(baka, aniListChips, signal);
+            const resolved = await resolveChips(baka, aniListChips, signal, isAniListDown);
             const combinations = getBakaCombinations(resolved.includeSets);
             const limit = getSearchLimit();
             const update = (change: (previous: BakaFeedState) => Partial<BakaFeedState>) =>
@@ -240,7 +257,7 @@ export const useBakaFeed = ({
                 if (signal.aborted) {
                     return;
                 }
-                const missing = getMissingDetails(result.series, detailsRef.current);
+                const missing = isAniListDown ? [] : getMissingDetails(result.series, detailsRef.current);
                 const detailsLoaded = missing.length
                     ? fetchAniListDetails(missing, signal)
                           .then(
@@ -263,6 +280,7 @@ export const useBakaFeed = ({
                               pages: [...previous.pages, result.series],
                               postFilter: resolved.postFilter,
                               fitChips: getBakaFitChips(resolved),
+                              unavailable: resolved.unavailable,
                               hasNextPage: result.hasNextPage,
                               status: 'idle',
                           }
@@ -276,7 +294,7 @@ export const useBakaFeed = ({
                 defaultPromiseErrorHandler('useBakaFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });
-    }, [isEnabled, isSettled, baka, aniListChips, types, sort, minScore, showAdult, waitForDetails]);
+    }, [isEnabled, isSettled, baka, aniListChips, types, sort, minScore, showAdult, waitForDetails, isAniListDown]);
 
     const shouldLoadFirstPage = isEnabled && isSettled && !current.pages.length && current.status === 'idle';
     useEffect(() => {
@@ -310,6 +328,7 @@ export const useBakaFeed = ({
         serverSort: null as string | null,
         combinations: current.combinations,
         fitChips: current.fitChips,
+        unavailable: current.unavailable,
         firstPagesLoaded: current.firstPagesLoaded,
         loadMore,
         retry,

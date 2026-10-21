@@ -7,6 +7,7 @@
  */
 
 import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
+import { AniListHealth, isAniListDownSignal } from '@/features/tsuji/services/aniListHealth.ts';
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 
@@ -59,13 +60,24 @@ const TIMEOUT_STATUS = 408;
 export const isAniListTimeout = (error: unknown): boolean =>
     error instanceof AniListError && error.status === TIMEOUT_STATUS;
 
+/** Refused without a request: AniList is marked down (aniListHealth.ts) and this isn't the probe. */
+export class AniListDownError extends AniListError {
+    constructor(lastError: string | null) {
+        super(`AniList is down${lastError ? `: ${lastError}` : ''}`, 503);
+        this.name = 'AniListDownError';
+    }
+}
+
+export const isAniListDown = (error: unknown): boolean => error instanceof AniListDownError;
+
 export type AniListRequestOptions = { signal?: AbortSignal; timeoutMs?: number };
 
 export const createAniListClient = ({
     fetchFn = (input, init) => fetch(input, init),
     queue = new SpacedQueue(ANILIST_SPACING_MS, { burst: ANILIST_BURST }),
     now = Date.now,
-}: { fetchFn?: FetchFn; queue?: SpacedQueue; now?: () => number } = {}) => {
+    health = AniListHealth,
+}: { fetchFn?: FetchFn; queue?: SpacedQueue; now?: () => number; health?: typeof AniListHealth } = {}) => {
     /** The timeout starts when the request leaves the queue: rate-limit waits don't count against it. */
     const send = async <T>(
         query: string,
@@ -103,7 +115,13 @@ export const createAniListClient = ({
             return { response, body };
         } catch (error) {
             if (hasTimedOut) {
+                if (isAniListDownSignal({ waitedMs: timeoutMs })) {
+                    health.reportDown(`no answer within ${timeoutMs / 1000} s`, now());
+                }
                 throw new AniListError(`AniList did not answer within ${timeoutMs / 1000} s`, TIMEOUT_STATUS);
+            }
+            if (!signal?.aborted && isAniListDownSignal({ isNetworkError: true })) {
+                health.reportDown(error instanceof Error ? error.message : 'network error', now());
             }
             throw error;
         } finally {
@@ -118,7 +136,23 @@ export const createAniListClient = ({
         { signal, timeoutMs = ANILIST_TIMEOUT_MS.slow }: AniListRequestOptions = {},
         attempt: number = 0,
     ): Promise<T> => {
-        const { response, body } = await queue.run(() => send<T>(query, variables, signal, timeoutMs), signal);
+        const gate = attempt === 0 ? health.claimRequest(now()) : 'up';
+        if (gate === 'blocked') {
+            throw new AniListDownError(health.getState().lastError);
+        }
+        const { response, body } = await queue.run(() => {
+            // Queued while AniList was up, and it went down meanwhile: don't send it (only the probe goes).
+            if (gate === 'up' && health.isDown(now())) {
+                throw new AniListDownError(health.getState().lastError);
+            }
+            return send<T>(query, variables, signal, timeoutMs);
+        }, signal);
+        const message = body?.errors?.[0]?.message;
+        if (isAniListDownSignal({ status: response.status, message })) {
+            health.reportDown(message ?? `AniList answered ${response.status}`, now());
+        } else {
+            health.reportUp();
+        }
 
         if (response.status === 429) {
             queue.pauseUntil(now() + getRateLimitWaitMs(response.headers, now()));
@@ -135,10 +169,7 @@ export const createAniListClient = ({
         }
 
         if (!response.ok || !body?.data) {
-            throw new AniListError(
-                body?.errors?.[0]?.message ?? `AniList request failed (${response.status})`,
-                response.status,
-            );
+            throw new AniListError(message ?? `AniList request failed (${response.status})`, response.status);
         }
 
         return body.data;

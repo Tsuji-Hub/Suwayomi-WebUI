@@ -37,6 +37,13 @@ import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/service
 import { CommentsPill, SeriesCommentsHost } from '@/features/tsuji/comments/components/CommentsButton.tsx';
 import { needsSameTagsFill, SIMILAR_MAX, SIMILAR_MIN_VISIBLE } from '@/features/tsuji/similar/sameTags.ts';
 import { useSameTags } from '@/features/tsuji/similar/useSameTags.ts';
+import { useCommentsSettings } from '@/features/tsuji/comments/useComments.ts';
+import { useListTitleIndex } from '@/features/tsuji/seen/myListStore.ts';
+import { useComickRecs } from '@/features/tsuji/similar/useComickRecs.ts';
+import { getComickExtras } from '@/features/tsuji/comick/comickExtras.ts';
+import { getAllTitles } from '@/features/tsuji/recs/media.ts';
+import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
+import { AniListFallbackNote } from '@/features/tsuji/recs/components/AniListFallbackNote.tsx';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
 
@@ -94,35 +101,67 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     );
     const sortOptions = REC_SORTS.map((value) => ({ value, label: t(REC_SORT_LABELS[value]) }));
 
-    // Cards wait for the library index and the AniList list (capped by its 4 s timeout), so they don't vanish after
-    // rendering; the header and filters are usable meanwhile.
-    const isLoading = state.status === 'loading' || (state.status === 'ready' && (!libraryIndex || !seen.isSettled));
+    // Comick's recommendations (brief #15, always on): after AniList's and MAL's, by votes, without repeats; while
+    // AniList is down they are what Similar has (with the MangaBaka fill).
+    useCommentsSettings();
+    const titleIndex = useListTitleIndex();
+    const comickTitles = useMemo(() => (data ? [...data.titles, manga.title] : []), [data, manga.title]);
+    const comickRecs = useComickRecs(data?.seedId ?? null, comickTitles);
+    const comickExtras = useMemo(
+        () =>
+            comickRecs && data && libraryIndex
+                ? getComickExtras(comickRecs, {
+                      shown: data.candidates,
+                      seedId: data.seedId,
+                      index: titleIndex,
+                  }).filter((item) =>
+                      passesFilters(item, filters, libraryIndex, {
+                          applyTagFilters: false,
+                          getSeenState: seen.getSeenState,
+                      }),
+                  )
+                : [],
+        [comickRecs, data, libraryIndex, titleIndex, filters, seen.getSeenState],
+    );
+    const shown = useMemo(() => [...visible, ...comickExtras], [visible, comickExtras]);
+    const comickTitleKeys = useMemo(
+        () => new Set(comickExtras.flatMap((item) => getAllTitles(item).map(normalizeTitle))),
+        [comickExtras],
+    );
 
-    // Too few cards (brief #14): MangaBaka fills in with titles sharing the series' most distinctive tags.
-    const isFillNeeded = !!data && !isLoading && needsSameTagsFill(visible.length);
+    // Cards wait for the library index and the AniList list (capped by its 4 s timeout), so they don't vanish after
+    // rendering; the header and filters are usable meanwhile. With nothing from AniList, they wait for Comick.
+    const isLoading =
+        state.status === 'loading' ||
+        (state.status === 'ready' && (!libraryIndex || !seen.isSettled || (!visible.length && comickRecs === null)));
+
+    // Too few cards (brief #14): MangaBaka fills in with titles sharing the series' most distinctive tags (once
+    // Comick has answered, so its cards count).
+    const isFillNeeded = !!data && !isLoading && comickRecs !== null && needsSameTagsFill(shown.length);
     const isFillVisible = useCallback(
         (item: RecMedia) =>
             !!data &&
             !!libraryIndex &&
             item.id !== data.seedId &&
             !data.candidates.some(({ id }) => id === item.id) &&
+            !comickExtras.some(({ id }) => id === item.id) &&
+            !getAllTitles(item).some((title) => !!title && comickTitleKeys.has(normalizeTitle(title))) &&
             passesFilters(item, filters, libraryIndex, { applyTagFilters: false, getSeenState: seen.getSeenState }),
-        [data, libraryIndex, filters, seen.getSeenState],
+        [data, libraryIndex, comickExtras, comickTitleKeys, filters, seen.getSeenState],
     );
-    const sameTags = useSameTags(
-        data?.seedId ?? null,
-        isFillNeeded,
-        SIMILAR_MIN_VISIBLE - visible.length,
-        isFillVisible,
-    );
+    const sameTags = useSameTags(data?.seedId ?? null, isFillNeeded, SIMILAR_MIN_VISIBLE - shown.length, isFillVisible);
     const fill = useMemo(
         () =>
-            sameTags && needsSameTagsFill(visible.length)
-                ? sameTags.filter(isFillVisible).slice(0, Math.max(0, SIMILAR_MAX - visible.length))
+            sameTags && needsSameTagsFill(shown.length)
+                ? sameTags.filter(isFillVisible).slice(0, Math.max(0, SIMILAR_MAX - shown.length))
                 : [],
-        [sameTags, visible.length, isFillVisible],
+        [sameTags, shown.length, isFillVisible],
     );
-    const sourceLabel = data?.sources.includes('mal') ? t`AniList + MAL` : t`AniList`;
+    const sourceLabel = [
+        ...(data?.sources.some((source) => source !== 'mal') ? ['AniList'] : []),
+        ...(data?.sources.includes('mal') ? ['MAL'] : []),
+        ...(comickExtras.length ? ['Comick'] : []),
+    ].join(' + ');
 
     const body = (() => {
         if (isLoading) {
@@ -161,7 +200,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
             );
         }
 
-        if (!visible.length && !fill.length) {
+        if (!shown.length && !fill.length) {
             return (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {t`Nothing left after filters.`}
@@ -191,7 +230,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
 
         return (
             <Stack sx={{ gap: 1 }}>
-                {!!visible.length && renderCards(visible, t`Similar titles`)}
+                {!!shown.length && renderCards(shown, t`Similar titles`)}
                 {!!fill.length && (
                     <>
                         <Typography variant="subtitle2" component="h4" sx={{ color: 'text.secondary' }}>
@@ -238,6 +277,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
                     showHiddenGems
                 />
             )}
+            <AniListFallbackNote message={t`AniList is down: similar titles from Comick and MangaBaka.`} />
             {data && seen.myList.isUnavailable && (
                 <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
             )}

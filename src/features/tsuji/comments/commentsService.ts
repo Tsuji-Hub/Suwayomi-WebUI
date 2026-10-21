@@ -7,6 +7,7 @@
  */
 
 import { TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
+import { getCommentsRelayUrl } from '@/features/tsuji/comments/relayUrl.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 import { readFreshTsujiRawGlobalMeta, writeTsujiRawGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import type { CommentsCache } from '@/features/tsuji/comments/comickSource.ts';
@@ -15,25 +16,13 @@ import { resolveComickByAniList } from '@/features/tsuji/comments/aniListResolve
 import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 import { createMatchUpdater, parseCommentMatches } from '@/features/tsuji/comments/commentsMatch.ts';
 
-export const RELAY_PORT = 4568;
-
-/**
- * The relay's base URL: `tsuji_commentsRelay`, else the host serving this WebUI on port 4568 (the relay runs next
- * to Suwayomi on CT100), so no address is baked into the bundle.
- */
-export const getDefaultRelayUrl = (location: Pick<Location, 'protocol' | 'hostname'> = window.location) =>
-    `${location.protocol}//${location.hostname}:${RELAY_PORT}`;
-
-export const resolveRelayUrl = (stored: string | undefined) => stored?.trim() || getDefaultRelayUrl();
-
-let relayUrl = '';
-
-export const setCommentsRelayUrl = (url: string) => {
-    relayUrl = url;
-};
-
-/** The relay base URL in use (set from `tsuji_commentsRelay` by useCommentsSettings; the default until then). */
-const getCommentsRelayUrl = () => relayUrl || getDefaultRelayUrl();
+export {
+    getCommentsRelayUrl,
+    getDefaultRelayUrl,
+    RELAY_PORT,
+    resolveRelayUrl,
+    setCommentsRelayUrl,
+} from '@/features/tsuji/comments/relayUrl.ts';
 
 const memoryThreads = new Map<string, { expiresAt: number; value: unknown }>();
 

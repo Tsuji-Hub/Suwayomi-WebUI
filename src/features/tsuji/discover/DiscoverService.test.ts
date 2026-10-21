@@ -40,7 +40,11 @@ vi.mock('@/lib/storage/AppStorage.ts', () => ({
     },
 }));
 
+const searchComick = vi.fn();
+vi.mock('@/features/tsuji/comick/ComickService.ts', () => ({ searchComick }));
+
 const { AniListError } = await import('@/features/tsuji/services/AniListClient.ts');
+const { AniListHealth } = await import('@/features/tsuji/services/aniListHealth.ts');
 const { loadDiscoverPage } = await import('@/features/tsuji/discover/DiscoverService.ts');
 const { DegradedMemory } = await import('@/features/tsuji/discover/degradedMemory.ts');
 
@@ -184,5 +188,44 @@ describe('DegradedMemory', () => {
         DegradedMemory.reset();
 
         expect(DegradedMemory.shouldRelaxFilters(1000)).toBe(true);
+    });
+});
+
+describe('loadDiscoverPage (AniList down, brief #15)', () => {
+    const comick = { sort: 'TRENDING', types: ['MANHWA' as const], statuses: [], minChapters: 50 };
+
+    beforeEach(() => {
+        request.mockReset();
+        searchComick.mockReset();
+        searchComick.mockResolvedValue([{ id: -1 }, { id: 2 }]);
+        AniListHealth.reset();
+    });
+
+    it('known down: Comick, without asking AniList', async () => {
+        AniListHealth.reportDown('disabled');
+        const result = await load({ comick });
+        expect(request).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ source: 'comick', hasNextPage: true });
+        const query = new URLSearchParams(searchComick.mock.calls[0][0] as string);
+        expect([query.get('sort'), query.getAll('country'), query.get('minimum')]).toEqual(['view', ['kr'], '50']);
+    });
+
+    it('found down by the request: Comick for the same page; later pages stay on Comick', async () => {
+        request.mockImplementation(() => {
+            AniListHealth.reportDown('Failed to fetch');
+            return Promise.reject(new TypeError('Failed to fetch'));
+        });
+        await expect(load({ comick })).resolves.toMatchObject({ source: 'comick' });
+        AniListHealth.reset();
+        await expect(load({ comick, page: 2, source: 'comick' })).resolves.toMatchObject({ source: 'comick' });
+        expect(new URLSearchParams(searchComick.mock.calls[1][0] as string).get('page')).toBe('2');
+    });
+
+    it('up: AniList, as before; an error that is not AniList being down still throws', async () => {
+        request.mockResolvedValueOnce(page([1, 2]));
+        await expect(load({ comick })).resolves.toMatchObject({ source: 'anilist' });
+        request.mockRejectedValueOnce(new AniListError('Not Found.', 404));
+        await expect(load({ comick, serverSort: 'SCORE_DESC' })).rejects.toThrow('Not Found.');
+        expect(searchComick).not.toHaveBeenCalled();
     });
 });

@@ -40,10 +40,15 @@ export type RecMedia = {
     tags: RecTag[] | null;
     /** Only selected where a caller needs it (MangaBaka cards: AniList-only genre chips). */
     genres?: string[] | null;
+    /** A card from Comick (brief #15): "via Comick" on it. */
+    via?: 'comick' | null;
 };
 
-/** "anilist" = AniList recommendation edge, "mal" = Jikan (MAL) recommendation, "tags" = tag recall. */
-export type RecSourceId = 'anilist' | 'mal' | 'tags';
+/**
+ * "anilist" = AniList recommendation edge, "mal" = Jikan (MAL) recommendation, "tags" = tag recall, "comick" = Comick
+ * recommendation.
+ */
+export type RecSourceId = 'anilist' | 'mal' | 'tags' | 'comick';
 
 export type RecCandidate = RecMedia & { edgeRating: number; sources: RecSourceId[] };
 

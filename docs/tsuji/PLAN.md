@@ -14,6 +14,55 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #15: keep Discover, Similar and For You working when AniList is down (branch `feat/anilist-fallback`)
+
+Off `custom` (r3432). Not shipped yet: Cowork checks the prerelease live (AniList route-blocked, then unblocked).
+
+**Done:**
+
+1. **AniList health** (`services/aniListHealth.ts`, wired into `AniListClient`): down = 403 saying the API is
+   disabled, a 5xx, a network error, or no answer within 8 s (timeouts of 12 s requests; 4 s ones stay
+   DegradedMemory's "slow"). Remembered 30 minutes in sessionStorage; meanwhile requests are refused without going
+   out (`AniListDownError`), also ones queued before the failure, except one probe every 5 minutes and one right
+   after a page load (a reload is "try again"). `useAniListHealth` re-renders on changes and sends the due probe.
+   An empty Trending alone is not "down" (Popular from AniList still fills the landing, as before).
+2. **Comick catalog** (`comick/`): through the comments relay (`/comick/`, own queue: 0.6 s after a burst of 10,
+   about 100/min under the relay's 120). Search pages for the session, comics (AniList id + 30 recommendations) a
+   week, AniList id -> slug a month (a title search, English then a synonym; only a hit whose `links.al` is the id
+   counts). Cards: `bayesian_rating` x 10, follows as popularity, MangaDex genres + MangaUpdates categories as tags,
+   status / year / chapters (`last_chapter`), adult = erotica / pornographic, keyed by `links.al` or a negative id,
+   "via Comick" on the card.
+3. **Comick cards and the list:** search hits and recommendations carry no AniList id, so `TsujiMyList` now also
+   reads titles; a title index (normalized title hash -> AniList id, `myList:titles:v1`) gives a Comick card the id
+   of the list title it matches (list state, read marks, badges and hiding then work). The last list is kept 30
+   days (`myList:last:v1`) and used when AniList fails.
+4. **Discover:** while down, landing Trending = Comick `view`, Popular = `follow`, other sorts `rating` /
+   `created_at`; types (`country`), one status and min chapters go to Comick, the rest client side; 100 a page. With
+   chips, the search runs on MangaBaka; an AniList-only chip with no MangaBaka tag is left out and reads
+   "(not available while AniList is down)". The tag catalog failing while down = MangaBaka suggestions only. Feeds
+   restart when AniList goes down or comes back.
+5. **Similar:** Comick's recommendations always, after AniList's and MAL's, by votes, deduped by AniList id then
+   normalized title (`comick/comickExtras.ts`); the seed's titles come with the seed query now (`similar:v2`). Down:
+   nothing from AniList (uncached), Comick + the MangaBaka fill; the fill counts Comick's cards.
+6. **For You:** the last profile kept 30 days (`foryou:taste:last:v1`); down = Best matches from Comick's
+   recommendations of the 40 strongest liked titles (votes x seed weight, list and seeds left out, cards matched to
+   the list by title), cached an hour (`foryou:comick:v1`), note "AniList is down: picks from Comick, based on your
+   list from <date>." The family row works as before (MangaBaka).
+7. **Note:** one line on Discover / For You / Similar while down; a click shows AniList's last answer and the next
+   try. No toasts.
+
+**Tests:** unit for the down signals, probe gating (client and store), Comick card mapping, search parameters,
+comic parsing, list-title matching, Similar extras dedupe, For You merge, Discover falling back. Browser:
+`anilist-down.e2e.mjs` (AniList route-aborted: landing 184 Comick cards in about 2 s with Ethan's filters sent,
+no library / list / erotica title, the note and its details; System + Medicine on MangaBaka with the marker;
+Similar 22 cards with "via Comick" and the fill; For You Best matches with the dated note; AniList 3 requests at
+the landing and one probe per page load; Comick 15 requests; then AniList back: AniList cards, no note, Similar
+merged without duplicates).
+
+**Known limits:** a Comick card that matches no list title (by its English / romanized title) keeps a negative id:
+read marks on titles that are not on the list can't hide it. Comick search hits carry no `links`, so most landing
+cards are such cards; list titles are still hidden through the title index.
+
 # Brief #14: put the tag work to use in ranking (branch `feat/smarter-ranking`)
 
 **Shipped as r3432** (2026-10-21). Off `custom` (r3429); r3431 checked live, fixed in r3432.

@@ -16,8 +16,11 @@ import {
 } from '@/features/tsuji/discover/discoverQuery.ts';
 import type { CatalogTag, DiscoverPageResponse, TagCatalogResponse } from '@/features/tsuji/recs/aniListQueries.ts';
 import { DISCOVER_PAGE_QUERY, TAG_CATALOG_QUERY } from '@/features/tsuji/recs/aniListQueries.ts';
-import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
+import type { ComicType, RecMedia, RecMediaStatus } from '@/features/tsuji/recs/Recs.types.ts';
 import { aniList, ANILIST_TIMEOUT_MS, isAniListTimeout } from '@/features/tsuji/services/AniListClient.ts';
+import { AniListHealth } from '@/features/tsuji/services/aniListHealth.ts';
+import { buildComickSearch } from '@/features/tsuji/comick/comickCatalog.ts';
+import { searchComick } from '@/features/tsuji/comick/ComickService.ts';
 import { DegradedMemory } from '@/features/tsuji/discover/degradedMemory.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 
@@ -58,7 +61,22 @@ export const loadTagCatalog = (): Promise<TagCatalog> => {
     return pendingCatalog;
 };
 
+/** What Comick is asked while AniList is down: Discover's sort and the filters Comick applies server side. */
+export type ComickFallback = {
+    sort: string;
+    types: ComicType[];
+    statuses: RecMediaStatus[];
+    minChapters: number;
+};
+
+/** Comick pages are bigger: its cards without an AniList id can only be hidden by title, so more of them go. */
+const COMICK_PER_PAGE = 100;
+
+export type FeedSource = 'anilist' | 'comick';
+
 export type DiscoverPage = {
+    /** Where the page came from: Comick while AniList is down (brief #15). */
+    source: FeedSource;
     media: RecMedia[];
     hasNextPage: boolean;
     /** Sort actually used (differs from the requested one after a fallback). */
@@ -123,7 +141,7 @@ const attempt = async (
 };
 
 /**
- * Loads one Discover page. Page 1 walks a short chain because degraded AniList (2026-09) intermittently returns
+ * Loads one Discover page from AniList. Page 1 walks a short chain because degraded AniList (2026-09) intermittently returns
  * nothing, or answers in ~10 s, for some sorts (TRENDING_DESC, START_DATE_DESC) and filters:
  *   1. as asked (4 s if a retry follows, else 12 s);
  *   2. without the optional server filters (client filters still enforce them);
@@ -131,7 +149,7 @@ const attempt = async (
  * What worked is remembered for 30 minutes (DegradedMemory), so later loads skip straight to it. Later pages reuse
  * the sort/relaxation page 1 settled on. A final timeout is thrown (retry UI); an empty result is a real "no matches".
  */
-export const loadDiscoverPage = async ({
+const loadAniListPage = async ({
     variables,
     serverSort,
     page,
@@ -149,7 +167,7 @@ export const loadDiscoverPage = async ({
     if (page > 1) {
         const variablesForPage = isRelaxed ? stripOptionalFilters(variables) : variables;
         const result = await fetchPage(variablesForPage, serverSort, page, ANILIST_TIMEOUT_MS.slow, signal);
-        return { ...result, serverSort, isRelaxed };
+        return { ...result, source: 'anilist', serverSort, isRelaxed };
     }
 
     const fallbackSort = allowSortFallback ? SORT_FALLBACKS[serverSort] : undefined;
@@ -158,7 +176,7 @@ export const loadDiscoverPage = async ({
         if (known.kind === 'timeout') {
             throw known.error;
         }
-        return { ...known.page, serverSort: fallbackSort, isRelaxed: true };
+        return { ...known.page, source: 'anilist', serverSort: fallbackSort, isRelaxed: true };
     }
 
     const shouldRelax = isRelaxed || (DegradedMemory.shouldRelaxFilters() && hasOptionalFilters(variables));
@@ -173,7 +191,7 @@ export const loadDiscoverPage = async ({
         signal,
     );
     if (first.kind === 'ok') {
-        return { ...first.page, serverSort, isRelaxed: shouldRelax };
+        return { ...first.page, source: 'anilist', serverSort, isRelaxed: shouldRelax };
     }
 
     // After a timeout on a sort that has a fallback, retrying the same slow sort without filters rarely helps.
@@ -192,7 +210,7 @@ export const loadDiscoverPage = async ({
                 relaxed.page.media.some((media) => matchesOptionalFilters(media, firstVariables)));
         if (isDegraded) {
             DegradedMemory.rememberRelaxFilters();
-            return { ...relaxed.page, serverSort, isRelaxed: true };
+            return { ...relaxed.page, source: 'anilist', serverSort, isRelaxed: true };
         }
     }
 
@@ -208,7 +226,7 @@ export const loadDiscoverPage = async ({
         // failed too, AniList is down broadly: remember nothing.
         if (fallback.kind === 'ok') {
             DegradedMemory.rememberSortFailed(serverSort);
-            return { ...fallback.page, serverSort: fallbackSort, isRelaxed: true };
+            return { ...fallback.page, source: 'anilist', serverSort: fallbackSort, isRelaxed: true };
         }
     }
 
@@ -216,5 +234,35 @@ export const loadDiscoverPage = async ({
         throw first.error;
     }
 
-    return { ...first.page, serverSort, isRelaxed: shouldRelax };
+    return { ...first.page, source: 'anilist', serverSort, isRelaxed: shouldRelax };
+};
+
+const loadComickPage = async (comick: ComickFallback, page: number, signal: AbortSignal): Promise<DiscoverPage> => {
+    const media = await searchComick(buildComickSearch({ ...comick, page, limit: COMICK_PER_PAGE }), signal);
+    return { source: 'comick', media, hasNextPage: media.length > 0, serverSort: comick.sort, isRelaxed: false };
+};
+
+/**
+ * Loads one Discover page from AniList, or from Comick (`comick`) while AniList is down: when it is already known to
+ * be down, or a request finds it down; later pages stay with the source page 1 came from.
+ */
+export const loadDiscoverPage = async ({
+    comick,
+    source = 'anilist',
+    ...options
+}: Parameters<typeof loadAniListPage>[0] & {
+    comick?: ComickFallback;
+    source?: FeedSource;
+}): Promise<DiscoverPage> => {
+    if (comick && (source === 'comick' || (options.page === 1 && AniListHealth.isDown()))) {
+        return loadComickPage(comick, options.page, options.signal);
+    }
+    try {
+        return await loadAniListPage(options);
+    } catch (error) {
+        if (comick && options.page === 1 && !options.signal.aborted && AniListHealth.isDown()) {
+            return loadComickPage(comick, options.page, options.signal);
+        }
+        throw error;
+    }
 };

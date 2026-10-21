@@ -22,6 +22,7 @@ import type {
 import { EXTERNAL_REC_SOURCES } from '@/features/tsuji/recs/sources/JikanSource.ts';
 import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
+import { AniListHealth } from '@/features/tsuji/services/aniListHealth.ts';
 
 const RECALL_TAG_COUNT = 3;
 const EXTERNAL_SOURCE_TIMEOUT_MS = ANILIST_TIMEOUT_MS.fast;
@@ -34,13 +35,16 @@ const PARTIAL_CACHE_TTL_MS = 60 * 60 * 1000;
 
 export type SimilarData = {
     seedId: number;
+    /** English title first, then the other titles and synonyms: what Comick is searched by (brief #15). */
+    titles: string[];
     seedTags: RecTag[];
     candidates: RecCandidate[];
     /** Sources that contributed at least one candidate. */
     sources: RecSourceId[];
 };
 
-const cacheKey = (anilistId: number) => `similar:v1:${anilistId}`;
+// v2 (brief #15): the seed's titles, for Comick.
+const cacheKey = (anilistId: number) => `similar:v2:${anilistId}`;
 
 /** Runs one external source with its own deadline; hitting it aborts the source's requests too. */
 const fetchWithDeadline = async (source: RecSource, anilistId: number, idMal: number | null, signal: AbortSignal) => {
@@ -79,6 +83,15 @@ const trimForCache = (media: RecCandidate): RecCandidate => ({
     tags: [...(media.tags ?? [])].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0)).slice(0, MAX_CACHED_TAGS),
 });
 
+/** AniList down (brief #15): nothing from AniList or MAL (MAL needs AniList to map); Comick and MangaBaka fill in. */
+const withoutAniList = (anilistId: number): SimilarData => ({
+    seedId: anilistId,
+    titles: [],
+    seedTags: [],
+    candidates: [],
+    sources: [],
+});
+
 export const loadSimilar = async ({
     anilistId,
     force = false,
@@ -94,13 +107,26 @@ export const loadSimilar = async ({
             return cached;
         }
     }
+    if (AniListHealth.isDown()) {
+        return withoutAniList(anilistId);
+    }
 
-    // The seed is required: without it there is nothing to rank against, so this failure propagates.
-    const { Media: seed } = await aniList.request<SeedResponse>(
-        SEED_QUERY,
-        { id: anilistId },
-        { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
-    );
+    // The seed is required: without it there is nothing to rank against, so this failure propagates (unless it
+    // found AniList down; then the section falls back, uncached, and is back on AniList once AniList is).
+    let seedResponse: SeedResponse;
+    try {
+        seedResponse = await aniList.request<SeedResponse>(
+            SEED_QUERY,
+            { id: anilistId },
+            { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
+        );
+    } catch (error) {
+        if (!signal.aborted && AniListHealth.isDown()) {
+            return withoutAniList(anilistId);
+        }
+        throw error;
+    }
+    const { Media: seed } = seedResponse;
     if (!seed) {
         throw new Error(`AniList media ${anilistId} not found`);
     }
@@ -145,6 +171,13 @@ export const loadSimilar = async ({
 
     const data: SimilarData = {
         seedId: seed.id,
+        titles: [
+            ...new Set(
+                [seed.title?.english, ...(seed.synonyms ?? []), seed.title?.romaji, seed.title?.userPreferred].filter(
+                    (title): title is string => !!title,
+                ),
+            ),
+        ],
         seedTags: seed.tags ?? [],
         candidates,
         sources: (['anilist', 'mal', 'tags'] as RecSourceId[]).filter((source) =>

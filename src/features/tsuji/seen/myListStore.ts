@@ -6,11 +6,12 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
-import { DEFAULT_ANILIST_USER, MY_LIST_TTL_MS, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
-import type { CompactList, MyListResponse } from '@/features/tsuji/seen/myList.ts';
-import { MY_LIST_QUERY, parseMediaListCollection } from '@/features/tsuji/seen/myList.ts';
+import { DAY_MS, DEFAULT_ANILIST_USER, MY_LIST_TTL_MS, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
+import type { CompactList, ListTitleIndex, MyListResponse } from '@/features/tsuji/seen/myList.ts';
+import { MY_LIST_QUERY, parseListTitleIndex, parseMediaListCollection } from '@/features/tsuji/seen/myList.ts';
+import { readListTitleIndex, writeListTitleIndex } from '@/features/tsuji/seen/listTitles.ts';
 import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 import { useTsujiGlobalMetaQuery } from '@/features/tsuji/services/TsujiMetadata.ts';
@@ -46,6 +47,9 @@ const subscribe = (listener: () => void) => {
 const getSnapshot = () => snapshot;
 
 const cacheKey = (userName: string) => `myList:v1:${userName.toLowerCase()}`;
+/** The last list AniList gave, kept a month: what hides titles while AniList is down (brief #15). */
+const lastKey = (userName: string) => `myList:last:v1:${userName.toLowerCase()}`;
+const LAST_LIST_TTL_MS = 30 * DAY_MS;
 
 /** Cached for 30 minutes; `force` (refresh button) always refetches. Failures keep the last good list. */
 export const loadMyList = (userName: string, { force = false }: { force?: boolean } = {}): Promise<void> => {
@@ -93,6 +97,8 @@ export const loadMyList = (userName: string, { force = false }: { force?: boolea
             const list = parseMediaListCollection(data);
             const fetchedAt = Date.now();
             TsujiCache.set(cacheKey(userName), { fetchedAt, list } satisfies CachedList, MY_LIST_TTL_MS);
+            TsujiCache.set(lastKey(userName), { fetchedAt, list } satisfies CachedList, LAST_LIST_TTL_MS);
+            writeListTitleIndex(userName, parseListTitleIndex(data));
 
             if (snapshot.userName === userName) {
                 setSnapshot({ userName, status: 'ready', list, fetchedAt, failedAt: null });
@@ -101,7 +107,14 @@ export const loadMyList = (userName: string, { force = false }: { force?: boolea
         .catch((error) => {
             defaultPromiseErrorHandler('loadMyList')(error);
             if (snapshot.userName === userName) {
-                setSnapshot({ ...snapshot, status: 'error', failedAt: Date.now() });
+                // AniList down: the last list it gave still hides what was read (it says how old it is).
+                const last = snapshot.list ? null : TsujiCache.get<CachedList>(lastKey(userName));
+                setSnapshot({
+                    ...snapshot,
+                    status: 'error',
+                    failedAt: Date.now(),
+                    ...(last ? { list: last.list, fetchedAt: last.fetchedAt } : {}),
+                });
             }
         })
         .finally(() => {
@@ -147,4 +160,11 @@ export const useMyAniList = () => {
         isSettled: !isMetaLoading && (list !== null || status === 'ready' || status === 'error'),
         refresh,
     };
+};
+
+/** The title index of the configured user's list (for cards from Comick), read again when the list changes. */
+export const useListTitleIndex = (): ListTitleIndex | null => {
+    const { userName, fetchedAt } = useMyAniList();
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    return useMemo(() => readListTitleIndex(userName), [userName, fetchedAt]);
 };

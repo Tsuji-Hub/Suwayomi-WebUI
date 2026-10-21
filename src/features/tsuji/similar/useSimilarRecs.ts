@@ -19,6 +19,7 @@ import { resolveAniListId } from '@/features/tsuji/recs/resolveAniListId.ts';
 import type { SimilarData } from '@/features/tsuji/similar/SimilarService.ts';
 import { loadSimilar } from '@/features/tsuji/similar/SimilarService.ts';
 import { readTsujiMangaMeta, setTsujiMangaMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
+import { useAniListHealth } from '@/features/tsuji/services/useAniListHealth.ts';
 
 export type SimilarManga = MangaIdInfo & MangaTitleInfo & GqlMetaHolder;
 
@@ -45,6 +46,9 @@ export const useSimilarRecs = (manga: SimilarManga) => {
     });
     const [reloadCount, setReloadCount] = useState(0);
     const shouldForceRef = useRef(false);
+
+    // AniList going down or coming back loads again (brief #15): the fallback isn't cached.
+    const { isDown: isAniListDown } = useAniListHealth();
 
     const trackRecordsQuery = requestManager.useGetManga<GetMangaTrackRecordsQuery>(GET_MANGA_TRACK_RECORDS, manga.id);
     const trackRecords = trackRecordsQuery.data?.manga.trackRecords.nodes;
@@ -110,7 +114,7 @@ export const useSimilarRecs = (manga: SimilarManga) => {
         });
 
         return () => controller.abort();
-    }, [manga.id, isTrackRecordsSettled, anilistRemoteId, malRemoteId, reloadCount]);
+    }, [manga.id, isTrackRecordsSettled, anilistRemoteId, malRemoteId, reloadCount, isAniListDown]);
 
     const retry = useCallback(() => setReloadCount((count) => count + 1), []);
     const refresh = useCallback(() => {

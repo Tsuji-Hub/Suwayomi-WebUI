@@ -209,6 +209,11 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
                     {t`AniList + MAL`}
                 </Typography>
             )}
+            {media.via === 'comick' && (
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    {t`via Comick`}
+                </Typography>
+            )}
         </Stack>
     );
 });

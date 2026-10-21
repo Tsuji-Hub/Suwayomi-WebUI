@@ -41,6 +41,12 @@ import { passesFilters } from '@/features/tsuji/recs/filters.ts';
 import type { FitChips } from '@/features/tsuji/recs/bestMatch.ts';
 import { countFitChips, NO_FIT_CHIPS, rankBestMatch } from '@/features/tsuji/recs/bestMatch.ts';
 import { useTasteWeights } from '@/features/tsuji/forYou/useTasteWeights.ts';
+import type { ComickFallback } from '@/features/tsuji/discover/DiscoverService.ts';
+import { adoptListIds } from '@/features/tsuji/comick/listMatch.ts';
+import { useListTitleIndex } from '@/features/tsuji/seen/myListStore.ts';
+import { useAniListHealth } from '@/features/tsuji/services/useAniListHealth.ts';
+import { useCommentsSettings } from '@/features/tsuji/comments/useComments.ts';
+import { AniListFallbackNote } from '@/features/tsuji/recs/components/AniListFallbackNote.tsx';
 import { REC_SORT_LABELS } from '@/features/tsuji/recs/Recs.constants.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { REC_CARD_WIDTH, RecCard, RecCardSkeleton } from '@/features/tsuji/recs/components/RecCard.tsx';
@@ -110,6 +116,22 @@ const DiscoverBrowse = () => {
     // Best match = chip fit + taste (brief #14); the taste weights come from For You's cache, never a request.
     const tasteWeights = useTasteWeights(isBrowsing);
     const variables = useMemo(() => buildDiscoverVariables(selection, filters), [selection, filters]);
+    // AniList down (brief #15): the feeds come from Comick, chips search MangaBaka.
+    const { isDown: isAniListDown } = useAniListHealth();
+    useCommentsSettings();
+    const titleIndex = useListTitleIndex();
+    const comickFor = useCallback(
+        (comickSort: string): ComickFallback => ({
+            sort: comickSort,
+            types: filters.types,
+            statuses: filters.statuses,
+            minChapters: filters.minChapters,
+        }),
+        [filters.types, filters.statuses, filters.minChapters],
+    );
+    const comickTrending = useMemo(() => comickFor('TRENDING'), [comickFor]);
+    const comickPopular = useMemo(() => comickFor('POPULARITY'), [comickFor]);
+    const comickBrowse = useMemo(() => comickFor(sort), [comickFor, sort]);
 
     // Landing: Trending and Popular in parallel; whichever has cards first fills the grid (see pickLandingSource).
     const isLanding = !isBrowsing && sort === 'TRENDING';
@@ -117,18 +139,28 @@ const DiscoverBrowse = () => {
     const trending = useDiscoverFeed({
         variables,
         serverSort: SERVER_SORTS.TRENDING,
-        isEnabled: isLanding && !isTrendingKnownBroken,
+        isEnabled: isLanding && (!isTrendingKnownBroken || isAniListDown),
         allowSortFallback: false,
+        comick: comickTrending,
+        isAniListDown,
     });
-    const popular = useDiscoverFeed({ variables, serverSort: SERVER_SORTS.POPULARITY, isEnabled: isLanding });
+    const popular = useDiscoverFeed({
+        variables,
+        serverSort: SERVER_SORTS.POPULARITY,
+        isEnabled: isLanding,
+        comick: comickPopular,
+        isAniListDown,
+    });
     // A chip with nothing on AniList (e.g. "System") moves the search to MangaBaka; AniList-only selections stay
-    // on today's path and never call MangaBaka.
-    const engine = getSearchEngine(selection.baka);
+    // on today's path and never call MangaBaka, unless AniList is down.
+    const engine = isAniListDown && isBrowsing ? 'baka' : getSearchEngine(selection.baka);
     const aniListChips = useMemo(() => ({ genres: selection.genres, tags: selection.tags }), [selection]);
     const browse = useDiscoverFeed({
         variables,
         serverSort: SERVER_SORTS[sort],
         isEnabled: !isLanding && engine === 'anilist',
+        comick: comickBrowse,
+        isAniListDown,
     });
     const bakaBrowse = useBakaFeed({
         baka: selection.baka ?? {},
@@ -146,6 +178,7 @@ const DiscoverBrowse = () => {
             sort === 'BEST' &&
             (!!tasteWeights ||
                 Object.values({ ...selection.genres, ...selection.tags }).some((state) => state === 'include')),
+        isAniListDown,
     });
 
     const [landingSource, setLandingSource] = useState<LandingSource>('loading');
@@ -170,7 +203,12 @@ const DiscoverBrowse = () => {
     const isTrendingOut = trending.phase === 'off' || trending.phase === 'empty' || trending.phase === 'failed';
     useEffect(() => {
         // Trending came back empty or timed out while Popular works: skip it for the next 30 minutes.
-        if (isLanding && popular.phase === 'ready' && (trending.phase === 'empty' || trending.phase === 'failed')) {
+        if (
+            isLanding &&
+            !isAniListDown &&
+            popular.phase === 'ready' &&
+            (trending.phase === 'empty' || trending.phase === 'failed')
+        ) {
             DegradedMemory.rememberSortFailed(SERVER_SORTS.TRENDING);
         }
     }, [isLanding, popular.phase, trending.phase]);
@@ -180,8 +218,11 @@ const DiscoverBrowse = () => {
     const isBakaSearch = engine === 'baka' && !isLanding;
     const feed = isLanding ? landingFeed : browseFeed;
     const hasFellBack = isLanding
-        ? landingSource === 'popular' && isTrendingOut
-        : engine === 'anilist' && !!browse.serverSort && browse.serverSort !== SERVER_SORTS[sort];
+        ? landingSource === 'popular' && isTrendingOut && !isAniListDown
+        : engine === 'anilist' &&
+          browse.source !== 'comick' &&
+          !!browse.serverSort &&
+          browse.serverSort !== SERVER_SORTS[sort];
 
     const isVisible = useCallback(
         (media: RecMedia) =>
@@ -209,28 +250,32 @@ const DiscoverBrowse = () => {
 
     const { items, emptyStreak } = useMemo(() => {
         const seenIds = new Set<number>();
-        const visiblePages = feed.pages.map((page) =>
-            (isBestMatch
-                ? rankBestMatch(page, fitChips, tasteWeights, isBakaSearch ? 'order' : 'popularity')
-                : page
+        // Comick cards without an AniList id take the id of the list title they match (brief #15).
+        const visiblePages = feed.pages.map((feedPage) => {
+            const page = adoptListIds(feedPage, titleIndex);
+            return (
+                isBestMatch ? rankBestMatch(page, fitChips, tasteWeights, isBakaSearch ? 'order' : 'popularity') : page
             ).filter((media) => {
                 if (seenIds.has(media.id) || !isVisible(media)) {
                     return false;
                 }
                 seenIds.add(media.id);
                 return true;
-            }),
-        );
+            });
+        });
 
         return {
             items: visiblePages.flat(),
             emptyStreak: getTrailingSparseStreak(visiblePages.map((page) => page.length)),
         };
-    }, [feed.pages, isBestMatch, fitChips, tasteWeights, isBakaSearch, isVisible]);
+    }, [feed.pages, titleIndex, isBestMatch, fitChips, tasteWeights, isBakaSearch, isVisible]);
 
     const popularRow = useMemo(
-        () => (isLanding && landingSource === 'trending' ? (popular.pages[0] ?? []).filter(isVisible) : []),
-        [isLanding, landingSource, popular.pages, isVisible],
+        () =>
+            isLanding && landingSource === 'trending'
+                ? adoptListIds(popular.pages[0] ?? [], titleIndex).filter(isVisible)
+                : [],
+        [isLanding, landingSource, popular.pages, titleIndex, isVisible],
     );
 
     // Cards wait for the library index and the AniList list (capped by its 4 s timeout), so hidden titles don't
@@ -279,6 +324,7 @@ const DiscoverBrowse = () => {
                 selection={selection}
                 onChange={setSelection}
                 showAdult={filters.showAdult}
+                unavailable={isBakaSearch ? bakaBrowse.unavailable : []}
             />
             {isBakaSearch &&
                 !!bakaBrowse.combinations &&
@@ -297,6 +343,7 @@ const DiscoverBrowse = () => {
                 }))}
                 onSortChange={(value) => setSortChoice(value as DiscoverSort)}
             />
+            <AniListFallbackNote message={t`AniList is down: showing titles from Comick and MangaBaka.`} />
             {seen.myList.isUnavailable && (
                 <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
             )}

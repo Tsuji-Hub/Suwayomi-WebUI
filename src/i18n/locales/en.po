@@ -356,6 +356,10 @@ msgstr "{markCount, plural, one {# title marked read or not interested} other {#
 msgid "{missingChapterCount, plural, one {Missing # chapter} other {Missing # chapters}}"
 msgstr "{missingChapterCount, plural, one {Missing # chapter} other {Missing # chapters}}"
 
+#: src/features/tsuji/discover/components/TagPicker.tsx
+msgid "{name} (not available while AniList is down)"
+msgstr "{name} (not available while AniList is down)"
+
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
 #: src/features/migration/components/migration-entry/MigrationEntrySearchExcludeActions.tsx
 msgid "{otherResultsCount, plural, one {# more match} other {# more matches}}"
@@ -537,18 +541,25 @@ msgstr "Also match {label} in a selected chip (either counts)"
 msgid "Also remove from {0}"
 msgstr "Also remove from {0}"
 
-#: src/features/tsuji/similar/SimilarSection.tsx
-msgid "AniList"
-msgstr "AniList"
-
 #: src/features/tsuji/recs/components/RecCard.tsx
-#: src/features/tsuji/similar/SimilarSection.tsx
 msgid "AniList + MAL"
 msgstr "AniList + MAL"
 
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "AniList didn't answer in time."
 msgstr "AniList didn't answer in time."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "AniList is down: picks from Comick, based on your list from {fallbackListDate}."
+msgstr "AniList is down: picks from Comick, based on your list from {fallbackListDate}."
+
+#: src/features/tsuji/discover/screens/Discover.tsx
+msgid "AniList is down: showing titles from Comick and MangaBaka."
+msgstr "AniList is down: showing titles from Comick and MangaBaka."
+
+#: src/features/tsuji/similar/SimilarSection.tsx
+msgid "AniList is down: similar titles from Comick and MangaBaka."
+msgstr "AniList is down: similar titles from Comick and MangaBaka."
 
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "AniList isn't serving this sort right now; showing the closest available order."
@@ -557,6 +568,10 @@ msgstr "AniList isn't serving this sort right now; showing the closest available
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "AniList username"
 msgstr "AniList username"
+
+#: src/features/tsuji/recs/components/AniListFallbackNote.tsx
+msgid "AniList's last answer: {lastError}. Asked again at {retryAt}."
+msgstr "AniList's last answer: {lastError}. Asked again at {retryAt}."
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Any"
@@ -3141,6 +3156,10 @@ msgstr "Next:"
 msgid "No AniList match for this series."
 msgstr "No AniList match for this series."
 
+#: src/features/tsuji/recs/components/AniListFallbackNote.tsx
+msgid "no answer"
+msgstr "no answer"
+
 #: src/features/chapter/components/ChapterList.tsx
 msgid "No chapters found"
 msgstr "No chapters found"
@@ -4997,6 +5016,10 @@ msgstr "Version"
 #: src/features/reader/settings/layout/components/ReaderSettingTapZoneInvertMode.tsx
 msgid "Vertical"
 msgstr "Vertical"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "via Comick"
+msgstr "via Comick"
 
 #: src/features/settings/Settings.constants.ts
 msgid "VUI"

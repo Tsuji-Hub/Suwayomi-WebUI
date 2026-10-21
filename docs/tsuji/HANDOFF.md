@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-21)
 
-| Branch             | Commit             | What                                                                                                                                                                        |
-| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`           | `471e1a99` (r3432) | Briefs #1-#14 (smarter ranking: Best match = fit + taste + popularity, distinctive tags, "More <Family>", Similar fill, one hide rule) + reader resume. Shipped 2026-10-21. |
-| `chore/docs-r3432` | this               | Docs only: r3432 shipped. Rides along with the next ship.                                                                                                                   |
-| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                              |
+| Branch                  | Commit             | What                                                                                                                                                                        |
+| ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`                | `471e1a99` (r3432) | Briefs #1-#14 (smarter ranking: Best match = fit + taste + popularity, distinctive tags, "More <Family>", Similar fill, one hide rule) + reader resume. Shipped 2026-10-21. |
+| `feat/anilist-fallback` | (prerelease)       | Brief #15: Comick + MangaBaka fallback while AniList is down (Discover, Similar, For You), Comick in Similar always. Includes the r3432 docs. Awaiting Cowork.              |
+| `master`                | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                              |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -37,7 +37,9 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    browser.
 7. Comments relay: runs next to Suwayomi on CT100, port 4568 (not in this repo); it also serves the MTL action feed
    `/mtl/raws.json` and the pre-signed translate / cancel pages (brief #6), and proxies MangaDex
-   (`/mangadex/`) for brief #8. Its `/mangaupdates/` route is retired (brief #9 calls MangaBaka directly).
+   (`/mangadex/`) for brief #8. Its `/mangaupdates/` route is retired (brief #9 calls MangaBaka directly). Since brief #15 its
+   `/comick/` route also feeds Discover, Similar and For You (limit 120/min, burst 60; `GET /comic/*` and
+   `/v1.0/search*` cached 1 h).
    MangaBaka's Cloudflare answers 403 to a "HeadlessChrome" User-Agent: a live browser test against
    `api.mangabaka.org` must set a normal Chrome UA (the mocked e2e is unaffected). The WebUI calls
    `${tsuji_commentsRelay}/comick/...`; unset means the WebUI's own host on port 4568, so no address is in the bundle.
