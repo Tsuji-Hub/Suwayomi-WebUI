@@ -68,6 +68,10 @@ const TASTE_TAGS = [
 ];
 const LIST_SIZE = 10;
 const PLANNED_ID = 50;
+/** Best matches fixture: recommended by every liked title, a weak one-seed title, a read-marked one. */
+const BEST_ID = 800;
+const WEAK_ID = 900;
+const READ_MARK_ID = 805;
 
 const media = (id, overrides = {}) => ({
     id,
@@ -165,6 +169,37 @@ const createAniList = () => {
                         },
                     ]),
                 );
+            case 'TsujiForYouBest':
+                return Object.fromEntries(
+                    Object.entries(variables).map(([key, id]) => [
+                        `s${key.slice(2)}`,
+                        {
+                            id,
+                            recommendations: {
+                                nodes: [
+                                    { rating: 40, mediaRecommendation: media(BEST_ID) },
+                                    { rating: 30, mediaRecommendation: media(PLANNED_ID) },
+                                    { rating: 25, mediaRecommendation: media(READ_MARK_ID) },
+                                    // Also in this week's first seed row: shown once, in Best matches.
+                                    { rating: 20, mediaRecommendation: media(100) },
+                                    // No score, 368 users, one seed: below the quality floor.
+                                    ...(id === 1000
+                                        ? [
+                                              {
+                                                  rating: 90,
+                                                  mediaRecommendation: media(WEAK_ID, {
+                                                      averageScore: null,
+                                                      popularity: 368,
+                                                  }),
+                                              },
+                                          ]
+                                        : []),
+                                    { rating: 90, mediaRecommendation: media(1003) },
+                                ],
+                            },
+                        },
+                    ]),
+                );
             case 'TsujiForYouRecall':
                 return {
                     core: { media: [media(PLANNED_ID), media(51), media(52)] },
@@ -236,6 +271,8 @@ const runBrowser = async (browserName) => {
         },
         chapters: [],
         pageCount: 0,
+        // A read mark on a Best matches title (805 % 16 = 5).
+        globalMeta: { tsuji_seen_5: JSON.stringify({ r: [READ_MARK_ID], s: [] }) },
     });
     const aniList = createAniList();
     const pageErrors = [];
@@ -279,7 +316,7 @@ const runBrowser = async (browserName) => {
 
     check(label('top picks render'), await topPicks.isVisible(), {});
     const bodyText = await page.locator('body').innerText();
-    const seedRows = (bodyText.match(/Because you read Liked \d/g) ?? []).length;
+    const seedRows = await page.getByRole('heading', { name: /^Because you read/ }).count();
     check(label('one row per seed ("Because you read ...")'), seedRows === 4, { seedRows });
     check(
         label('week caption'),
@@ -295,7 +332,9 @@ const runBrowser = async (browserName) => {
     );
     check(
         label('the title every seed recommends leads the top picks'),
-        bodyText.indexOf('Pick 1\n') < bodyText.indexOf('Pick 100'),
+        // Pick 100 sits in Best matches above; inside Top picks, Pick 1 leads the weekly seeds' titles.
+        bodyText.indexOf('Pick 1\n', bodyText.indexOf('Top picks')) <
+            bodyText.indexOf('Pick 101', bodyText.indexOf('Top picks')),
         {},
     );
     check(label('a title already on the list is never recommended'), !bodyText.includes('Pick 1003'), {});
@@ -304,11 +343,43 @@ const runBrowser = async (browserName) => {
         bodyText.includes(`Pick ${PLANNED_ID}`) && bodyText.includes('Planned'),
         {},
     );
+    const headings = await page.getByRole('heading', { level: 2 }).allTextContents();
     check(
-        label('3 AniList requests for the week'),
+        label('Best matches first, then Top picks; "from all 10 titles you read"'),
+        headings[0] === 'Best matches' &&
+            headings[1] === 'Top picks' &&
+            bodyText.includes('Best matches from all 10 titles you read.'),
+        headings.slice(0, 3),
+    );
+    check(
+        label('the title every liked title recommends leads Best matches, with its top 2 seeds'),
+        bodyText.indexOf(`Pick ${BEST_ID}\n`) > -1 &&
+            bodyText.indexOf(`Pick ${BEST_ID}\n`) < bodyText.indexOf('Top picks') &&
+            bodyText.includes('Because you read Liked 0, Liked 1'),
+        {},
+    );
+    check(
+        label('Best matches: no read-marked title, nothing below the quality floor, none on the list'),
+        !bodyText.includes(`Pick ${READ_MARK_ID}`) &&
+            !bodyText.includes(`Pick ${WEAK_ID}`) &&
+            !bodyText.includes('Pick 1003'),
+        {
+            readMark: bodyText.includes(`Pick ${READ_MARK_ID}`),
+            weak: bodyText.includes(`Pick ${WEAK_ID}`),
+            listed: bodyText.includes('Pick 1003'),
+        },
+    );
+    check(
+        label('a title in Best matches is not repeated in the weekly rows'),
+        bodyText.split('Pick 100\n').length - 1 === 1,
+        { count: bodyText.split('Pick 100\n').length - 1 },
+    );
+    check(
+        label('AniList for the week: list, seeds, recall, and 2 Best matches requests (10 liked titles, 8 a request)'),
         aniList.counts.TsujiTasteList === 1 &&
             aniList.counts.TsujiForYouSeeds === 1 &&
-            aniList.counts.TsujiForYouRecall === 1,
+            aniList.counts.TsujiForYouRecall === 1 &&
+            aniList.counts.TsujiForYouBest === 2,
         aniList.counts,
     );
 
@@ -322,6 +393,7 @@ const runBrowser = async (browserName) => {
         label('reload: For You again, from the week cache (no new For You requests)'),
         (await page.getByRole('heading', { name: 'Top picks' }).isVisible()) &&
             aniList.counts.TsujiForYouSeeds === 1 &&
+            aniList.counts.TsujiForYouBest === 2 &&
             aniList.counts.TsujiTasteList === 1,
         aniList.counts,
     );

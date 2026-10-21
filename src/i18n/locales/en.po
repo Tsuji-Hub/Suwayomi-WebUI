@@ -734,6 +734,10 @@ msgstr "Basic Authentication"
 msgid "Because you read {0}"
 msgstr "Because you read {0}"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Because you read {reasons}"
+msgstr "Because you read {reasons}"
+
 #: src/features/reader/settings/ReaderSettings.constants.tsx
 msgid "Behaviour"
 msgstr "Behaviour"
@@ -745,6 +749,15 @@ msgstr "Bell settings"
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Best match"
 msgstr "Best match"
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Best matches"
+msgstr "Best matches"
+
+#. placeholder {0}: data!.entryCount
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Best matches from all {0, plural, one {# title} other {# titles}} you read."
+msgstr "Best matches from all {0, plural, one {# title} other {# titles}} you read."
 
 #: src/features/settings/Settings.constants.ts
 msgid "Binary"

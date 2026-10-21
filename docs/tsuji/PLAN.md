@@ -14,7 +14,37 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #13 v2: For You "Best matches" (branch `feat/foryou-best-matches`)
+
+Off `custom` (r3427). Cowork's audit: of the top 25 of an AniList-recommendation baseline over all 190 liked titles,
+11 were missing from For You only because the week's 4 seeds rotate; the Top picks tail had weak titles (Queen's
+Revenge: popularity 368, no score). Ethan never scores, so status and progress carry the taste.
+
+**Done:**
+
+- Seeds: the 40 strongest liked titles (`buildTasteProfile().bestSeeds`, `getEntryWeight`: status x progress x
+  score x recency, an unscored entry counts as neutral, never 0; dropped never).
+- Data (`ForYouService.loadBestEdges`): their recommendations in aliased requests of 8 seeds
+  (`TsujiForYouBest`, `recommendations(sort: RATING_DESC, perPage: 10)`), 5 requests a week, alongside the week's 2,
+  cached with the week (none on revisits; a failed batch makes the week partial, retried after an hour). Cache keys
+  bumped to `foryou:taste:v2` / `foryou:week:v2`.
+- Score (`mergeBestMatches`): sum over recommending seeds of rating x seed weight; the list (any status but Planned)
+  and the seeds left out; 120 kept per week.
+- Row (`ForYouTab`): "Best matches" first, "Best matches from all N titles you read.", up to 30 after the same hide
+  rules and filters as For You, each card with "Because you read X, Y" (its 2 strongest contributing seeds). Top
+  picks and the weekly seed rows stay below for variety, without what Best matches shows.
+- Quality floor (`passesQualityFloor`) for Top picks and Best matches: no score and under 1,000 users needs 2+
+  recommending seeds.
+- Unit: best seeds (40, unscored neutral, dropped out), the score sum, the top 2 reasons, the floor, the batch query,
+  5 requests for 40 seeds and none on a revisit, a failed batch. Browser (`for-you.e2e.mjs`, 15 checks): Best
+  matches before Top picks, its caption, the leader and its reasons, no read-marked / weak / listed title, no
+  repeat in the weekly rows, 2 Best matches requests for 10 liked titles, none on reload.
+
 # Brief #12: new-chapter bell v2 (branch `feat/bell-v2`)
+
+**Shipped as r3427** (2026-10-21; Cowork live: the bell equals Glance bell.json, Perks of Being a Villainess Ch 110
+and Log into the Future Ch 355-361 · 7 new; 1 series + 1 chapters request per load; debounce: 0 searches while
+picking 3 families, 16 after closing).
 
 Off `custom` (r3426). Cowork's audit: the bell's query took the newest 1,500 unread library chapters of 60 days
 (69,271 qualify: the 09-24 import plus Reading backlogs), which reached back only 20.7 days, so a series left unread

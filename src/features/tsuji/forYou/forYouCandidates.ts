@@ -98,3 +98,70 @@ export const getSeedRow = <T extends ScoredCandidate & ForYouCandidate>(items: T
     items
         .filter((item) => item.seedRatings[String(seedId)] !== undefined)
         .sort((a, b) => b.seedRatings[String(seedId)] - a.seedRatings[String(seedId)] || b.bestMatch - a.bestMatch);
+
+export type BestMatch = ForYouCandidate & {
+    /** Sum over the seeds recommending it of AniList's rating x how much the user liked that seed. */
+    bestScore: number;
+};
+
+/**
+ * "Best matches" (brief #13): the recommendations of the strongest liked titles, scored by the sum of rating x seed
+ * weight, strongest first. Titles on the list and the seeds themselves are left out.
+ */
+export const mergeBestMatches = ({
+    seeds,
+    excludeIds,
+}: {
+    seeds: SeedRecommendations[];
+    excludeIds: Iterable<number>;
+}): BestMatch[] => {
+    const excluded = new Set([...excludeIds, ...seeds.map(({ seed }) => seed.mediaId)]);
+    const byId = new Map<number, BestMatch>();
+    seeds.forEach(({ seed, recommendations }) =>
+        recommendations.forEach(({ rating, media }) => {
+            if (!media || excluded.has(media.id)) {
+                return;
+            }
+            const clamped = Math.max(0, rating ?? 0);
+            const match = byId.get(media.id) ?? {
+                ...media,
+                edgeRating: 0,
+                sources: ['anilist'],
+                seedRatings: {},
+                bestScore: 0,
+            };
+            match.bestScore += clamped * seed.weight;
+            match.edgeRating += clamped;
+            match.seedRatings[String(seed.mediaId)] = clamped;
+            byId.set(media.id, match);
+        }),
+    );
+    return [...byId.values()].sort((a, b) => b.bestScore - a.bestScore || a.id - b.id);
+};
+
+/** The (up to) 2 seeds that contribute most to a match, for "Because you read X, Y". */
+export const getTopSeeds = <S extends Pick<SeedCandidate, 'mediaId' | 'weight'>>(
+    match: Pick<ForYouCandidate, 'seedRatings'>,
+    seeds: S[],
+    count = 2,
+): S[] =>
+    seeds
+        .filter(({ mediaId }) => match.seedRatings[String(mediaId)] !== undefined)
+        .map((seed) => ({ seed, contribution: match.seedRatings[String(seed.mediaId)] * seed.weight }))
+        .sort((a, b) => b.contribution - a.contribution || a.seed.mediaId - b.seed.mediaId)
+        .slice(0, count)
+        .map(({ seed }) => seed);
+
+/** Below this popularity, a title without any score needs 2+ recommending seeds to be shown. */
+export const QUALITY_MIN_POPULARITY = 1000;
+
+/**
+ * Quality floor for Top picks and Best matches: a title with no score and under 1,000 AniList users is dropped
+ * unless at least 2 seeds recommend it (Queen's Revenge, pop 368, no score, came from one seed).
+ */
+export const passesQualityFloor = (
+    media: Pick<ForYouCandidate, 'averageScore' | 'popularity' | 'seedRatings'>,
+): boolean =>
+    media.averageScore !== null ||
+    (media.popularity ?? 0) >= QUALITY_MIN_POPULARITY ||
+    Object.keys(media.seedRatings).length >= 2;

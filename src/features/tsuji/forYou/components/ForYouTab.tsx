@@ -15,7 +15,7 @@ import { styled } from '@mui/material/styles';
 import { plural } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react/macro';
 import { DAY_MS } from '@/features/tsuji/Tsuji.constants.ts';
-import { getSeedRow, rankForYou } from '@/features/tsuji/forYou/forYouCandidates.ts';
+import { getSeedRow, getTopSeeds, passesQualityFloor, rankForYou } from '@/features/tsuji/forYou/forYouCandidates.ts';
 import { readShownIds, SHOWN_PER_WEEK, writeShownIds } from '@/features/tsuji/forYou/forYouHistory.ts';
 import { useForYou } from '@/features/tsuji/forYou/useForYou.ts';
 import { getIsoWeekKey } from '@/features/tsuji/forYou/weeklyRotation.ts';
@@ -33,6 +33,7 @@ import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
 
 const SKELETON_KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index}`);
 const TOP_PICKS = 24;
+const BEST_MATCHES = 30;
 const ROW_LENGTH = 12;
 const TASTE_CHIPS = 8;
 
@@ -50,7 +51,10 @@ const getStorage = (): Storage | null => {
     }
 };
 
-/** For You: this week's picks from the user's AniList taste, plus a row per seed title. */
+/**
+ * For You: Best matches from the strongest liked titles (brief #13), then this week's picks from the user's AniList
+ * taste and a row per seed title, without what Best matches already shows.
+ */
 export const ForYouTab = () => {
     const { t, i18n } = useLingui();
     const { state, userName, retry, refresh } = useForYou();
@@ -79,13 +83,45 @@ export const ForYouTab = () => {
         );
     }, [data, lastWeekIds, filters, libraryIndex, seen.getSeenState]);
 
-    const topPicks = useMemo(() => sortRecs(visible, filters).slice(0, TOP_PICKS), [visible, filters]);
+    // Best matches (brief #13): the strongest liked titles' recommendations, the same hide rules and filters.
+    const bestMatches = useMemo(() => {
+        if (!data || !libraryIndex) {
+            return [];
+        }
+        return (data.bestMatches ?? [])
+            .filter(
+                (item) =>
+                    passesQualityFloor(item) &&
+                    passesFilters(item, filters, libraryIndex, {
+                        applyTagFilters: false,
+                        getSeenState: seen.getSeenState,
+                    }),
+            )
+            .slice(0, BEST_MATCHES);
+    }, [data, filters, libraryIndex, seen.getSeenState]);
+    const bestIds = useMemo(() => new Set(bestMatches.map(({ id }) => id)), [bestMatches]);
+
+    // The weekly picks stay for variety, without what Best matches already shows.
+    const topPicks = useMemo(
+        () =>
+            sortRecs(
+                visible.filter((item) => !bestIds.has(item.id) && passesQualityFloor(item)),
+                filters,
+            ).slice(0, TOP_PICKS),
+        [visible, filters, bestIds],
+    );
     const seedRows = useMemo(
         () =>
             (data?.seeds ?? [])
-                .map((seed) => ({ seed, items: getSeedRow(visible, seed.mediaId).slice(0, ROW_LENGTH) }))
+                .map((seed) => ({
+                    seed,
+                    items: getSeedRow(
+                        visible.filter((item) => !bestIds.has(item.id)),
+                        seed.mediaId,
+                    ).slice(0, ROW_LENGTH),
+                }))
                 .filter(({ items }) => items.length > 0),
-        [data, visible],
+        [data, visible, bestIds],
     );
 
     const areCardsReady = !!libraryIndex && seen.isSettled;
@@ -151,7 +187,7 @@ export const ForYouTab = () => {
             );
         }
 
-        if (!topPicks.length) {
+        if (!topPicks.length && !bestMatches.length) {
             return (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {t`Nothing left after filters.`}
@@ -161,12 +197,53 @@ export const ForYouTab = () => {
 
         return (
             <Stack sx={{ gap: 3 }}>
-                <Stack sx={{ gap: 1 }}>
-                    <Typography variant="h6" component="h2">
-                        {t`Top picks`}
-                    </Typography>
-                    <CardGrid>{topPicks.map(renderCard)}</CardGrid>
-                </Stack>
+                {!!bestMatches.length && (
+                    <Stack sx={{ gap: 1 }}>
+                        <Stack>
+                            <Typography variant="h6" component="h2">
+                                {t`Best matches`}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                {t`Best matches from all ${plural(data!.entryCount, { one: '# title', other: '# titles' })} you read.`}
+                            </Typography>
+                        </Stack>
+                        <ScrollRow label={t`Best matches`}>
+                            {bestMatches.map((media) => {
+                                const reasons = getTopSeeds(media, data!.bestSeeds)
+                                    .map(({ title }) => title)
+                                    .join(', ');
+                                return (
+                                    <Stack key={media.id} sx={{ width: REC_CARD_WIDTH, flex: '0 0 auto', gap: 0.5 }}>
+                                        {renderCard(media)}
+                                        {!!reasons && (
+                                            <Typography
+                                                variant="caption"
+                                                title={t`Because you read ${reasons}`}
+                                                sx={{
+                                                    color: 'text.secondary',
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                }}
+                                            >
+                                                {t`Because you read ${reasons}`}
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                );
+                            })}
+                        </ScrollRow>
+                    </Stack>
+                )}
+                {!!topPicks.length && (
+                    <Stack sx={{ gap: 1 }}>
+                        <Typography variant="h6" component="h2">
+                            {t`Top picks`}
+                        </Typography>
+                        <CardGrid>{topPicks.map(renderCard)}</CardGrid>
+                    </Stack>
+                )}
                 {seedRows.map(({ seed, items }) => (
                     <Stack key={seed.mediaId} sx={{ gap: 1 }}>
                         <Typography variant="h6" component="h2">

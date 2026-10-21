@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RecMedia, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
 import type { TasteEntry } from '@/features/tsuji/forYou/tasteProfile.ts';
-import { buildTasteProfile, getEntryWeight } from '@/features/tsuji/forYou/tasteProfile.ts';
+import { BEST_SEED_COUNT, buildTasteProfile, getEntryWeight } from '@/features/tsuji/forYou/tasteProfile.ts';
 import {
     createWeeklyRandom,
     getIsoWeekKey,
@@ -19,7 +19,14 @@ import {
     pickWeeklyTags,
     sampleWeighted,
 } from '@/features/tsuji/forYou/weeklyRotation.ts';
-import { getSeedRow, mergeForYouCandidates, rankForYou } from '@/features/tsuji/forYou/forYouCandidates.ts';
+import {
+    getSeedRow,
+    getTopSeeds,
+    mergeBestMatches,
+    mergeForYouCandidates,
+    passesQualityFloor,
+    rankForYou,
+} from '@/features/tsuji/forYou/forYouCandidates.ts';
 import { buildSeedsQuery, parseTasteList } from '@/features/tsuji/forYou/forYouQueries.ts';
 import { readShownIds, writeShownIds } from '@/features/tsuji/forYou/forYouHistory.ts';
 
@@ -284,5 +291,74 @@ describe('shown history', () => {
         expect(readShownIds(storage, 'ejustice', '2026-W38')).toHaveLength(12);
         expect(readShownIds(storage, 'ejustice', '2026-W40')[0]).toBe(300);
         expect(readShownIds(storage, 'other', '2026-W40')).toEqual([]);
+    });
+});
+
+describe('best matches', () => {
+    it('seeds: the 40 strongest liked titles; unscored entries count as neutral (never 0), dropped never', () => {
+        const entries = [
+            ...Array.from({ length: 45 }, (_, index) =>
+                entry({ mediaId: index + 1, status: index % 2 ? 'COMPLETED' : 'REPEATING', score: 0 }),
+            ),
+            entry({ mediaId: 99, status: 'DROPPED' }),
+        ];
+        const { bestSeeds } = buildTasteProfile(entries, NOW);
+        expect(bestSeeds).toHaveLength(BEST_SEED_COUNT);
+        expect(bestSeeds.every(({ weight }) => weight > 0)).toBe(true);
+        expect(bestSeeds.some(({ mediaId }) => mediaId === 99)).toBe(false);
+        // Re-reading beats finishing, unscored or not.
+        expect(bestSeeds[0].weight).toBeGreaterThan(bestSeeds[bestSeeds.length - 1].weight);
+    });
+
+    const strong = { mediaId: 100, title: 'Strong Seed', weight: 1.5 };
+    const weak = { mediaId: 200, title: 'Weak Seed', weight: 0.5 };
+    const third = { mediaId: 300, title: 'Third Seed', weight: 1 };
+    const matches = mergeBestMatches({
+        seeds: [
+            {
+                seed: strong,
+                recommendations: [
+                    { rating: 40, media: media(1) },
+                    { rating: 100, media: media(2) },
+                    { rating: 50, media: media(7) },
+                ],
+            },
+            {
+                seed: weak,
+                recommendations: [
+                    { rating: 100, media: media(1) },
+                    { rating: 90, media: media(300) },
+                ],
+            },
+            { seed: third, recommendations: [{ rating: 10, media: media(1) }] },
+        ],
+        excludeIds: [7],
+    });
+
+    it('score = sum of rating x seed weight; the list and the seeds themselves are left out', () => {
+        expect(matches.map(({ id, bestScore }) => [id, bestScore])).toEqual([
+            [2, 150],
+            [1, 40 * 1.5 + 100 * 0.5 + 10],
+        ]);
+    });
+
+    it('"Because you read": the 2 seeds that contribute most', () => {
+        const one = matches.find(({ id }) => id === 1)!;
+        expect(getTopSeeds(one, [strong, weak, third]).map(({ title }) => title)).toEqual(['Strong Seed', 'Weak Seed']);
+    });
+
+    it('quality floor: no score and under 1,000 users needs 2+ seeds', () => {
+        const weakCard = { averageScore: null, popularity: 368, seedRatings: { 100: 60 } };
+        expect(passesQualityFloor(weakCard)).toBe(false);
+        expect(passesQualityFloor({ ...weakCard, seedRatings: { 100: 60, 200: 20 } })).toBe(true);
+        expect(passesQualityFloor({ ...weakCard, averageScore: 70 })).toBe(true);
+        expect(passesQualityFloor({ ...weakCard, popularity: 1000 })).toBe(true);
+    });
+
+    it('the batch query asks 10 recommendations per seed under its own name', () => {
+        const query = buildSeedsQuery(8, 10, 'TsujiForYouBest');
+        expect(query).toContain('query TsujiForYouBest($id0: Int,');
+        expect(query).toContain('s7: Media(id: $id7, type: MANGA)');
+        expect(query).toContain('recommendations(sort: RATING_DESC, perPage: 10)');
     });
 });

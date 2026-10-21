@@ -12,16 +12,18 @@ import { SEED_QUERY } from '@/features/tsuji/recs/aniListQueries.ts';
 import { aniList, ANILIST_TIMEOUT_MS, isAniListTimeout } from '@/features/tsuji/services/AniListClient.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 import { DAY_MS } from '@/features/tsuji/Tsuji.constants.ts';
-import type { ForYouCandidate, SeedRecommendations } from '@/features/tsuji/forYou/forYouCandidates.ts';
-import { mergeForYouCandidates, rankForYou } from '@/features/tsuji/forYou/forYouCandidates.ts';
+import type { BestMatch, ForYouCandidate, SeedRecommendations } from '@/features/tsuji/forYou/forYouCandidates.ts';
+import { mergeBestMatches, mergeForYouCandidates, rankForYou } from '@/features/tsuji/forYou/forYouCandidates.ts';
 import type { RecallResponse, SeedsResponse, TasteListResponse } from '@/features/tsuji/forYou/forYouQueries.ts';
 import {
+    BEST_BATCH_SIZE,
+    BEST_EDGES_PER_SEED,
     buildSeedsQuery,
     parseTasteList,
     TASTE_LIST_QUERY,
     TASTE_RECALL_QUERY,
 } from '@/features/tsuji/forYou/forYouQueries.ts';
-import type { TasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
+import type { SeedCandidate, TasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
 import { buildTasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
 import {
     createWeeklyRandom,
@@ -37,6 +39,8 @@ const PARTIAL_TTL_MS = 60 * 60 * 1000;
 const MIN_WEEK_TTL_MS = 60 * 60 * 1000;
 /** Candidates kept per week (strongest first); filters run at render, so keep room for hidden ones. */
 const MAX_CACHED_CANDIDATES = 150;
+/** Best matches kept per week (30 are shown; filters run at render). */
+const MAX_CACHED_BEST = 120;
 const MAX_CACHED_DESCRIPTION = 300;
 const MAX_CACHED_TAGS = 12;
 
@@ -50,15 +54,19 @@ export type ForYouData = {
     weekTags: { core: string[]; rotating: string[] };
     entryCount: number;
     candidates: ForYouCandidate[];
+    /** The strongest liked titles and their recommendations, strongest first (brief #13). */
+    bestSeeds: SeedCandidate[];
+    bestMatches: BestMatch[];
     isPartial: boolean;
 };
 
 export type ForYouResult = { kind: 'ready'; data: ForYouData } | { kind: 'empty'; entryCount: number };
 
-const profileKey = (userName: string) => `foryou:taste:v1:${userName.toLowerCase()}`;
-const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v1:${userName.toLowerCase()}:${weekKey}`;
+// v2 (brief #13): the profile has best seeds, the week has best matches.
+const profileKey = (userName: string) => `foryou:taste:v2:${userName.toLowerCase()}`;
+const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v2:${userName.toLowerCase()}:${weekKey}`;
 
-const trimForCache = (media: ForYouCandidate): ForYouCandidate => ({
+const trimForCache = <T extends ForYouCandidate>(media: T): T => ({
     ...media,
     description: media.description?.slice(0, MAX_CACHED_DESCRIPTION) ?? null,
     tags: [...(media.tags ?? [])].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0)).slice(0, MAX_CACHED_TAGS),
@@ -106,6 +114,42 @@ const loadSeedEdges = async (seedIds: number[], signal: AbortSignal): Promise<Se
     }
 };
 
+/**
+ * "Best matches" edges: the strongest liked titles in aliased requests of 8 (10 recommendations each, 5 requests
+ * for 40 seeds), through the shared AniList queue. A batch that fails is left out (the week is then partial).
+ */
+const loadBestEdges = async (
+    seeds: SeedCandidate[],
+    signal: AbortSignal,
+): Promise<{ edges: SeedRecommendations[]; isPartial: boolean }> => {
+    const batches = Array.from({ length: Math.ceil(seeds.length / BEST_BATCH_SIZE) }, (_, index) =>
+        seeds.slice(index * BEST_BATCH_SIZE, (index + 1) * BEST_BATCH_SIZE),
+    );
+    const results = await Promise.allSettled(
+        batches.map((batch) =>
+            aniList.request<SeedsResponse>(
+                buildSeedsQuery(batch.length, BEST_EDGES_PER_SEED, 'TsujiForYouBest'),
+                Object.fromEntries(batch.map(({ mediaId }, index) => [`id${index}`, mediaId])),
+                { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
+            ),
+        ),
+    );
+    signal.throwIfAborted();
+    const edges = batches.flatMap((batch, batchIndex) => {
+        const result = results[batchIndex];
+        if (result.status === 'rejected') {
+            return [];
+        }
+        return batch.map((seed, index) => ({
+            seed,
+            recommendations: (result.value[`s${index}`]?.recommendations?.nodes ?? []).map(
+                ({ rating, mediaRecommendation }) => ({ rating, media: mediaRecommendation }),
+            ),
+        }));
+    });
+    return { edges, isPartial: results.some(({ status }) => status === 'rejected') };
+};
+
 const loadProfile = async (userName: string, force: boolean, signal: AbortSignal): Promise<TasteProfile> => {
     if (!force) {
         const cached = TsujiCache.get<TasteProfile>(profileKey(userName));
@@ -127,8 +171,8 @@ const loadProfile = async (userName: string, force: boolean, signal: AbortSignal
 
 /**
  * This week's For You for the AniList user: taste profile (cached a day) -> this week's seeds and tags (seeded by
- * user + ISO week) -> 2 AniList requests (all seeds' recommendations, taste recall) -> merged candidates, cached
- * until next Monday. Ranking and filters run at render (they depend on this browser's history and settings).
+ * user + ISO week) -> 2 AniList requests (all seeds' recommendations, taste recall) plus 5 for "Best matches" (the
+ * 40 strongest liked titles, 8 a request) -> merged candidates, cached until next Monday. Ranking and filters run at render (they depend on this browser's history and settings).
  */
 export const loadForYou = async ({
     userName,
@@ -161,7 +205,7 @@ export const loadForYou = async ({
     const seeds = pickWeeklySeeds(profile.seedPool, random);
     const weekTags = pickWeeklyTags(profile.tags, random);
 
-    const [seedsResult, recallResult] = await Promise.allSettled([
+    const [seedsResult, recallResult, bestResult] = await Promise.allSettled([
         loadSeedEdges(
             seeds.map(({ mediaId }) => mediaId),
             signal,
@@ -171,6 +215,7 @@ export const loadForYou = async ({
             { core: weekTags.core, rotating: weekTags.rotating, withRotating: weekTags.rotating.length > 0 },
             { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
         ),
+        loadBestEdges(profile.bestSeeds, signal),
     ]);
     signal.throwIfAborted();
 
@@ -196,7 +241,13 @@ export const loadForYou = async ({
             .map(({ id }) => id),
     );
 
-    const isPartial = seedsResult.status === 'rejected' || recallResult.status === 'rejected';
+    const best = bestResult.status === 'fulfilled' ? bestResult.value : { edges: [], isPartial: true };
+    const bestMatches = mergeBestMatches({ seeds: best.edges, excludeIds: profile.listedIds }).slice(
+        0,
+        MAX_CACHED_BEST,
+    );
+
+    const isPartial = seedsResult.status === 'rejected' || recallResult.status === 'rejected' || best.isPartial;
     const data: ForYouData = {
         weekKey,
         weekStart: start.getTime(),
@@ -205,6 +256,8 @@ export const loadForYou = async ({
         weekTags,
         entryCount: profile.entryCount,
         candidates: merged.filter(({ id }) => kept.has(id)).map(trimForCache),
+        bestSeeds: profile.bestSeeds,
+        bestMatches: bestMatches.map(trimForCache),
         isPartial,
     };
 

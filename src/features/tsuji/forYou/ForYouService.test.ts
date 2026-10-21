@@ -74,7 +74,13 @@ const card = (id: number) => ({
 
 type Vars = Record<string, unknown>;
 
-const answer = ({ seedsFail = false, recallFail = false, listSize = 10, combinedRejected = false } = {}) =>
+const answer = ({
+    seedsFail = false,
+    recallFail = false,
+    bestFail = false,
+    listSize = 10,
+    combinedRejected = false,
+} = {}) =>
     request.mockImplementation((query: string, variables: Vars) => {
         if (query.includes('TsujiTasteList')) {
             return Promise.resolve(tasteResponse(listSize));
@@ -115,6 +121,29 @@ const answer = ({ seedsFail = false, recallFail = false, listSize = 10, combined
                 ),
             );
         }
+        if (query.includes('TsujiForYouBest')) {
+            if (bestFail) {
+                return Promise.reject(new Error('timeout'));
+            }
+            return Promise.resolve(
+                Object.fromEntries(
+                    Object.entries(variables).map(([key, id]) => [
+                        `s${key.slice(2)}`,
+                        {
+                            id,
+                            recommendations: {
+                                nodes: [
+                                    // Recommended by every best seed: the top best match.
+                                    { rating: 40, mediaRecommendation: card(700) },
+                                    { rating: 10, mediaRecommendation: card(700 + Number(id)) },
+                                    { rating: 90, mediaRecommendation: card(1001) },
+                                ],
+                            },
+                        },
+                    ]),
+                ),
+            );
+        }
         if (query.includes('TsujiForYouRecall')) {
             return recallFail
                 ? Promise.reject(new Error('timeout'))
@@ -131,11 +160,12 @@ beforeEach(() => {
 });
 
 describe('loadForYou', () => {
-    it('3 AniList requests: list, all seeds at once, recall; cached until next Monday', async () => {
+    it('list, all seeds at once, recall, and Best matches 8 seeds a request; cached until next Monday', async () => {
         answer();
         const result = await loadForYou({ userName: 'ejustice', now: NOW, signal });
 
-        expect(request).toHaveBeenCalledTimes(3);
+        // 10 liked titles: 2 Best matches requests (8 + 2 seeds).
+        expect(request).toHaveBeenCalledTimes(5);
         expect(result.kind).toBe('ready');
         const data = result.kind === 'ready' ? result.data : null;
         expect(data!.weekKey).toBe('2026-W39');
@@ -148,7 +178,10 @@ describe('loadForYou', () => {
         expect(data!.candidates[0].description).toHaveLength(300);
         expect(data!.candidates[0].tags).toHaveLength(12);
         expect(data!.isPartial).toBe(false);
-        expect(cache.get('foryou:week:v1:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
+        expect(cache.get('foryou:week:v2:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
+        expect(data!.bestSeeds).toHaveLength(10);
+        expect(data!.bestMatches[0]).toMatchObject({ id: 700 });
+        expect(data!.bestMatches.some(({ id }) => id === 1001)).toBe(false);
 
         request.mockClear();
         await loadForYou({ userName: 'ejustice', now: NOW, signal });
@@ -161,7 +194,7 @@ describe('loadForYou', () => {
 
         expect(result.kind === 'ready' && result.data.candidates.map(({ id }) => id).sort()).toEqual([1, 50, 51]);
         expect(result.kind === 'ready' && result.data.isPartial).toBe(true);
-        expect(cache.get('foryou:week:v1:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
+        expect(cache.get('foryou:week:v2:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
     });
 
     it('falls back to one request per seed when AniList rejects the combined one', async () => {
@@ -169,8 +202,8 @@ describe('loadForYou', () => {
         const result = await loadForYou({ userName: 'ejustice', now: NOW, signal });
         const data = result.kind === 'ready' ? result.data : null;
 
-        // list + combined (rejected) + 4 single seeds + recall
-        expect(request).toHaveBeenCalledTimes(7);
+        // list + combined (rejected) + 4 single seeds + recall + 2 Best matches
+        expect(request).toHaveBeenCalledTimes(9);
         expect(data!.isPartial).toBe(false);
         expect(request.mock.calls.filter(([query]) => String(query).includes('TsujiSimilarSeed'))).toHaveLength(4);
         expect(data!.candidates.filter(({ sources }) => sources.includes('anilist')).length).toBeGreaterThan(0);
@@ -194,7 +227,25 @@ describe('loadForYou', () => {
         const first = await loadForYou({ userName: 'ejustice', now: NOW, signal });
         const again = await loadForYou({ userName: 'ejustice', now: NOW, force: true, signal });
 
-        expect(request).toHaveBeenCalledTimes(6);
+        expect(request).toHaveBeenCalledTimes(10);
         expect(again.kind === 'ready' && again.data.seeds).toEqual(first.kind === 'ready' && first.data.seeds);
+    });
+
+    it('Best matches: 40 seeds take 5 requests a week, none on a revisit; a failed batch makes the week partial', async () => {
+        answer({ listSize: 50 });
+        await loadForYou({ userName: 'ejustice', now: NOW, signal });
+        const best = () => request.mock.calls.filter(([query]) => String(query).includes('TsujiForYouBest'));
+        expect(best()).toHaveLength(5);
+        expect(best().every(([, variables]) => Object.keys(variables as Vars).length <= 8)).toBe(true);
+
+        request.mockClear();
+        await loadForYou({ userName: 'ejustice', now: NOW, signal });
+        expect(request).not.toHaveBeenCalled();
+
+        cache.clear();
+        answer({ bestFail: true });
+        const partial = await loadForYou({ userName: 'ejustice', now: NOW, signal });
+        expect(partial.kind === 'ready' && partial.data.isPartial).toBe(true);
+        expect(partial.kind === 'ready' && partial.data.bestMatches).toEqual([]);
     });
 });

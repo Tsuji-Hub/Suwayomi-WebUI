@@ -53,6 +53,8 @@ export const RECENCY_HALF_LIFE_DAYS = 180;
 /** Tags kept in the profile and titles kept as possible seeds. */
 export const PROFILE_TAG_COUNT = 30;
 export const SEED_POOL_SIZE = 30;
+/** Liked titles whose recommendations make "Best matches" (brief #13): the strongest of everything read. */
+export const BEST_SEED_COUNT = 40;
 
 const progressFactor = ({ status, progress }: Pick<TasteEntry, 'status' | 'progress'>) =>
     status === 'CURRENT' || status === 'PAUSED' ? 0.4 + 0.6 * Math.min(1, progress / PROGRESS_FULL_CHAPTERS) : 1;
@@ -88,6 +90,8 @@ export type TasteProfile = {
     tags: RecTag[];
     /** Liked titles, strongest first: this week's seeds are drawn from them. */
     seedPool: SeedCandidate[];
+    /** The strongest liked titles (unscored entries count as neutral, never 0): the seeds of "Best matches". */
+    bestSeeds: SeedCandidate[];
     /** Every title on the list (any status in the profile query): never recommended back. */
     listedIds: number[];
     entryCount: number;
@@ -110,13 +114,15 @@ export const buildTasteProfile = (entries: TasteEntry[], now: number): TasteProf
         .slice(0, PROFILE_TAG_COUNT);
     const strongest = liked[0]?.[1] ?? 1;
 
+    const likedTitles = weighted
+        .filter(({ weight }) => weight > 0)
+        .sort((a, b) => b.weight - a.weight || a.entry.mediaId - b.entry.mediaId)
+        .map(({ entry, weight }) => ({ mediaId: entry.mediaId, title: entry.title, weight }));
+
     return {
         tags: liked.map(([name, total]) => ({ name, rank: Math.max(1, Math.round((100 * total) / strongest)) })),
-        seedPool: weighted
-            .filter(({ weight }) => weight > 0)
-            .sort((a, b) => b.weight - a.weight || a.entry.mediaId - b.entry.mediaId)
-            .slice(0, SEED_POOL_SIZE)
-            .map(({ entry, weight }) => ({ mediaId: entry.mediaId, title: entry.title, weight })),
+        seedPool: likedTitles.slice(0, SEED_POOL_SIZE),
+        bestSeeds: likedTitles.slice(0, BEST_SEED_COUNT),
         listedIds: entries.map(({ mediaId }) => mediaId),
         entryCount: entries.length,
     };

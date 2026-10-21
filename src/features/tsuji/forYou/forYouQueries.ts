@@ -86,16 +86,23 @@ export const parseTasteList = (data: TasteListResponse): TasteEntry[] => {
 /** Recommendations per seed; 4 seeds x 20 edges fits AniList's query complexity limit in one request. */
 export const SEED_EDGES_PER_SEED = 20;
 
-/** One request for all of this week's seeds (aliases s0, s1, ...). */
-export const buildSeedsQuery = (count: number) => `
+/** Seeds per "Best matches" request and recommendations per seed (40 seeds = 5 requests a week). */
+export const BEST_BATCH_SIZE = 8;
+export const BEST_EDGES_PER_SEED = 10;
+
+/**
+ * One request for several seeds (aliases s0, s1, ...): this week's seeds (`TsujiForYouSeeds`, 20 each) or a batch
+ * of "Best matches" seeds (`TsujiForYouBest`, 10 each).
+ */
+export const buildSeedsQuery = (count: number, perSeed = SEED_EDGES_PER_SEED, name = 'TsujiForYouSeeds') => `
     ${MEDIA_FIELDS}
-    query TsujiForYouSeeds(${Array.from({ length: count }, (_, index) => `$id${index}: Int`).join(', ')}) {
+    query ${name}(${Array.from({ length: count }, (_, index) => `$id${index}: Int`).join(', ')}) {
         ${Array.from(
             { length: count },
             (_, index) => `
         s${index}: Media(id: $id${index}, type: MANGA) {
             id
-            recommendations(sort: RATING_DESC, perPage: ${SEED_EDGES_PER_SEED}) {
+            recommendations(sort: RATING_DESC, perPage: ${perSeed}) {
                 nodes { rating mediaRecommendation { ...TsujiMedia } }
             }
         }`,
