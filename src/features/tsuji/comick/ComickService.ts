@@ -14,6 +14,8 @@ import { createRelayClient } from '@/features/tsuji/comments/comickSource.ts';
 import { getCommentsRelayUrl } from '@/features/tsuji/comments/relayUrl.ts';
 import { getAniListLink, rankComickHits } from '@/features/tsuji/comments/aniListResolve.ts';
 import type { ComickSearchResult } from '@/features/tsuji/comments/comick.ts';
+import { titleSimilarity } from '@/features/tsuji/comments/comick.ts';
+import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
 import { compactMedia } from '@/features/tsuji/forYou/weekStore.ts';
 import type { ComickGenres, ComickRecommendation } from '@/features/tsuji/comick/comickCatalog.ts';
 import { parseComickComic, parseComickGenres, parseComickSearch } from '@/features/tsuji/comick/comickCatalog.ts';
@@ -152,6 +154,33 @@ export const resolveComickSlug = async (
     return found;
 };
 
+/** A title search hit counts as the same series from this similarity on (no AniList id to check it by). */
+const TITLE_MATCH = 0.85;
+
+/**
+ * The Comick slug of a series known only by its title (a library title without an AniList track record): the best
+ * search hit when its title or an alternative is close enough. Cached a month, a miss a day.
+ */
+export const resolveComickSlugByTitle = async (title: string, signal: AbortSignal): Promise<string | null> => {
+    const key = `comick:title:v1:${normalizeTitle(title) || title}`;
+    const cached = TsujiCache.get<{ slug: string | null }>(key);
+    if (cached) {
+        return cached.slug;
+    }
+    const hits =
+        (await client.get<ComickHit[]>(`/v1.0/search?q=${encodeURIComponent(title)}&limit=10&t=false`, signal)) ?? [];
+    const [best] = rankComickHits(title, hits);
+    const score = best
+        ? Math.max(
+              titleSimilarity(title, best.title ?? ''),
+              ...(best.md_titles ?? []).map((alternative) => titleSimilarity(title, alternative.title ?? '')),
+          )
+        : 0;
+    const slug = best?.slug && score >= TITLE_MATCH ? best.slug : null;
+    TsujiCache.set(key, { slug }, slug ? SLUG_TTL_MS : SLUG_MISS_TTL_MS);
+    return slug;
+};
+
 /** Comick's recommendations for an AniList entry (by votes), or none when Comick doesn't have it. */
 export const loadComickRecommendations = async (
     anilistId: number,
@@ -159,5 +188,14 @@ export const loadComickRecommendations = async (
     signal: AbortSignal,
 ): Promise<ComickRecommendation[]> => {
     const slug = await resolveComickSlug(anilistId, titles, signal);
+    return slug ? ((await loadComickComic(slug, signal))?.recommendations ?? []) : [];
+};
+
+/** Comick's recommendations for a series known only by its title. */
+export const loadComickRecommendationsByTitle = async (
+    title: string,
+    signal: AbortSignal,
+): Promise<ComickRecommendation[]> => {
+    const slug = await resolveComickSlugByTitle(title, signal);
     return slug ? ((await loadComickComic(slug, signal))?.recommendations ?? []) : [];
 };

@@ -550,8 +550,12 @@ msgid "AniList didn't answer in time."
 msgstr "AniList didn't answer in time."
 
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
-msgid "AniList is down: picks from Comick, based on your list from {fallbackListDate}."
-msgstr "AniList is down: picks from Comick, based on your list from {fallbackListDate}."
+msgid "AniList is down: picks from Comick, based on your library."
+msgstr "AniList is down: picks from Comick, based on your library."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "AniList is down: picks from Comick, based on your list from {listDate}."
+msgstr "AniList is down: picks from Comick, based on your list from {listDate}."
 
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "AniList is down: showing titles from Comick and MangaBaka."
@@ -560,6 +564,10 @@ msgstr "AniList is down: showing titles from Comick and MangaBaka."
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "AniList is down: similar titles from Comick and MangaBaka."
 msgstr "AniList is down: similar titles from Comick and MangaBaka."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "AniList is down: what's trending on Comick."
+msgstr "AniList is down: what's trending on Comick."
 
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "AniList isn't serving this sort right now; showing the closest available order."
@@ -773,6 +781,11 @@ msgstr "Best matches"
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
 msgid "Best matches from all {0, plural, one {# title} other {# titles}} you read."
 msgstr "Best matches from all {0, plural, one {# title} other {# titles}} you read."
+
+#. placeholder {0}: data!.entryCount
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Best matches from the {0, plural, one {# title} other {# titles}} you read most in your library."
+msgstr "Best matches from the {0, plural, one {# title} other {# titles}} you read most in your library."
 
 #: src/features/settings/Settings.constants.ts
 msgid "Binary"
@@ -3487,6 +3500,10 @@ msgid "Picks for the week of {weekStartLabel}, from {0, plural, one {# title} ot
 msgstr "Picks for the week of {weekStartLabel}, from {0, plural, one {# title} other {# titles}} on {userName}'s AniList. New picks every Monday."
 
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Picks for the week of {weekStartLabel}. New picks every Monday."
+msgstr "Picks for the week of {weekStartLabel}. New picks every Monday."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
 msgid "Picks from {userName}'s AniList. New picks every Monday."
 msgstr "Picks from {userName}'s AniList. New picks every Monday."
 
@@ -4771,6 +4788,10 @@ msgstr "Trending"
 #: src/features/tsuji/discover/screens/Discover.tsx
 msgid "Trending isn't available from AniList right now; showing Popular."
 msgstr "Trending isn't available from AniList right now; showing Popular."
+
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Trending on Comick"
+msgstr "Trending on Comick"
 
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Try again"

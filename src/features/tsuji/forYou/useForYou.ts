@@ -8,11 +8,33 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
-import { DEFAULT_ANILIST_USER, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
+import { DEFAULT_ANILIST_USER, TRACKER_ID, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
 import type { ForYouData } from '@/features/tsuji/forYou/ForYouService.ts';
 import { loadForYou } from '@/features/tsuji/forYou/ForYouService.ts';
 import { useTsujiGlobalMetaQuery } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { useAniListHealth } from '@/features/tsuji/services/useAniListHealth.ts';
+import { requestManager } from '@/lib/requests/RequestManager.ts';
+import type { TsujiLibraryIndexQuery } from '@/lib/graphql/generated/graphql.ts';
+import { TSUJI_LIBRARY_INDEX } from '@/features/tsuji/graphql/TsujiQueries.ts';
+import type { LibraryEntry } from '@/features/tsuji/forYou/comickWeek.ts';
+
+/** The Suwayomi library for For You's fallback (brief #15): titles, AniList track ids, chapters read. */
+const loadLibrary = async (): Promise<LibraryEntry[]> => {
+    const { data } = await requestManager.graphQLClient.client.query<TsujiLibraryIndexQuery>({
+        query: TSUJI_LIBRARY_INDEX,
+        fetchPolicy: 'cache-first',
+    });
+    return (data?.mangas.nodes ?? []).map((manga) => {
+        const remoteId = Number(
+            manga.trackRecords.nodes.find(({ trackerId }) => trackerId === TRACKER_ID.ANILIST)?.remoteId,
+        );
+        return {
+            title: manga.title,
+            anilistId: Number.isInteger(remoteId) && remoteId > 0 ? remoteId : null,
+            readCount: Math.max(0, manga.chapters.totalCount - manga.unreadCount),
+        };
+    });
+};
 
 export type ForYouState =
     | { status: 'loading' }
@@ -43,7 +65,7 @@ export const useForYou = () => {
         shouldForceRef.current = false;
         setResult({ userName, state: LOADING });
 
-        loadForYou({ userName, force, signal })
+        loadForYou({ userName, force, signal, loadLibrary })
             .then((loaded) => {
                 if (!signal.aborted) {
                     setResult({

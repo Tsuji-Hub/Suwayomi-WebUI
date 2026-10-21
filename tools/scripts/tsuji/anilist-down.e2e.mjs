@@ -98,7 +98,8 @@ const seededCache = () => {
 const comic = (id, title, overrides = {}) => ({
     id,
     hid: `h${id}`,
-    slug: `comic-${id}`,
+    // Comick's slugs follow the English title.
+    slug: title.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-'),
     title,
     country: id % 2 ? 'kr' : 'cn',
     status: 1,
@@ -133,10 +134,19 @@ const createComick = () => {
             if (query) {
                 return [];
             }
-            // The Discover list: 100 titles; the last 6 are erotica.
-            return Array.from({ length: 100 }, (_, index) =>
-                comic(index + 1, `Comick ${index + 1}`, index >= 94 ? { content_rating: 'erotica' } : {}),
-            );
+            // The Discover list: 100 titles; the last 6 are erotica; Solo Leveling under Comick's literal title.
+            return [
+                comic(1000, 'I am the only the one who levels up', {
+                    slug: 'solo-leveling',
+                    md_titles: [
+                        { title: 'Na Honjaman Level Up', lang: 'ko-ro' },
+                        { title: 'Solo Leveling', lang: 'en' },
+                    ],
+                }),
+                ...Array.from({ length: 100 }, (_, index) =>
+                    comic(index + 1, `Comick ${index + 1}`, index >= 94 ? { content_rating: 'erotica' } : {}),
+                ),
+            ];
         }
         if (path === '/comic/return-to-player/') {
             return {
@@ -308,11 +318,11 @@ const check = (label, ok, detail) => {
     }
 };
 
-const libraryManga = (id, title, trackRecords = []) => ({
+const libraryManga = (id, title, trackRecords = [], read = 0) => ({
     id,
     title,
     unreadCount: 10,
-    chapters: { totalCount: 10 },
+    chapters: { totalCount: 10 + read },
     trackRecords: { nodes: trackRecords },
 });
 
@@ -338,8 +348,13 @@ const runBrowser = async (browserName) => {
         globalMeta: { tsuji_recFilters: JSON.stringify({ types: ['MANHWA', 'MANHUA'], minChapters: 50 }) },
         handlers: {
             'Query.mangas': () => ({
-                nodes: [manga, libraryManga(20, LIBRARY_TITLE)],
-                totalCount: 2,
+                // "Liked 0" read 30 chapters: For You's seed when no list is known.
+                nodes: [
+                    manga,
+                    libraryManga(20, LIBRARY_TITLE),
+                    libraryManga(21, 'Liked 0', [{ id: 2, trackerId: 2, remoteId: '1000' }], 30),
+                ],
+                totalCount: 3,
                 pageInfo: { hasNextPage: false, hasPreviousPage: false },
             }),
         },
@@ -444,6 +459,11 @@ const runBrowser = async (browserName) => {
             !landing.some((title) => Number(title.split(' ')[1]) > 94),
         landing.filter((title) => [LIBRARY_TITLE, LIST_TITLE].includes(title) || Number(title.split(' ')[1]) > 94),
     );
+    check(
+        label("titles: the English one (Comick's own is a literal translation)"),
+        (await cardTitles('Solo Leveling')).length > 0 && !(await cardTitles('I am the only')).length,
+        await cardTitles('Solo'),
+    );
     await page.getByText(DOWN_NOTE).click();
     check(
         label('the note opens to the last AniList error and the next try'),
@@ -452,7 +472,20 @@ const runBrowser = async (browserName) => {
     );
     const aniListAfterLanding = aniList.requests;
 
-    // 2. Chips: System (MangaBaka) + Medicine (AniList only, nothing like it on MangaBaka).
+    // 2. Chips: AniList's tags are still offered (no catalog was ever cached: the built-in one), then System
+    // (MangaBaka) + Medicine (AniList only, nothing like it on MangaBaka).
+    await page.getByRole('button', { name: 'Tags & genres' }).click();
+    await page.getByRole('textbox', { name: 'Search tags' }).fill('medic');
+    await page
+        .getByRole('button', { name: /^Medicine/ })
+        .first()
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+    check(
+        label('tag picker: AniList tags pickable while AniList is down'),
+        (await page.getByRole('button', { name: /^Medicine/ }).count()) > 0,
+        {},
+    );
     await page.evaluate(() =>
         sessionStorage.setItem(
             'tsuji:discoverSelection',
@@ -530,6 +563,28 @@ const runBrowser = async (browserName) => {
     );
     const comickPerMinute = comick.requests.length;
     check(label('Comick through the relay: under 120 requests'), comickPerMinute < 120, { comickPerMinute });
+
+    // 4b. No list known at all (as Ethan's browser after the cache versions moved): the library's most read titles.
+    await page.evaluate(() =>
+        Object.keys(localStorage)
+            .filter((key) => key.includes('foryou:'))
+            .forEach((key) => localStorage.removeItem(key)),
+    );
+    await page.reload();
+    await page
+        .getByText('AniList is down: picks from Comick, based on your library.')
+        .waitFor({ timeout: 20_000 })
+        .catch(() => {});
+    const libraryPicks = await cardTitles('Pick ');
+    check(
+        label('For You without a list: picks from the library (Liked 0, 30 chapters read), noted, no error'),
+        (await page.getByText('AniList is down: picks from Comick, based on your library.').isVisible()) &&
+            libraryPicks.includes('Pick Shared') &&
+            libraryPicks.includes('Pick 0-0') &&
+            !(await page.getByText(/Couldn't build your picks/).count()) &&
+            !(await cardTitles('Liked ')).length,
+        libraryPicks,
+    );
 
     // 5. AniList is back: a reload probes it at once and everything returns.
     aniList.isDown = false;

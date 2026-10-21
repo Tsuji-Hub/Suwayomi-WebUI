@@ -94,6 +94,7 @@ export const ForYouTab = () => {
 
     // Best matches (brief #13): the strongest liked titles' recommendations, the same hide rules and filters, and
     // never a library title, started or not (a Plan to Read title is no discovery), even with that filter off.
+    const bestMatchesHeading = data?.fallback?.kind === 'trending' ? t`Trending on Comick` : t`Best matches`;
     const bestMatches = useMemo(() => {
         if (!data || !libraryIndex) {
             return [];
@@ -231,13 +232,20 @@ export const ForYouTab = () => {
                     <Stack sx={{ gap: 1 }}>
                         <Stack>
                             <Typography variant="h6" component="h2">
-                                {t`Best matches`}
+                                {bestMatchesHeading}
                             </Typography>
-                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                {t`Best matches from all ${plural(data!.entryCount, { one: '# title', other: '# titles' })} you read.`}
-                            </Typography>
+                            {(!data!.fallback || data!.fallback.kind === 'list') && (
+                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                    {t`Best matches from all ${plural(data!.entryCount, { one: '# title', other: '# titles' })} you read.`}
+                                </Typography>
+                            )}
+                            {data!.fallback?.kind === 'library' && (
+                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                    {t`Best matches from the ${plural(data!.entryCount, { one: '# title', other: '# titles' })} you read most in your library.`}
+                                </Typography>
+                            )}
                         </Stack>
-                        <ScrollRow label={t`Best matches`}>
+                        <ScrollRow label={bestMatchesHeading}>
                             {bestMatches.map((media) => {
                                 const reasons = getTopSeeds(media, data!.bestSeeds)
                                     .map(({ title }) => title)
@@ -294,21 +302,43 @@ export const ForYouTab = () => {
         );
     })();
 
-    const fallbackListDate = data?.fallback
-        ? new Date(data.fallback.listFetchedAt).toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
-        : null;
+    const fallbackNote = (() => {
+        switch (data?.fallback?.kind) {
+            case 'list': {
+                const listDate = new Date(data.fallback.listFetchedAt).toLocaleDateString(i18n.locale, {
+                    month: 'short',
+                    day: 'numeric',
+                });
+                return t`AniList is down: picks from Comick, based on your list from ${listDate}.`;
+            }
+            case 'library':
+                return t`AniList is down: picks from Comick, based on your library.`;
+            case 'trending':
+                return t`AniList is down: what's trending on Comick.`;
+            default:
+                return null;
+        }
+    })();
     const weekStartLabel = data
         ? new Date(data.weekStart).toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
         : null;
+    const weekCaption = (() => {
+        if (!data) {
+            return t`Picks from ${userName}'s AniList. New picks every Monday.`;
+        }
+        // Not from the AniList list (AniList down, no list known): no count of its titles.
+        if (data.fallback && data.fallback.kind !== 'list') {
+            return t`Picks for the week of ${weekStartLabel}. New picks every Monday.`;
+        }
+        return t`Picks for the week of ${weekStartLabel}, from ${plural(data.entryCount, { one: '# title', other: '# titles' })} on ${userName}'s AniList. New picks every Monday.`;
+    })();
 
     return (
         <Stack sx={{ gap: 2 }}>
             <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Stack sx={{ gap: 0.5, flexGrow: 1, minWidth: 0 }}>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                        {data
-                            ? t`Picks for the week of ${weekStartLabel}, from ${plural(data.entryCount, { one: '# title', other: '# titles' })} on ${userName}'s AniList. New picks every Monday.`
-                            : t`Picks from ${userName}'s AniList. New picks every Monday.`}
+                        {weekCaption}
                     </Typography>
                     {!!data?.profileTags.length && (
                         <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }} aria-label={t`Your taste`}>
@@ -332,11 +362,7 @@ export const ForYouTab = () => {
             {seen.myList.isUnavailable && (
                 <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
             )}
-            {!!fallbackListDate && (
-                <AniListFallbackNote
-                    message={t`AniList is down: picks from Comick, based on your list from ${fallbackListDate}.`}
-                />
-            )}
+            {!!fallbackNote && <AniListFallbackNote message={fallbackNote} />}
             {data?.isPartial && !data.fallback && !isLoading && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {t`Part of AniList's answer is missing this time, so the picks are thinner. Refresh to try again.`}

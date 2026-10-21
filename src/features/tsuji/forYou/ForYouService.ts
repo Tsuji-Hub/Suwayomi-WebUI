@@ -31,6 +31,7 @@ import type { TasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
 import { getBaseline, getDistinctiveTags, toProfileTags, toTasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
 import { readTasteWeights, writeLastProfile, writeTasteWeights } from '@/features/tsuji/forYou/tasteStore.ts';
 import { AniListHealth } from '@/features/tsuji/services/aniListHealth.ts';
+import type { LibraryEntry } from '@/features/tsuji/forYou/comickWeek.ts';
 import { loadComickWeek } from '@/features/tsuji/forYou/comickWeek.ts';
 import {
     createWeeklyRandom,
@@ -69,8 +70,11 @@ export type ForYouData = {
     /** Every title on the list: never recommended back (the family row is built after the week). */
     listedIds: number[];
     isPartial: boolean;
-    /** Built from Comick while AniList is down (brief #15), on the list as it was then. */
-    fallback?: { listFetchedAt: number } | null;
+    /**
+     * Built from Comick while AniList is down (brief #15): on the last list AniList gave (`listFetchedAt`), on the
+     * Suwayomi library, or Comick's trending titles.
+     */
+    fallback?: { kind: 'list'; listFetchedAt: number } | { kind: 'library' } | { kind: 'trending' } | null;
 };
 
 export type ForYouResult = { kind: 'ready'; data: ForYouData } | { kind: 'empty'; entryCount: number };
@@ -189,11 +193,14 @@ export const loadForYou = async ({
     now = new Date(),
     force = false,
     signal,
+    loadLibrary,
 }: {
     userName: string;
     now?: Date;
     force?: boolean;
     signal: AbortSignal;
+    /** The Suwayomi library, for For You while AniList is down and no list is known. */
+    loadLibrary?: () => Promise<LibraryEntry[]>;
 }): Promise<ForYouResult> => {
     const weekKey = getIsoWeekKey(now);
     const { start, end } = getWeekBounds(now);
@@ -211,7 +218,14 @@ export const loadForYou = async ({
     }
 
     // AniList down (brief #15): picks from Comick on the last list AniList gave.
-    const fromComick = () => loadComickWeek({ userName, now, signal });
+    const fromComick = () =>
+        loadComickWeek({
+            userName,
+            now,
+            signal,
+            cachedProfile: TsujiCache.get<TasteProfile>(profileKey(userName)),
+            loadLibrary,
+        });
     if (AniListHealth.isDown()) {
         return fromComick();
     }

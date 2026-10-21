@@ -6,7 +6,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { RECS_CACHE_TTL_MS } from '@/features/tsuji/Tsuji.constants.ts';
+import { DAY_MS, RECS_CACHE_TTL_MS } from '@/features/tsuji/Tsuji.constants.ts';
+import snapshot from '@/features/tsuji/forYou/tagBaseline.json';
 import type { DiscoverVariables } from '@/features/tsuji/discover/discoverQuery.ts';
 import {
     hasOptionalFilters,
@@ -30,13 +31,45 @@ import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
  */
 const PER_PAGE = 50;
 const TAG_CATALOG_CACHE_KEY = 'tagCatalog:v1';
+/** The last catalog AniList gave, kept a month: chips stay pickable while AniList is down (brief #15). */
+const LAST_TAG_CATALOG_KEY = 'tagCatalog:last:v1';
+const LAST_TAG_CATALOG_TTL_MS = 30 * DAY_MS;
+/**
+ * For a first visit while AniList is down: AniList's genres (GenreCollection without Hentai) and the content tags of
+ * the committed tag snapshot (forYou/tagBaseline.json, 248 of AniList's tags, adult and spoiler tags not among them).
+ */
+const ANILIST_GENRES = [
+    'Action',
+    'Adventure',
+    'Comedy',
+    'Drama',
+    'Ecchi',
+    'Fantasy',
+    'Horror',
+    'Mahou Shoujo',
+    'Mecha',
+    'Music',
+    'Mystery',
+    'Psychological',
+    'Romance',
+    'Sci-Fi',
+    'Slice of Life',
+    'Sports',
+    'Supernatural',
+    'Thriller',
+];
 
 export type TagCatalog = { tags: CatalogTag[]; genres: string[] };
 
+const FALLBACK_TAG_CATALOG: TagCatalog = {
+    tags: Object.keys(snapshot.counts).map((name) => ({ name, description: null, category: null, isAdult: false })),
+    genres: ANILIST_GENRES,
+};
+
 let pendingCatalog: Promise<TagCatalog> | null = null;
 
-/** MediaTagCollection + GenreCollection, fetched once and cached 7 days. */
-export const loadTagCatalog = (): Promise<TagCatalog> => {
+/** The catalog from AniList, cached 7 days (and its last copy a month). */
+const loadAniListTagCatalog = (): Promise<TagCatalog> => {
     const cached = TsujiCache.get<TagCatalog>(TAG_CATALOG_CACHE_KEY);
     if (cached) {
         return Promise.resolve(cached);
@@ -51,6 +84,7 @@ export const loadTagCatalog = (): Promise<TagCatalog> => {
                     genres: data.GenreCollection ?? [],
                 };
                 TsujiCache.set(TAG_CATALOG_CACHE_KEY, catalog, RECS_CACHE_TTL_MS);
+                TsujiCache.set(LAST_TAG_CATALOG_KEY, catalog, LAST_TAG_CATALOG_TTL_MS);
                 return catalog;
             })
             .finally(() => {
@@ -60,6 +94,18 @@ export const loadTagCatalog = (): Promise<TagCatalog> => {
 
     return pendingCatalog;
 };
+
+/**
+ * MediaTagCollection + GenreCollection, fetched once and cached 7 days. While AniList is down: the last catalog it
+ * gave (a month), else its genres alone; never an error.
+ */
+export const loadTagCatalog = (): Promise<TagCatalog> =>
+    loadAniListTagCatalog().catch((error) => {
+        if (!AniListHealth.isDown()) {
+            throw error;
+        }
+        return TsujiCache.get<TagCatalog>(LAST_TAG_CATALOG_KEY) ?? FALLBACK_TAG_CATALOG;
+    });
 
 /** What Comick is asked while AniList is down: Discover's sort and the filters Comick applies server side. */
 export type ComickFallback = {

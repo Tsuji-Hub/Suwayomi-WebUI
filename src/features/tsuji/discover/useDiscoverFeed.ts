@@ -10,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import type { DiscoverVariables } from '@/features/tsuji/discover/discoverQuery.ts';
 import type { ComickFallback, FeedSource, TagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
-import { AniListHealth } from '@/features/tsuji/services/aniListHealth.ts';
 import { loadDiscoverPage, loadTagCatalog } from '@/features/tsuji/discover/DiscoverService.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import type { FeedPhase } from '@/features/tsuji/discover/landing.ts';
@@ -174,11 +173,6 @@ export const useTagCatalog = (isEnabled: boolean) => {
             .then((result) => isActive && setCatalog(result))
             .catch((error) => {
                 if (!isActive) {
-                    return;
-                }
-                // AniList down (brief #15): the picker works on MangaBaka's tags alone, no error.
-                if (AniListHealth.isDown()) {
-                    setCatalog({ tags: [], genres: [] });
                     return;
                 }
                 defaultPromiseErrorHandler('useTagCatalog')(error);

@@ -51,6 +51,21 @@ Off `custom` (r3432). Not shipped yet: Cowork checks the prerelease live (AniLis
 7. **Note:** one line on Discover / For You / Similar while down; a click shows AniList's last answer and the next
    try. No toasts.
 
+**Fixed after Cowork's r3434 check** (live during the real outage: landing 346 Comick cards, RTP Similar 24,
+Investor 12, no library titles, no 429s through the relay at 120/min):
+
+1. For You without a saved profile was the error screen (Ethan's state: r3432 moved the cache versions, AniList
+   down since). Now, while down: the last list's profile (a month), else the day-long profile cache, else the
+   Suwayomi library's most read titles (started only, read chapters as weight; AniList track id -> verified Comick
+   slug, else a title match >= 0.85) -> Comick's recommendations, else Comick trending ("Trending on Comick").
+   Each with its note; the error screen only if Comick fails too. Key `foryou:comick:v2`.
+2. Comick titles: the English one. An English `md_titles` entry close to the slug (Solo Leveling for "I am the only
+   the one who levels up", Omniscient Reader's Viewpoint for "ORV"), else the slug as a title when Comick's own
+   title shares little with it, else Comick's title; Comick's title stays as the alternative for matching. A card
+   with AniList details keeps AniList's English title, else MangaBaka's, before a romanized one.
+3. Tag catalog: the last one kept 30 days (`tagCatalog:last:v1`); with none, AniList's genres and the snapshot's 248
+   tags are built in, so AniList-only chips stay pickable and show the marker.
+
 **Tests:** unit for the down signals, probe gating (client and store), Comick card mapping, search parameters,
 comic parsing, list-title matching, Similar extras dedupe, For You merge, Discover falling back. Browser:
 `anilist-down.e2e.mjs` (AniList route-aborted: landing 184 Comick cards in about 2 s with Ethan's filters sent,

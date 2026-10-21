@@ -11,7 +11,7 @@ vi.mock('@/features/tsuji/services/TsujiCache.ts', () => ({
     TsujiCache: { get: () => null, set: () => {}, remove: () => {} },
 }));
 
-const { buildComickSearch, parseComickComic, parseComickGenres, parseComickSearch, toComickMedia } =
+const { buildComickSearch, parseComickComic, parseComickGenres, parseComickSearch, titleFromSlug, toComickMedia } =
     await import('@/features/tsuji/comick/comickCatalog.ts');
 const { adoptListIds } = await import('@/features/tsuji/comick/listMatch.ts');
 const { getComickExtras } = await import('@/features/tsuji/comick/comickExtras.ts');
@@ -21,7 +21,7 @@ const { mergeComickBestMatches } = await import('@/features/tsuji/forYou/comickW
 const hit = (id: number, overrides: Record<string, unknown> = {}) => ({
     id,
     hid: `h${id}`,
-    slug: `comic-${id}`,
+    slug: `comick-${id}`,
     title: `Comick ${id}`,
     country: 'kr',
     status: 1,
@@ -73,6 +73,37 @@ describe('Comick cards', () => {
         expect(comic).toMatchObject({ id: 119_257, idMal: 123, isAdult: true });
         expect(comic?.tags?.map(({ name }) => name)).toEqual(['Fantasy', 'Weak to Strong']);
         expect(toComickMedia({ title: 'no id' })).toBeNull();
+    });
+
+    it("the English title: an alternative close to the slug, else the slug, else Comick's (kept as an alternative)", () => {
+        const solo = toComickMedia(
+            hit(1, {
+                title: 'I am the only the one who levels up',
+                slug: 'solo-leveling',
+                md_titles: [
+                    { title: 'Na Honjaman Level Up', lang: 'ko-ro' },
+                    { title: 'Solo Leveling', lang: 'en' },
+                ],
+            }),
+        );
+        expect(solo?.title).toEqual({
+            english: 'Solo Leveling',
+            userPreferred: 'Solo Leveling',
+            romaji: 'I am the only the one who levels up',
+        });
+        const orv = toComickMedia(
+            hit(2, {
+                title: 'ORV',
+                slug: '00-omniscient-readers-viewpoint',
+                md_titles: [{ title: "Omniscient Reader's Viewpoint", lang: 'en' }],
+            }),
+        );
+        expect(orv?.title?.english).toBe("Omniscient Reader's Viewpoint");
+        expect(
+            toComickMedia(hit(3, { title: 'ORV', slug: 'omniscient-readers-viewpoint', md_titles: [] }))?.title
+                ?.english,
+        ).toBe('Omniscient Readers Viewpoint');
+        expect(titleFromSlug('x')).toBeNull();
     });
 
     it('a search page, each comic once', () =>

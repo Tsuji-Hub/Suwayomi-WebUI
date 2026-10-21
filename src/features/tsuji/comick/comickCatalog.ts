@@ -8,6 +8,7 @@
 
 import type { ComicType, RecMedia, RecMediaStatus, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
 import { getAniListLink } from '@/features/tsuji/comments/aniListResolve.ts';
+import { titleSimilarity } from '@/features/tsuji/comments/comick.ts';
 
 /*
  * Comick as a catalog (brief #15; pure parts, the client is ComickService.ts). Through the comments relay
@@ -39,6 +40,10 @@ const COMICK_BY_STATUS = Object.fromEntries(
 const COUNTRY_BY_TYPE: Record<ComicType, string> = { MANHWA: 'kr', MANHUA: 'cn', MANGA: 'jp' };
 
 const ADULT_RATINGS = new Set(['erotica', 'pornographic']);
+/** How close an alternative title must be to the slug to be the name the slug spells. */
+const SLUG_MATCH = 0.8;
+/** Comick's title this close to the slug is the same name, written its own way. */
+const SAME_NAME = 0.5;
 
 /** Discover's sorts on Comick: Trending = views, Most popular = follows, Highest rated = rating. */
 export const COMICK_SORTS: Record<string, string> = {
@@ -112,10 +117,36 @@ const parseCover = (covers: unknown): string | null => {
     return key ? `${COVER_HOST}/${key}` : null;
 };
 
+/** Alternative titles, English ones first (`md_titles: [{ title, lang }]`). */
 const parseTitles = (row: Record<string, unknown>) =>
     asList(row.md_titles)
-        .map((entry) => asString(asRecord(entry).title))
-        .filter((title): title is string => !!title);
+        .map((entry) => ({ title: asString(asRecord(entry).title), lang: asString(asRecord(entry).lang) }))
+        .filter((entry): entry is { title: string; lang: string | null } => !!entry.title)
+        .sort((a, b) => Number(b.lang === 'en') - Number(a.lang === 'en'))
+        .map(({ title }) => title);
+
+/** "00-omniscient-readers-viewpoint" -> "Omniscient Readers Viewpoint" (Comick slugs follow the English name). */
+export const titleFromSlug = (slug: string | null): string | null => {
+    const words = (slug ?? '')
+        .replace(/^\d+-(?=[a-z])/i, '')
+        .split('-')
+        .filter(Boolean);
+    return words.length >= 2 ? words.map((word) => word[0].toUpperCase() + word.slice(1)).join(' ') : null;
+};
+
+/**
+ * The English title to show (r3434: Comick's own title is often a literal translation, "I am the only the one who
+ * levels up" for Solo Leveling): an alternative title close to the slug (English ones first), else the slug as a
+ * title, else Comick's title. Makimono does the same.
+ */
+export const pickComickTitle = (title: string, slug: string | null, alternatives: string[]): string => {
+    const fromSlug = titleFromSlug(slug);
+    // Close to the slug (punctuation, a word more or less): Comick's title is the English one.
+    if (!fromSlug || titleSimilarity(title, fromSlug) >= SAME_NAME) {
+        return title;
+    }
+    return alternatives.find((alternative) => titleSimilarity(alternative, fromSlug) >= SLUG_MATCH) ?? fromSlug;
+};
 
 /** Comick's tags of a comic: MangaDex genres (by id from search, by name on the comic) and MangaUpdates categories. */
 const parseTags = (row: Record<string, unknown>, genres: ComickGenres): RecTag[] => {
@@ -151,14 +182,16 @@ export const toComickMedia = (raw: unknown, genres: ComickGenres = {}): RecMedia
     const lastChapter = asNumber(row.last_chapter);
     const year = asNumber(row.year);
     const alternatives = parseTitles(row);
+    const shown = pickComickTitle(title, slug, alternatives);
     return {
         id: anilistId ?? -(COMICK_ID_OFFSET + (comickId ?? hashSlug(slug!))),
         idMal: asNumber(asRecord(row.links).mal),
         siteUrl: slug ? `https://comick.io/comic/${slug}` : null,
+        // Comick's own title stays as an alternative: list and duplicate matching try it too.
         title: {
-            userPreferred: title,
-            english: title,
-            romaji: alternatives.find((alternative) => alternative !== title) ?? null,
+            userPreferred: shown,
+            english: shown,
+            romaji: shown !== title ? title : (alternatives.find((alternative) => alternative !== title) ?? null),
         },
         coverImage: { large: parseCover(row.md_covers) },
         description: asString(row.desc)?.slice(0, 500) ?? null,
