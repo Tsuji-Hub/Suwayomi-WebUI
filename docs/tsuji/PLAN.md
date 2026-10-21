@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #14: put the tag work to use in ranking (branch `feat/smarter-ranking`)
 
-Off `custom` (r3429). Not shipped yet: Cowork checks the prerelease live.
+**Shipped as r3432** (2026-10-21). Off `custom` (r3429); r3431 checked live, fixed in r3432.
 
 **Done:**
 
