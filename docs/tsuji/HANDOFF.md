@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-20)
 
-| Branch                     | Commit             | What                                                                                                                     |
-| -------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `custom`                   | `9745841b` (r3427) | Briefs #1-#12 (bell v2, MangaBaka tags by id, preview Comments from ch 1 / Reviews) + reader resume. Shipped 2026-10-21. |
-| `feat/foryou-best-matches` | this               | Brief #13 v2: For You "Best matches" from the 40 strongest liked titles, quality floor. Prerelease to check.             |
-| `master`                   | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                           |
+| Branch             | Commit             | What                                                                                                                                           |
+| ------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`           | `bf9deea5` (r3429) | Briefs #1-#13 (For You Best matches, bell v2, MangaBaka tags by id, preview Comments from ch 1 / Reviews) + reader resume. Shipped 2026-10-21. |
+| `chore/docs-r3429` | this               | Docs only: r3429 shipped. Rides along with the next ship.                                                                                      |
+| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                 |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -25,7 +25,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3427 (briefs #4-#12). Cowork's Discord chapter pings are off since the bell shipped. Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+3. The server runs r3429 (briefs #4-#13). Cowork's Discord chapter pings are off since the bell shipped. Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
    `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;

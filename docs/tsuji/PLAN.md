@@ -16,6 +16,8 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #13 v2: For You "Best matches" (branch `feat/foryou-best-matches`)
 
+**Shipped as r3429** (2026-10-21).
+
 Off `custom` (r3427). Cowork's audit: of the top 25 of an AniList-recommendation baseline over all 190 liked titles,
 11 were missing from For You only because the week's 4 seeds rotate; the Top picks tail had weak titles (Queen's
 Revenge: popularity 368, no score). Ethan never scores, so status and progress carry the taste.
