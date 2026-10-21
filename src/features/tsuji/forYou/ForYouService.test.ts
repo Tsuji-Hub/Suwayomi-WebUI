@@ -175,10 +175,10 @@ describe('loadForYou', () => {
         expect(ids).toEqual([1, 10, 11, 12, 13, 50, 51]);
         expect(data!.candidates.find(({ id }) => id === 1)!.sources).toEqual(['anilist', 'tags']);
         // Trimmed for the cache.
-        expect(data!.candidates[0].description).toHaveLength(300);
-        expect(data!.candidates[0].tags).toHaveLength(12);
+        expect(data!.candidates[0].description).toHaveLength(160);
+        expect(data!.candidates[0].tags).toHaveLength(8);
         expect(data!.isPartial).toBe(false);
-        expect(cache.get('foryou:week:v2:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
+        expect(cache.get('foryou:week:v3:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
         expect(data!.bestSeeds).toHaveLength(10);
         expect(data!.bestMatches[0]).toMatchObject({ id: 700 });
         expect(data!.bestMatches.some(({ id }) => id === 1001)).toBe(false);
@@ -194,7 +194,7 @@ describe('loadForYou', () => {
 
         expect(result.kind === 'ready' && result.data.candidates.map(({ id }) => id).sort()).toEqual([1, 50, 51]);
         expect(result.kind === 'ready' && result.data.isPartial).toBe(true);
-        expect(cache.get('foryou:week:v2:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
+        expect(cache.get('foryou:week:v3:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
     });
 
     it('falls back to one request per seed when AniList rejects the combined one', async () => {

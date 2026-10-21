@@ -35,10 +35,28 @@ Revenge: popularity 368, no score). Ethan never scores, so status and progress c
   picks and the weekly seed rows stay below for variety, without what Best matches shows.
 - Quality floor (`passesQualityFloor`) for Top picks and Best matches: no score and under 1,000 users needs 2+
   recommending seeds.
+  **Fixed after Cowork's r3428 check** (live: 28 Best matches cards with reasons, The World After the Fall, What a
+  Bountiful Harvest Demon Lord!, 66,666 Years, Beware the Villainess! and Peerless Refiner in; no read-marked title;
+  nothing under the floor):
+
+1. The week was never stored: `TsujiCache` refuses entries over 300,000 characters, and ~270 full AniList media
+   (~2 KB each) went past it, so every page load asked AniList again (11, 7, 7 requests). The week is now stored
+   compact (`forYou/weekStore.ts`): each title once (Top picks and Best matches share it), content tags as name +
+   rank (8), a 160-character synopsis, the lists as ids with their scores; a guard drops the weakest entries if it
+   still wouldn't fit (250,000). 120 weekly candidates (was 150) + 120 Best matches: about 120,000 characters. Key
+   `foryou:week:v3`.
+2. Best matches never shows a library title, started or not (Sword King in a Women's World: Plan to Read, nothing
+   read, linked only by its AniList track record). The library index keeps every library title next to the started
+   ones (`LibraryIndex.all`); "Hide what I've started" keeps its meaning elsewhere. Manual links (`tsuji_anilistId`
+   manga meta) are not in the index: reading every library manga's meta would make that query heavy.
+
 - Unit: best seeds (40, unscored neutral, dropped out), the score sum, the top 2 reasons, the floor, the batch query,
   5 requests for 40 seeds and none on a revisit, a failed batch. Browser (`for-you.e2e.mjs`, 15 checks): Best
   matches before Top picks, its caption, the leader and its reasons, no read-marked / weak / listed title, no
-  repeat in the weekly rows, 2 Best matches requests for 10 liked titles, none on reload.
+  repeat in the weekly rows, 2 Best matches requests for 10 liked titles; AniList-sized titles: the week is in
+  localStorage (about 118,000 characters) and a reload asks AniList nothing; a not-started library title linked
+  only by its track record stays out. Week store (`weekStore.test.ts`): a full week fits (the full-media form was
+  over 300,000), the round trip, the guard, the whole-library index.
 
 # Brief #12: new-chapter bell v2 (branch `feat/bell-v2`)
 

@@ -72,6 +72,17 @@ const PLANNED_ID = 50;
 const BEST_ID = 800;
 const WEAK_ID = 900;
 const READ_MARK_ID = 805;
+/** In the library (Plan to Read, nothing read), matched only through its AniList track record. */
+const LIBRARY_ID = 806;
+/** AniList-sized titles: a long synopsis and 20 tags, as the real answers (the week must still fit the cache). */
+const EXTRA_TAGS = Array.from({ length: 16 }, (_, index) => ({
+    name: `Extra Tag ${index}`,
+    rank: 50 - index,
+    category: 'Theme-Other',
+    isMediaSpoiler: false,
+    isGeneralSpoiler: false,
+    isAdult: false,
+}));
 
 const media = (id, overrides = {}) => ({
     id,
@@ -79,7 +90,7 @@ const media = (id, overrides = {}) => ({
     siteUrl: `https://anilist.co/manga/${id}`,
     title: { userPreferred: `Pick ${id}`, english: `Pick ${id}`, romaji: null },
     coverImage: { large: null },
-    description: 'A test title.',
+    description: `A test title with a long synopsis. `.repeat(40),
     averageScore: 70 + (id % 20),
     meanScore: null,
     popularity: 5000 + id * 10,
@@ -90,7 +101,7 @@ const media = (id, overrides = {}) => ({
     chapters: null,
     isAdult: false,
     startDate: { year: 2020, month: 1, day: 1 },
-    tags: TASTE_TAGS.slice(id % 3),
+    tags: [...TASTE_TAGS.slice(id % 3), ...EXTRA_TAGS],
     ...overrides,
 });
 
@@ -195,6 +206,12 @@ const createAniList = () => {
                                           ]
                                         : []),
                                     { rating: 90, mediaRecommendation: media(1003) },
+                                    { rating: 35, mediaRecommendation: media(LIBRARY_ID) },
+                                    // Ten more of its own per seed: a full-size week.
+                                    ...Array.from({ length: 10 }, (_, index) => ({
+                                        rating: 15 - index,
+                                        mediaRecommendation: media(10_000 + Number(id) * 10 + index),
+                                    })),
                                 ],
                             },
                         },
@@ -263,11 +280,15 @@ const runBrowser = async (browserName) => {
     const server = createMockSuwayomi({
         manga: {
             id: 1,
-            title: 'Unused',
+            // Another title than AniList's, nothing read: only its AniList track record links it.
+            title: 'Sword King Library Copy',
             sourceId: '1',
             inLibrary: true,
             genre: [],
             source: { id: '1', name: 'Local' },
+            unreadCount: 40,
+            chapters: { totalCount: 40 },
+            trackRecords: { nodes: [{ id: 1, trackerId: 2, remoteId: String(LIBRARY_ID) }] },
         },
         chapters: [],
         pageCount: 0,
@@ -359,13 +380,17 @@ const runBrowser = async (browserName) => {
         {},
     );
     check(
-        label('Best matches: no read-marked title, nothing below the quality floor, none on the list'),
+        label(
+            'Best matches: no read-marked title, nothing below the quality floor, none on the list or in the library',
+        ),
         !bodyText.includes(`Pick ${READ_MARK_ID}`) &&
             !bodyText.includes(`Pick ${WEAK_ID}`) &&
+            !bodyText.includes(`Pick ${LIBRARY_ID}`) &&
             !bodyText.includes('Pick 1003'),
         {
             readMark: bodyText.includes(`Pick ${READ_MARK_ID}`),
             weak: bodyText.includes(`Pick ${WEAK_ID}`),
+            library: bodyText.includes(`Pick ${LIBRARY_ID}`),
             listed: bodyText.includes('Pick 1003'),
         },
     );
@@ -383,6 +408,17 @@ const runBrowser = async (browserName) => {
         aniList.counts,
     );
 
+    const stored = await page.evaluate(() =>
+        Object.keys(localStorage)
+            .filter((key) => key.includes('foryou:week:'))
+            .map((key) => [key, localStorage.getItem(key).length]),
+    );
+    check(
+        label('the week (with Best matches) is stored in localStorage, under the cache limit'),
+        stored.length === 1 && stored[0][0].includes('foryou:week:v3:ejustice') && stored[0][1] < 300_000,
+        stored,
+    );
+
     // Reload: the tab is remembered for the session and the week comes from the cache.
     await page.reload();
     await page
@@ -390,9 +426,10 @@ const runBrowser = async (browserName) => {
         .waitFor({ timeout: 20_000 })
         .catch(() => {});
     check(
-        label('reload: For You again, from the week cache (no new For You requests)'),
+        label('reload: For You again, from the stored week (0 recommendation requests)'),
         (await page.getByRole('heading', { name: 'Top picks' }).isVisible()) &&
             aniList.counts.TsujiForYouSeeds === 1 &&
+            aniList.counts.TsujiForYouRecall === 1 &&
             aniList.counts.TsujiForYouBest === 2 &&
             aniList.counts.TsujiTasteList === 1,
         aniList.counts,

@@ -24,6 +24,8 @@ import {
     TASTE_RECALL_QUERY,
 } from '@/features/tsuji/forYou/forYouQueries.ts';
 import type { SeedCandidate, TasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
+import type { StoredWeek } from '@/features/tsuji/forYou/weekStore.ts';
+import { fromStoredWeek, toStoredWeek } from '@/features/tsuji/forYou/weekStore.ts';
 import { buildTasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
 import {
     createWeeklyRandom,
@@ -38,11 +40,9 @@ const PROFILE_TTL_MS = DAY_MS;
 const PARTIAL_TTL_MS = 60 * 60 * 1000;
 const MIN_WEEK_TTL_MS = 60 * 60 * 1000;
 /** Candidates kept per week (strongest first); filters run at render, so keep room for hidden ones. */
-const MAX_CACHED_CANDIDATES = 150;
+const MAX_CACHED_CANDIDATES = 120;
 /** Best matches kept per week (30 are shown; filters run at render). */
 const MAX_CACHED_BEST = 120;
-const MAX_CACHED_DESCRIPTION = 300;
-const MAX_CACHED_TAGS = 12;
 
 export type ForYouData = {
     weekKey: string;
@@ -64,13 +64,8 @@ export type ForYouResult = { kind: 'ready'; data: ForYouData } | { kind: 'empty'
 
 // v2 (brief #13): the profile has best seeds, the week has best matches.
 const profileKey = (userName: string) => `foryou:taste:v2:${userName.toLowerCase()}`;
-const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v2:${userName.toLowerCase()}:${weekKey}`;
-
-const trimForCache = <T extends ForYouCandidate>(media: T): T => ({
-    ...media,
-    description: media.description?.slice(0, MAX_CACHED_DESCRIPTION) ?? null,
-    tags: [...(media.tags ?? [])].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0)).slice(0, MAX_CACHED_TAGS),
-});
+// v3: stored compact (weekStore.ts); v2 weeks were too big for the cache and never written.
+const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v3:${userName.toLowerCase()}:${weekKey}`;
 
 type SeedEdgeList = { rating: number | null; media: RecMedia | null }[];
 
@@ -190,9 +185,9 @@ export const loadForYou = async ({
     const cacheKey = weekKeyOf(userName, weekKey);
 
     if (!force) {
-        const cached = TsujiCache.get<ForYouData>(cacheKey);
+        const cached = TsujiCache.get<StoredWeek>(cacheKey);
         if (cached) {
-            return { kind: 'ready', data: cached };
+            return { kind: 'ready', data: fromStoredWeek(cached) };
         }
     }
 
@@ -255,14 +250,16 @@ export const loadForYou = async ({
         profileTags: profile.tags,
         weekTags,
         entryCount: profile.entryCount,
-        candidates: merged.filter(({ id }) => kept.has(id)).map(trimForCache),
+        candidates: merged.filter(({ id }) => kept.has(id)),
         bestSeeds: profile.bestSeeds,
-        bestMatches: bestMatches.map(trimForCache),
+        bestMatches,
         isPartial,
     };
 
     const untilNextWeek = Math.max(MIN_WEEK_TTL_MS, end.getTime() - now.getTime());
-    TsujiCache.set(cacheKey, data, isPartial ? PARTIAL_TTL_MS : untilNextWeek);
+    const stored = toStoredWeek(data);
+    TsujiCache.set(cacheKey, stored, isPartial ? PARTIAL_TTL_MS : untilNextWeek);
 
-    return { kind: 'ready', data };
+    // The same shape whether it comes from this request or the cache.
+    return { kind: 'ready', data: fromStoredWeek(stored) };
 };

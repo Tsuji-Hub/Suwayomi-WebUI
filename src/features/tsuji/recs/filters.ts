@@ -129,7 +129,12 @@ export const countActiveFilters = (filters: RecFilters): number =>
     ].filter(Boolean).length + Object.keys(filters.tags).length;
 
 /** Library titles the user has started (>= 1 chapter read); unread library titles are not in it. */
-export type LibraryIndex = { anilistIds: Set<number>; malIds: Set<number>; titles: Set<string> };
+type LibraryKeys = { anilistIds: Set<number>; malIds: Set<number>; titles: Set<string> };
+
+/** Started library titles (for "Hide what I've started"), and every library title, started or not. */
+export type LibraryIndex = LibraryKeys & { all: LibraryKeys };
+
+const createKeys = (): LibraryKeys => ({ anilistIds: new Set(), malIds: new Set(), titles: new Set() });
 
 export type LibraryIndexManga = {
     title: string;
@@ -141,41 +146,39 @@ export type LibraryIndexManga = {
 export const getReadChapterCount = ({ unreadCount, chapters }: Pick<LibraryIndexManga, 'unreadCount' | 'chapters'>) =>
     Math.max(0, chapters.totalCount - unreadCount);
 
-export const EMPTY_LIBRARY_INDEX: LibraryIndex = { anilistIds: new Set(), malIds: new Set(), titles: new Set() };
+export const EMPTY_LIBRARY_INDEX: LibraryIndex = { ...createKeys(), all: createKeys() };
 
-export const buildLibraryIndex = (mangas: LibraryIndexManga[]): LibraryIndex => {
-    const index: LibraryIndex = { anilistIds: new Set(), malIds: new Set(), titles: new Set() };
-
-    mangas.forEach((manga) => {
-        if (getReadChapterCount(manga) <= 0) {
+const addManga = (keys: LibraryKeys, { title, trackRecords }: LibraryIndexManga) => {
+    const titleKey = normalizeTitle(title);
+    if (titleKey) {
+        keys.titles.add(titleKey);
+    }
+    trackRecords.nodes.forEach(({ trackerId, remoteId }) => {
+        const id = Number(remoteId);
+        if (!Number.isInteger(id) || id <= 0) {
             return;
         }
-
-        const { title, trackRecords } = manga;
-        const titleKey = normalizeTitle(title);
-        if (titleKey) {
-            index.titles.add(titleKey);
+        if (trackerId === TRACKER_ID.ANILIST) {
+            keys.anilistIds.add(id);
         }
-
-        trackRecords.nodes.forEach(({ trackerId, remoteId }) => {
-            const id = Number(remoteId);
-            if (!Number.isInteger(id) || id <= 0) {
-                return;
-            }
-
-            if (trackerId === TRACKER_ID.ANILIST) {
-                index.anilistIds.add(id);
-            }
-            if (trackerId === TRACKER_ID.MAL) {
-                index.malIds.add(id);
-            }
-        });
+        if (trackerId === TRACKER_ID.MAL) {
+            keys.malIds.add(id);
+        }
     });
+};
 
+export const buildLibraryIndex = (mangas: LibraryIndexManga[]): LibraryIndex => {
+    const index: LibraryIndex = { ...createKeys(), all: createKeys() };
+    mangas.forEach((manga) => {
+        addManga(index.all, manga);
+        if (getReadChapterCount(manga) > 0) {
+            addManga(index, manga);
+        }
+    });
     return index;
 };
 
-export const isInLibrary = (media: Pick<RecMedia, 'id' | 'idMal' | 'title'>, index: LibraryIndex): boolean =>
+export const isInLibrary = (media: Pick<RecMedia, 'id' | 'idMal' | 'title'>, index: LibraryKeys): boolean =>
     index.anilistIds.has(media.id) ||
     (media.idMal !== null && index.malIds.has(media.idMal)) ||
     getAllTitles(media).some((title) => {

@@ -20,7 +20,7 @@ import { readShownIds, SHOWN_PER_WEEK, writeShownIds } from '@/features/tsuji/fo
 import { useForYou } from '@/features/tsuji/forYou/useForYou.ts';
 import { getIsoWeekKey } from '@/features/tsuji/forYou/weeklyRotation.ts';
 import type { RecFilters } from '@/features/tsuji/recs/filters.ts';
-import { passesFilters, REC_SORTS, sortRecs } from '@/features/tsuji/recs/filters.ts';
+import { isInLibrary, passesFilters, REC_SORTS, sortRecs } from '@/features/tsuji/recs/filters.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
 import { REC_SORT_LABELS } from '@/features/tsuji/recs/Recs.constants.ts';
 import { REC_CARD_WIDTH, RecCard, RecCardSkeleton } from '@/features/tsuji/recs/components/RecCard.tsx';
@@ -83,7 +83,8 @@ export const ForYouTab = () => {
         );
     }, [data, lastWeekIds, filters, libraryIndex, seen.getSeenState]);
 
-    // Best matches (brief #13): the strongest liked titles' recommendations, the same hide rules and filters.
+    // Best matches (brief #13): the strongest liked titles' recommendations, the same hide rules and filters, and
+    // never a library title, started or not (a Plan to Read title is no discovery).
     const bestMatches = useMemo(() => {
         if (!data || !libraryIndex) {
             return [];
@@ -92,6 +93,7 @@ export const ForYouTab = () => {
             .filter(
                 (item) =>
                     passesQualityFloor(item) &&
+                    !isInLibrary(item, libraryIndex.all) &&
                     passesFilters(item, filters, libraryIndex, {
                         applyTagFilters: false,
                         getSeenState: seen.getSeenState,
