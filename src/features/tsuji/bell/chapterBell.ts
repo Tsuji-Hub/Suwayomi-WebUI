@@ -9,21 +9,28 @@
 import { hasCopies } from '@/features/tsuji/duplicates/duplicateChapters.ts';
 
 /*
- * New-chapter bell (brief #10): one entry per library series in the watched categories (default `ongoing` +
- * `Completed`) that was caught up and got new chapters since. Seen state is a per-series watermark (highest chapter
+ * New-chapter bell (brief #10, rules v2 from brief #12, the same as Cowork's Glance widget): one entry per library
+ * series in the watched categories (default `ongoing` + `Completed`) that got chapters after the reader was last
+ * there, with at most 2 chapters already waiting before them. Seen state is a per-series watermark (highest chapter
  * number seen) in the global meta shards `tsuji_bell_0` .. `tsuji_bell_15` (bucket = mangaId % 16), each
  * `{"<mangaId>": <number>}`, merged on write like `tsuji_seen`.
  */
 
 export const DEFAULT_WATCHED_CATEGORY_NAMES = ['ongoing', 'completed'];
 
-/** Recent window of the bell query: unread library chapters fetched in the last 60 days, newest first. */
-export const BELL_WINDOW_DAYS = 60;
-export const BELL_MAX_CHAPTERS = 1500;
 export const BELL_REFRESH_MS = 10 * 60 * 1000;
+
+/** Most series whose chapters the bell reads (the most recently updated ones). */
+export const BELL_MAX_SERIES = 300;
+/** Series per chapters request. */
+export const BELL_CHAPTER_BATCH = 60;
+/** Chapters already waiting before the new ones that still count as caught up (Log into the Future: 355). */
+export const BELL_MAX_WAITING = 2;
 
 /** First run after deploy: only the newest 30 entries start unseen. */
 export const FIRST_RUN_UNSEEN = 30;
+
+const DAY_SECONDS = 24 * 60 * 60;
 
 export type BellCategory = { id: number; name: string };
 
@@ -31,11 +38,16 @@ export type BellManga = {
     id: number;
     title: string;
     thumbnailUrl: string | null;
-    /** Unread chapters of the series at query time (all of them, with or without a number). */
+    /** The watched category it was found in (its chip in the list). */
+    category: string;
+    inLibrary: boolean;
+    /** Seconds or milliseconds (normalized by toSeconds). */
+    inLibraryAt: number;
     unreadCount: number;
-    /** Number of the highest (by source order) read chapter; null when nothing is read. */
-    latestReadNumber: number | null;
-    categories: BellCategory[];
+    /** When the reader last read a chapter of it (0 = never). */
+    lastReadAt: number;
+    /** Fetch time of its newest chapter (ranks series for the 300 cap). */
+    latestFetchedAt: number;
 };
 
 export type BellChapter = {
@@ -53,11 +65,11 @@ export type BellEntry = {
     title: string;
     thumbnailUrl: string | null;
     category: string;
-    /** Distinct new chapter numbers, ascending. */
+    /** Distinct numbers above the highest read one (waiting + arrived), ascending. */
     numbers: number[];
-    /** The chapter a click opens: the first new number (its earliest copy). */
+    /** The chapter a click opens: the earliest copy of the first number. */
     firstChapter: { id: number; sourceOrder: number };
-    /** Epoch seconds of the newest fetch. */
+    /** Epoch seconds of the newest arrived chapter. */
     newestFetchedAt: number;
 };
 
@@ -81,56 +93,69 @@ export const parseWatchedCategories = (raw: string | undefined): number[] | null
     }
 };
 
+/** Epoch seconds from a server timestamp in seconds or milliseconds (above 1e11 = ms). */
+export const toSeconds = (value: number): number => (value > 1e11 ? Math.floor(value / 1000) : value);
+
 /**
- * The bell's entries, newest fetch first. A series counts when it is in a watched category, was caught up (no unread
- * chapter older than the window: its unread count equals its unread chapters in the window) and has unread chapters
- * numbered above the highest one read. Unread copies at or below that number (a new scanlator's copy of a chapter
- * already read) and chapters without a number are ignored; copies of one number are one chapter (brief #4).
+ * The series whose chapters the bell reads: in the library with something unread, each once, at most 300 (the
+ * most recently updated first).
  */
-export const buildBellEntries = ({
-    mangas,
-    chapters,
-    watchedCategoryIds,
-}: {
-    mangas: BellManga[];
-    /** Unread when the query ran; `isRead` may have changed since (reading clears an entry). */
-    chapters: BellChapter[];
-    watchedCategoryIds: number[];
-}): BellEntry[] => {
-    const watched = new Set(watchedCategoryIds);
+export const pickBellSeries = (mangas: BellManga[]): BellManga[] => {
+    const byId = new Map<number, BellManga>();
+    mangas.forEach((manga) => {
+        if (manga.inLibrary && manga.unreadCount > 0 && !byId.has(manga.id)) {
+            byId.set(manga.id, manga);
+        }
+    });
+    return [...byId.values()]
+        .sort((a, b) => toSeconds(b.latestFetchedAt) - toSeconds(a.latestFetchedAt) || a.id - b.id)
+        .slice(0, BELL_MAX_SERIES);
+};
+
+/**
+ * One series' entry, or null. Highest read = the highest read chapter NUMBER (not the last by source order); the
+ * boundary = when the reader was last there (last read, or a day after adding it to the library, whichever is
+ * later). Chapters above the highest read fetched by then are waiting, later ones arrived. An entry needs at least
+ * one arrived and at most 2 waiting numbers; copies of one number are one chapter (brief #4), chapters without a
+ * number are ignored.
+ */
+export const buildBellEntry = (manga: BellManga, chapters: BellChapter[]): BellEntry | null => {
+    const numbered = chapters.filter(({ chapterNumber }) => hasCopies(chapterNumber));
+    const highestRead = Math.max(
+        -1,
+        ...numbered.filter(({ isRead }) => isRead).map(({ chapterNumber }) => chapterNumber),
+    );
+    const boundary = Math.max(toSeconds(manga.lastReadAt), toSeconds(manga.inLibraryAt) + DAY_SECONDS);
+    const above = numbered.filter(({ isRead, chapterNumber }) => !isRead && chapterNumber > highestRead);
+    const arrived = above.filter(({ fetchedAt }) => toSeconds(fetchedAt) > boundary);
+    const waiting = new Set(
+        above.filter(({ fetchedAt }) => toSeconds(fetchedAt) <= boundary).map(({ chapterNumber }) => chapterNumber),
+    );
+    if (!arrived.length || waiting.size > BELL_MAX_WAITING) {
+        return null;
+    }
+    const numbers = [...new Set(above.map(({ chapterNumber }) => chapterNumber))].sort((a, b) => a - b);
+    const [first] = above
+        .filter(({ chapterNumber }) => chapterNumber === numbers[0])
+        .sort((a, b) => a.sourceOrder - b.sourceOrder);
+    return {
+        mangaId: manga.id,
+        title: manga.title,
+        thumbnailUrl: manga.thumbnailUrl,
+        category: manga.category,
+        numbers,
+        firstChapter: { id: first.id, sourceOrder: first.sourceOrder },
+        newestFetchedAt: Math.max(...arrived.map(({ fetchedAt }) => toSeconds(fetchedAt))),
+    };
+};
+
+/** The bell's entries, newest arrival first. */
+export const buildBellEntries = (mangas: BellManga[], chapters: BellChapter[]): BellEntry[] => {
     const byManga = new Map<number, BellChapter[]>();
     chapters.forEach((chapter) => byManga.set(chapter.mangaId, [...(byManga.get(chapter.mangaId) ?? []), chapter]));
-
     return mangas
-        .flatMap((manga): BellEntry[] => {
-            const category = manga.categories.find(({ id }) => watched.has(id));
-            const inWindow = byManga.get(manga.id) ?? [];
-            const highestRead = manga.latestReadNumber;
-            if (!category || highestRead === null || !hasCopies(highestRead) || manga.unreadCount > inWindow.length) {
-                return [];
-            }
-            const fresh = inWindow
-                .filter((chapter) => !chapter.isRead && hasCopies(chapter.chapterNumber))
-                .filter((chapter) => chapter.chapterNumber > highestRead);
-            if (!fresh.length) {
-                return [];
-            }
-            const numbers = [...new Set(fresh.map(({ chapterNumber }) => chapterNumber))].sort((a, b) => a - b);
-            const [first] = fresh
-                .filter(({ chapterNumber }) => chapterNumber === numbers[0])
-                .sort((a, b) => a.sourceOrder - b.sourceOrder);
-            return [
-                {
-                    mangaId: manga.id,
-                    title: manga.title,
-                    thumbnailUrl: manga.thumbnailUrl,
-                    category: category.name,
-                    numbers,
-                    firstChapter: { id: first.id, sourceOrder: first.sourceOrder },
-                    newestFetchedAt: Math.max(...fresh.map(({ fetchedAt }) => fetchedAt)),
-                },
-            ];
-        })
+        .map((manga) => buildBellEntry(manga, byManga.get(manga.id) ?? []))
+        .filter((entry): entry is BellEntry => !!entry)
         .sort((a, b) => b.newestFetchedAt - a.newestFetchedAt || a.title.localeCompare(b.title));
 };
 

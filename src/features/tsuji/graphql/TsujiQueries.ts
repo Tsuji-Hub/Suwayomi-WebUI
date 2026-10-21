@@ -53,46 +53,56 @@ export const TSUJI_CHAPTER_COPIES = gql`
 `;
 
 /**
- * New-chapter bell (brief #10), one light request: unread library chapters fetched since `$since` (newest first,
- * capped), each with a few fields of its series, plus the category list for the bell's settings. Never a series'
- * whole chapter list (a nested mangas -> chapters query ran the server out of heap before).
+ * New-chapter bell (brief #12), first request: the category list (for the settings) and the watched categories'
+ * series with what the rules need, nothing per chapter. `$filter` picks the watched categories (saved ids, else the
+ * names ongoing / Completed).
  */
-export const TSUJI_CHAPTER_BELL = gql`
-    query TSUJI_CHAPTER_BELL($since: LongString!, $first: Int!) {
+export const TSUJI_BELL_SERIES = gql`
+    query TSUJI_BELL_SERIES($filter: CategoryFilterInput) {
         categories {
             nodes {
                 id
                 name
             }
         }
-        chapters(
-            filter: { inLibrary: { equalTo: true }, isRead: { equalTo: false }, fetchedAt: { greaterThan: $since } }
-            order: [{ by: FETCHED_AT, byType: DESC }]
-            first: $first
-        ) {
+        watched: categories(filter: $filter) {
+            nodes {
+                id
+                name
+                mangas {
+                    nodes {
+                        id
+                        title
+                        thumbnailUrl
+                        inLibrary
+                        inLibraryAt
+                        unreadCount
+                        lastReadChapter {
+                            id
+                            lastReadAt
+                        }
+                        latestFetchedChapter {
+                            id
+                            fetchedAt
+                        }
+                    }
+                }
+            }
+        }
+    }
+`;
+
+/** New-chapter bell, then: every chapter (light fields) of up to 60 of those series per request, one after another. */
+export const TSUJI_BELL_CHAPTERS = gql`
+    query TSUJI_BELL_CHAPTERS($mangaIds: [Int!]!) {
+        chapters(filter: { mangaId: { in: $mangaIds } }) {
             nodes {
                 id
                 mangaId
                 chapterNumber
+                isRead
                 fetchedAt
                 sourceOrder
-                isRead
-                manga {
-                    id
-                    title
-                    thumbnailUrl
-                    unreadCount
-                    latestReadChapter {
-                        id
-                        chapterNumber
-                    }
-                    categories {
-                        nodes {
-                            id
-                            name
-                        }
-                    }
-                }
             }
         }
     }

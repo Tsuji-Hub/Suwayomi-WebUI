@@ -803,15 +803,15 @@ const runBrowser = async (browserName) => {
 
     // System + Regression + Dungeon = 3 x 4 x 2 = 24 combinations: the first 16 run, and the page says so.
     await page.getByRole('button', { name: 'Clear' }).click();
-    await search.fill('system');
-    await page.getByRole('button', { name: /^System · 839$/ }).click();
-    await search.fill('regress');
-    await suggestions
-        .getByRole('button', { name: /^Regression/ })
-        .first()
-        .click();
-    await search.fill('dungeon');
-    await suggestions.getByRole('button', { name: /^Dungeon · 732$/ }).click();
+    // One query offers all three families ("in": System Administrator, Multiple Regressed Individuals, Dungeon
+    // Exploring), so the three chips go in back to back; the picker waits for 800 ms of quiet before searching.
+    await search.fill('in');
+    await suggestions.getByRole('button', { name: /^Dungeon · 146$/ }).waitFor({ timeout: 10_000 });
+    const chipsStart = Date.now();
+    await suggestions.getByRole('button', { name: /^System · 273$/ }).click();
+    await suggestions.getByRole('button', { name: /^Regression$/ }).click();
+    await suggestions.getByRole('button', { name: /^Dungeon · 146$/ }).click();
+    const chipsMs = Date.now() - chipsStart;
     const capNote = page.getByText('Showing 16 of 24 tag combinations. Remove a family or a chip to search them all.');
     await capNote.waitFor({ timeout: 20_000 }).catch(() => {});
     const threeTagSearches = () =>
@@ -831,6 +831,20 @@ const runBrowser = async (browserName) => {
             !threeTagSearches().some((request) => /tag=1196&tag=2103&tag=5101&/.test(request)),
         { searches: threeTagSearches().length },
     );
+    const twoTagSearches = seriesSearches().filter(
+        (request) =>
+            new URLSearchParams(request.split('?')[1]).getAll('tag').length === 2 &&
+            /tag=(3495|2461|2147|5101)/.test(request),
+    );
+    if (chipsMs < 700) {
+        check(
+            label('while picking, MangaBaka waits for 800 ms of quiet: no System + Regression search before Dungeon'),
+            !twoTagSearches.length,
+            { chipsMs, twoTagSearches: twoTagSearches.length },
+        );
+    } else {
+        console.log(`SKIP [${browserName}] debounce check: the three chips took ${chipsMs} ms to add`);
+    }
     await search.fill('level');
     const levelAlsoMatch = page.getByRole('button', { name: 'Also match Level System' });
     await levelAlsoMatch.waitFor({ timeout: 10_000 }).catch(() => {});

@@ -14,7 +14,45 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #12: new-chapter bell v2 (branch `feat/bell-v2`)
+
+Off `custom` (r3426). Cowork's audit: the bell's query took the newest 1,500 unread library chapters of 60 days
+(69,271 qualify: the 09-24 import plus Reading backlogs), which reached back only 20.7 days, so a series left unread
+for about 3 weeks silently vanished; `latestReadChapter` (source order) could be far off (I've Become a True
+Villainess: 19 vs 100); Log into the Future (355 waiting when 356-361 arrived) was hidden. Rules now mirror Cowork's
+Glance widget (media-actions v7). UI, watermarks, settings dialog and title count unchanged.
+
+**Done:**
+
+- Data (`TSUJI_BELL_SERIES`, `TSUJI_BELL_CHAPTERS`, `bell/useChapterBell.ts`): one request for the watched
+  categories (saved ids, else the names ongoing / Completed) with their series (title, cover, inLibrary,
+  inLibraryAt, unreadCount, lastReadChapter.lastReadAt, latestFetchedChapter.fetchedAt) plus the category list; then
+  every chapter (id, mangaId, number, isRead, fetchedAt, sourceOrder) of the series in the library with something
+  unread, 60 series per request, one after another, at most 300 series (the most recently updated). No window, no
+  chapter cap. On load and every 10 minutes (skipped while the tab is hidden). The series answer stays outside
+  Apollo's normalized cache (it nests series under categories, which Suwayomi's library queries also write; sharing
+  it made both refetch each other) and is reused for 10 minutes across remounts; chapters stay in the cache, so
+  reading one anywhere still clears its entry.
+- Rules (`buildBellEntry`): highest read = the highest read chapter NUMBER; boundary = max(last read, joined the
+  library + 1 day), seconds or ms; above the highest read, fetched by the boundary = waiting, after = arrived. Entry
+  when at least 1 arrived and at most 2 waiting; numbers = waiting + arrived; a click opens the earliest copy of the
+  first number. Watermarks and the first-run cap as before.
+- Unit (`chapterBell.test.ts`, 13): boundary (ms / s, join + 1 day), tolerance 0 / 1 / 2 / 3, highest read by number
+  (the source-order case), arrivals 30 and 90 days old, numberless chapters, reading clears, the 300-series cap,
+  watermarks. Browser (`chapter-bell.e2e.mjs`, 14 checks): Log into the Future "Ch 355-361 · 7 new", a 5-chapter
+  backlog and a never-read import hidden, one series + one chapters request per load.
+
+**Also in this build (from Cowork's r3426 check):** while the tag picker is open, the MangaBaka search waits for
+800 ms of quiet after the last chip change (at once when the picker closes), so building System + Regression +
+Dungeon no longer runs 3 + 12 + 16 = 31 searches against the 30/min limit (`useBakaFeed({ settleMs })`; browser
+check: three chips in 198 ms, no intermediate search).
+
 # Brief #11 v2: MangaBaka tags by id, family / OR chips (branch `fix/mangabaka-tag-ids`)
+
+**Shipped as r3426** (2026-10-21; Cowork live: System + Martial Arts 107 cards, 0 dupes, ids only; System + Murim 2;
+System alone 347, no repeats; Regression + Martial Arts 18; Isekai + System 198; AniList-only Martial Arts 85 cards
+and 0 MangaBaka calls; the cap note, the progress line and the popularity order). CI runs on `feat/**` only, so the
+branch went out as `feat/mangabaka-tag-ids`.
 
 Off `custom` (r3421) + `chore/docs-r3421`. Cowork found every MangaBaka tag search returned too little (System +
 Martial Arts: 22 on MangaBaka, ~14 cards; ~110 expected): a tag NAME matches only that tag (an ID covers its whole

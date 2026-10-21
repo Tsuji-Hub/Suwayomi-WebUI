@@ -134,6 +134,8 @@ const DiscoverBrowse = () => {
         minScore: filters.minScore,
         showAdult: filters.showAdult,
         isEnabled: !isLanding && engine === 'baka',
+        // While chips are being picked, search once they've been still for a moment; at once when the picker closes.
+        settleMs: isPickerExpanded ? 800 : 0,
     });
 
     const [landingSource, setLandingSource] = useState<LandingSource>('loading');

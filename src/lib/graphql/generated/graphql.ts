@@ -55,17 +55,46 @@ export type TsujiChapterCopiesQuery = {
     };
 };
 
-export type TsujiChapterBellQueryVariables = Exact<{
-    since: string;
-    first: number;
+export type TsujiBellSeriesQueryVariables = Exact<{
+    filter?: Types.CategoryFilterInput | null | undefined;
 }>;
 
-export type TsujiChapterBellQuery = {
+export type TsujiBellSeriesQuery = {
     __typename: 'Query';
     categories: {
         __typename: 'CategoryNodeList';
         nodes: Array<{ __typename: 'CategoryType'; id: number; name: string }>;
     };
+    watched: {
+        __typename: 'CategoryNodeList';
+        nodes: Array<{
+            __typename: 'CategoryType';
+            id: number;
+            name: string;
+            mangas: {
+                __typename: 'MangaNodeList';
+                nodes: Array<{
+                    __typename: 'MangaType';
+                    id: number;
+                    title: string;
+                    thumbnailUrl: string | null;
+                    inLibrary: boolean;
+                    inLibraryAt: string;
+                    unreadCount: number;
+                    lastReadChapter: { __typename: 'ChapterType'; id: number; lastReadAt: string } | null;
+                    latestFetchedChapter: { __typename: 'ChapterType'; id: number; fetchedAt: string } | null;
+                }>;
+            };
+        }>;
+    };
+};
+
+export type TsujiBellChaptersQueryVariables = Exact<{
+    mangaIds: Array<number> | number;
+}>;
+
+export type TsujiBellChaptersQuery = {
+    __typename: 'Query';
     chapters: {
         __typename: 'ChapterNodeList';
         nodes: Array<{
@@ -73,21 +102,9 @@ export type TsujiChapterBellQuery = {
             id: number;
             mangaId: number;
             chapterNumber: number;
+            isRead: boolean;
             fetchedAt: string;
             sourceOrder: number;
-            isRead: boolean;
-            manga: {
-                __typename: 'MangaType';
-                id: number;
-                title: string;
-                thumbnailUrl: string | null;
-                unreadCount: number;
-                latestReadChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
-                categories: {
-                    __typename: 'CategoryNodeList';
-                    nodes: Array<{ __typename: 'CategoryType'; id: number; name: string }>;
-                };
-            };
         }>;
     };
 };

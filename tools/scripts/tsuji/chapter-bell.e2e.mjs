@@ -6,10 +6,11 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// Browser test of the new-chapter bell (brief #10) on the production build against the mocked Suwayomi: entries only
-// for caught-up series in ongoing / Completed (not Reading, not a backlog, not never-read, new copies of read
-// chapters ignored), the first-run cap (newest 30 unseen), one bell query per load, a row opening the first new
-// chapter and clearing its entry, Mark all seen, the state shared with a second browser, and the watched categories.
+// Browser test of the new-chapter bell (brief #10, rules v2 from brief #12) on the production build against the
+// mocked Suwayomi: entries only for series in ongoing / Completed that got chapters after the last read with at most
+// 2 already waiting (not Reading, not a backlog, not never-read, new copies of read chapters ignored), the first-run
+// cap (newest 30 unseen), one series and one chapters request per load, a row opening the first new chapter and
+// clearing its entry, Mark all seen, the state shared with a second browser, and the watched categories.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/chapter-bell.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -38,75 +39,161 @@ const CATEGORIES = [
     { id: 2, name: 'ongoing' },
     { id: 3, name: 'Completed' },
 ];
-const category = (name) => CATEGORIES.find((each) => each.name === name);
+const connection = (nodes) => ({
+    nodes,
+    totalCount: nodes.length,
+    pageInfo: { hasNextPage: false, hasPreviousPage: false },
+});
 
 const NOW = Math.floor(Date.now() / 1000);
 const HOUR = 3600;
 
-/** [mangaId, title, category, highest read number, unread count, [[number, hours ago], ...]]. */
+/**
+ * [mangaId, title, category, chapters read (1..n, fetched long ago), [[unread number, hours ago fetched], ...],
+ * last read (hours ago), joined the library (hours ago)].
+ */
 const SERIES = [
     [
         1,
         'Bell Main',
         'ongoing',
         10,
-        2,
         [
             [11, 1],
             [12, 1],
         ],
+        50,
+        400 * 24,
     ],
-    [2, 'Reading Series', 'Reading', 20, 1, [[21, 2]]],
-    [3, 'Backlog Series', 'Completed', 30, 5, [[31, 3]]],
+    [2, 'Reading Series', 'Reading', 20, [[21, 2]], 50, 400 * 24],
+    // Five chapters waiting from before the last read, then one new: a backlog, not an entry.
+    [
+        3,
+        'Backlog Series',
+        'Completed',
+        30,
+        [
+            [31, 900],
+            [32, 900],
+            [33, 900],
+            [34, 900],
+            [35, 900],
+            [36, 3],
+        ],
+        500,
+        400 * 24,
+    ],
+    // A new scanlator's copy of chapter 50 (already read) next to the new 51.
     [
         4,
         'Twin Copy',
         'Completed',
         50,
-        2,
         [
             [50, 4],
             [51, 4],
         ],
+        50,
+        400 * 24,
     ],
-    [5, 'Never Read', 'ongoing', null, 1, [[1, 5]]],
+    // Never read: everything came with the import, so all of it is waiting.
+    [
+        5,
+        'Never Read',
+        'ongoing',
+        0,
+        [
+            [1, 240],
+            [2, 240],
+            [3, 240],
+            [4, 5],
+        ],
+        0,
+        240,
+    ],
+    // One chapter already waiting (355) when 356-361 arrived: still an entry.
+    [
+        6,
+        'Log into the Future',
+        'ongoing',
+        354,
+        [
+            [355, 900],
+            [356, 2],
+            [357, 2],
+            [358, 2],
+            [359, 2],
+            [360, 2],
+            [361, 2],
+        ],
+        500,
+        400 * 24,
+    ],
+    // Arrived 90 days ago and never read: age doesn't matter.
+    [7, 'Old Arrival', 'Completed', 5, [[6, 90 * 24]], 120 * 24, 400 * 24],
     // 33 more caught-up Completed series, older: the first run leaves only the newest 30 entries unseen.
     ...Array.from({ length: 33 }, (_, index) => [
         100 + index,
         `Completed ${String(index + 1).padStart(2, '0')}`,
         'Completed',
         5,
-        1,
         [[6, 10 + index]],
+        100,
+        400 * 24,
     ]),
 ];
 
 let chapterId = 9000;
-const BELL_CHAPTERS = SERIES.flatMap(([mangaId, title, categoryName, highestRead, unreadCount, fresh]) => {
-    const manga = {
-        id: mangaId,
-        title,
-        thumbnailUrl: null,
-        unreadCount,
-        latestReadChapter: highestRead === null ? null : { id: mangaId * 1000, chapterNumber: highestRead },
-        categories: { nodes: [category(categoryName)], totalCount: 1, pageInfo: {} },
-    };
-    return fresh.map(([chapterNumber, hoursAgo]) => ({
+const BELL_MANGAS = [];
+const BELL_CHAPTERS = SERIES.flatMap(([mangaId, title, categoryName, read, unread, lastReadHours, joinedHours]) => {
+    const chapters = [
+        ...Array.from({ length: read }, (_, index) => ({ number: index + 1, hoursAgo: 2000, isRead: true })),
+        ...unread.map(([number, hoursAgo]) => ({ number, hoursAgo, isRead: false })),
+    ].map(({ number, hoursAgo, isRead }) => ({
         id: chapterId++,
         mangaId,
-        chapterNumber,
-        sourceOrder: chapterNumber,
+        chapterNumber: number,
+        sourceOrder: number,
         fetchedAt: String(NOW - hoursAgo * HOUR),
-        isRead: false,
-        manga,
+        isRead,
     }));
+    BELL_MANGAS.push({
+        categoryName,
+        manga: {
+            id: mangaId,
+            title,
+            thumbnailUrl: null,
+            inLibrary: true,
+            inLibraryAt: String(NOW - joinedHours * HOUR),
+            unreadCount: unread.length,
+            lastReadChapter: lastReadHours
+                ? { id: mangaId * 1000, lastReadAt: String(NOW - lastReadHours * HOUR) }
+                : null,
+            latestFetchedChapter: {
+                id: mangaId * 1000 + 1,
+                fetchedAt: String(NOW - Math.min(...unread.map(([, hours]) => hours)) * HOUR),
+            },
+        },
+    });
+    return chapters;
 });
 
-const connection = (nodes) => ({
-    nodes,
-    totalCount: nodes.length,
-    pageInfo: { hasNextPage: false, hasPreviousPage: false },
-});
+/** Categories as the bell asks for them: all (names), or the watched ones by id / name, with their series. */
+const answerCategories = ({ filter }) => {
+    const ids = filter?.id?.in;
+    const names = filter?.name?.inInsensitive?.map((name) => name.toLowerCase());
+    const picked = CATEGORIES.filter(
+        ({ id, name }) => (!ids || ids.includes(id)) && (!names || names.includes(name.toLowerCase())),
+    );
+    return connection(
+        picked.map((each) => ({
+            ...each,
+            mangas: connection(
+                BELL_MANGAS.filter(({ categoryName }) => categoryName === each.name).map(({ manga }) => manga),
+            ),
+        })),
+    );
+};
 
 // Bell Main's own chapters for the reader: 1-10 read, 11-12 new.
 const MAIN_CHAPTERS = Array.from({ length: 12 }, (_, index) => {
@@ -188,16 +275,17 @@ const runBrowser = async (browserName) => {
             source: { id: '1', name: 'Local source', displayName: 'Local source' },
             chapters: { totalCount: MAIN_CHAPTERS.length },
             // The same series as the bell's copy (Apollo merges both into one cache entry, as on a real server).
-            unreadCount: 2,
-            latestReadChapter: { id: 7710, chapterNumber: 10 },
-            categories: { nodes: [category('ongoing')], totalCount: 1, pageInfo: {} },
+            ...BELL_MANGAS.find(({ manga }) => manga.id === 1).manga,
         },
         chapters: MAIN_CHAPTERS,
         pageCount: 2,
         handlers: {
-            'Query.categories': () => connection(CATEGORIES),
-            // Only the bell's query filters on fetchedAt; anything else gets the built-in chapters.
-            'Query.chapters': ({ filter }) => (filter?.fetchedAt ? connection(BELL_CHAPTERS) : undefined),
+            'Query.categories': answerCategories,
+            // Only the bell filters chapters by series; the reader gets the built-in chapters.
+            'Query.chapters': ({ filter }) =>
+                filter?.mangaId?.in
+                    ? connection(BELL_CHAPTERS.filter(({ mangaId }) => filter.mangaId.in.includes(mangaId)))
+                    : undefined,
         },
     });
 
@@ -214,8 +302,8 @@ const runBrowser = async (browserName) => {
             if (url.pathname.startsWith('/api/graphql')) {
                 const body = request.postDataJSON();
                 (Array.isArray(body) ? body : [body])
-                    .filter(({ operationName }) => operationName === 'TSUJI_CHAPTER_BELL')
-                    .forEach(() => bellQueries.push(Date.now()));
+                    .filter(({ operationName }) => operationName?.startsWith('TSUJI_BELL_'))
+                    .forEach(({ operationName }) => bellQueries.push(operationName));
                 const result = await server.handle(body);
                 return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
             }
@@ -260,10 +348,10 @@ const runBrowser = async (browserName) => {
     }
     check(label('first run: the badge counts the newest 30 entries'), firstCount === 30, firstCount);
     check(
-        label('first run is recorded (tsuji_bellStart) and the 5 oldest entries start seen'),
+        label('first run is recorded (tsuji_bellStart) and the 7 oldest entries start seen'),
         !!server.meta.get('tsuji_bellStart') &&
             [...server.meta.keys()].some((key) => key.startsWith('tsuji_bell_')) &&
-            ['128', '129', '130', '131', '132'].every((id) =>
+            ['7', '127', '128', '129', '130', '131', '132'].every((id) =>
                 [...server.meta.entries()].some(
                     ([key, value]) => key.startsWith('tsuji_bell_') && value.includes(`"${id}"`),
                 ),
@@ -281,7 +369,8 @@ const runBrowser = async (browserName) => {
     check(
         label('entries: caught-up ongoing / Completed only, newest first (not Reading, backlog, never read)'),
         titles[0] === 'Bell Main' &&
-            titles[1] === 'Twin Copy' &&
+            titles[1] === 'Log into the Future' &&
+            titles[2] === 'Twin Copy' &&
             !['Reading Series', 'Backlog Series', 'Never Read'].some((title) => titles.includes(title)) &&
             titles.length === 30,
         titles.slice(0, 5),
@@ -291,8 +380,11 @@ const runBrowser = async (browserName) => {
         .innerText()
         .catch(() => '');
     check(
-        label('rows: category chip, "Ch 11-12 · 2 new"; a new copy of a read chapter is ignored ("Ch 51")'),
+        label(
+            'rows: category chip, "Ch 11-12 · 2 new", one waiting chapter tolerated ("Ch 355-361 · 7 new"), a new copy of a read chapter ignored ("Ch 51")',
+        ),
         panelText.includes('Ch 11-12 · 2 new') &&
+            panelText.includes('Ch 355-361 · 7 new') &&
             panelText.includes('ongoing') &&
             panelText.includes('Ch 51') &&
             !panelText.includes('Ch 50-51'),
@@ -319,7 +411,12 @@ const runBrowser = async (browserName) => {
     await page.goto(`${ORIGIN}/library`);
     const afterOpen = await waitForCount(page, 29);
     check(label('the opened entry is seen: count 29'), afterOpen === 29, afterOpen);
-    check(label('one bell query per page load'), first.bellQueries.length === 2, first.bellQueries.length);
+    check(
+        label('per page load: one series request and one chapters request (39 series, 60 per request)'),
+        JSON.stringify(first.bellQueries) ===
+            JSON.stringify(['TSUJI_BELL_SERIES', 'TSUJI_BELL_CHAPTERS', 'TSUJI_BELL_SERIES', 'TSUJI_BELL_CHAPTERS']),
+        first.bellQueries,
+    );
 
     const second = await openContext();
     await second.page.goto(`${ORIGIN}/library`);

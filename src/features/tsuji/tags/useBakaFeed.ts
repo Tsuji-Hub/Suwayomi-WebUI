@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDebounce } from '@/base/hooks/useDebounce.ts';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import type { FeedPhase } from '@/features/tsuji/discover/landing.ts';
 import type { ComicType, RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
@@ -122,6 +123,7 @@ export const useBakaFeed = ({
     minScore,
     showAdult,
     isEnabled,
+    settleMs = 0,
 }: {
     baka: BakaSelection;
     aniListChips: AniListChips;
@@ -130,11 +132,18 @@ export const useBakaFeed = ({
     minScore: number;
     showAdult: boolean;
     isEnabled: boolean;
+    /**
+     * Wait this long after the last change before searching (the tag picker passes 800 ms while open, so building
+     * three chips doesn't run every intermediate search against MangaBaka's 30/min); 0 = at once.
+     */
+    settleMs?: number;
 }) => {
     const key = useMemo(
         () => JSON.stringify({ baka, aniListChips, types, sort, minScore, showAdult }),
         [baka, aniListChips, types, sort, minScore, showAdult],
     );
+    const settledKey = useDebounce(key, settleMs);
+    const isSettled = !settleMs || settledKey === key;
     const [state, setState] = useState<BakaFeedState>(() => createState(key));
     const current = state.key === key ? state : createState(key);
     const currentRef = useRef(current);
@@ -157,7 +166,7 @@ export const useBakaFeed = ({
     const loadMore = useCallback(() => {
         const feed = currentRef.current;
         const controller = controllerRef.current;
-        if (!isEnabled || !controller || feed.status === 'loading' || !feed.hasNextPage) {
+        if (!isEnabled || !isSettled || !controller || feed.status === 'loading' || !feed.hasNextPage) {
             return;
         }
         const { signal } = controller;
@@ -246,9 +255,9 @@ export const useBakaFeed = ({
                 defaultPromiseErrorHandler('useBakaFeed')(error);
                 setState((previous) => (previous.key === feed.key ? { ...previous, status: 'error' } : previous));
             });
-    }, [isEnabled, baka, aniListChips, types, sort, minScore, showAdult]);
+    }, [isEnabled, isSettled, baka, aniListChips, types, sort, minScore, showAdult]);
 
-    const shouldLoadFirstPage = isEnabled && !current.pages.length && current.status === 'idle';
+    const shouldLoadFirstPage = isEnabled && isSettled && !current.pages.length && current.status === 'idle';
     useEffect(() => {
         if (shouldLoadFirstPage) {
             loadMore();
