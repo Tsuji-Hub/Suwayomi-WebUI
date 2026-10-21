@@ -8,7 +8,8 @@
 
 // Browser test of the Similar fill (brief #14) on the production build (mocked Suwayomi, fixture AniList, fake
 // MangaBaka): a series with few recommendations is filled with titles sharing its most distinctive MangaBaka tags,
-// labeled "Same tags as <title>"; library titles never show, read or not; 2 MangaBaka requests, cached.
+// labeled "Same tags as <title>", every one sharing 2 of the series' tags; library titles never show, read or
+// not; searched until enough survive, cached.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/similar-fill.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -141,6 +142,8 @@ const createBaka = () => {
             };
         }
         if (url.pathname === '/v1/series/search') {
+            // Each title carries two of the three tags; a search ANDs its tags.
+            const wanted = url.searchParams.getAll('tag').map(Number);
             const rows = FILL_IDS.map((anilistId, index) => ({
                 id: anilistId === SEED_ID ? 1 : 10 + index,
                 title: `Baka ${anilistId}`,
@@ -148,8 +151,8 @@ const createBaka = () => {
                 rating: 75,
                 popularity: { global: { current: index + 1 } },
                 source: { anilist: { id: anilistId } },
-                tags_v2: [bakaTag(11 + (index % 3), 60, 'core')],
-            }));
+                tags_v2: [bakaTag(11 + (index % 3), 60, 'core'), bakaTag(11 + ((index + 1) % 3), 60, 'core')],
+            })).filter(({ tags_v2: tags }) => wanted.every((id) => tags.some((tag) => tag.id === id)));
             return { data: rows, pagination: { count: rows.length, next: null } };
         }
         return null;
@@ -294,15 +297,14 @@ const runBrowser = async (browserName) => {
             !all.includes(`Rec ${SEED_ID}`),
         all,
     );
-    const search = new URLSearchParams(
-        baka.requests.find((path) => path.startsWith('/v1/series/search'))?.split('?')[1],
-    );
+    const searches = baka.requests
+        .filter((path) => path.startsWith('/v1/series/search'))
+        .map((path) => new URLSearchParams(path.split('?')[1]));
     check(
-        label('2 MangaBaka requests: the series by AniList id, one search for its 3 most distinctive tags, any rating'),
-        baka.requests.length === 2 &&
-            search.getAll('tag').join() === '11,12,13' &&
-            search.get('tag_mode') === 'or' &&
-            search.getAll('content_rating').length === 4,
+        label('the series by AniList id, then pairs of its 3 tf-idf tags (both tags, any rating) until 8+ survive'),
+        baka.requests.length === 3 &&
+            searches.map((params) => params.getAll('tag').join()).join(' ') === '11,12 11,13' &&
+            searches.every((params) => !params.get('tag_mode') && params.getAll('content_rating').length === 4),
         baka.requests,
     );
 
@@ -313,7 +315,7 @@ const runBrowser = async (browserName) => {
         .catch(() => {});
     check(
         label('reload: the fill again from the cache (0 MangaBaka requests)'),
-        (await page.getByRole('group', { name: 'Same tags as Fill Test' }).isVisible()) && baka.requests.length === 2,
+        (await page.getByRole('group', { name: 'Same tags as Fill Test' }).isVisible()) && baka.requests.length === 3,
         baka.requests,
     );
 

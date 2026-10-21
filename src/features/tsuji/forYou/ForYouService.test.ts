@@ -178,7 +178,7 @@ describe('loadForYou', () => {
         expect(data!.candidates[0].description).toHaveLength(160);
         expect(data!.candidates[0].tags).toHaveLength(8);
         expect(data!.isPartial).toBe(false);
-        expect(cache.get('foryou:week:v4:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
+        expect(cache.get('foryou:week:v5:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
         expect(data!.bestSeeds).toHaveLength(10);
         expect(data!.bestMatches[0]).toMatchObject({ id: 700 });
         expect(data!.bestMatches.some(({ id }) => id === 1001)).toBe(false);
@@ -188,34 +188,30 @@ describe('loadForYou', () => {
         expect(request).not.toHaveBeenCalled();
     });
 
-    it('keeps the taste weights for Discover and the family row inputs; a pool under 200 titles sets no baseline', async () => {
+    it('keeps the taste weights for Discover and the family row inputs', async () => {
         answer();
         const result = await loadForYou({ userName: 'ejustice', now: NOW, signal });
         const data = result.kind === 'ready' ? result.data : null;
 
-        expect(cache.get('foryou:weights:v1:ejustice')!.value).toEqual(data!.tasteWeights);
+        expect(cache.get('foryou:weights:v2:ejustice')!.value).toEqual(data!.tasteWeights);
         expect(data!.tasteWeights.Revenge).toBe(1);
-        expect(cache.has('foryou:baseline:v1:ejustice')).toBe(false);
         expect(data!.familySeeds).toEqual([1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009]);
         expect(data!.listedIds).toHaveLength(10);
 
         // Evicted weights come back from the stored week, without a request.
-        cache.delete('foryou:weights:v1:ejustice');
+        cache.delete('foryou:weights:v2:ejustice');
         request.mockClear();
         await loadForYou({ userName: 'ejustice', now: NOW, signal });
         expect(request).not.toHaveBeenCalled();
-        expect(cache.get('foryou:weights:v1:ejustice')!.value).toEqual(data!.tasteWeights);
+        expect(cache.get('foryou:weights:v2:ejustice')!.value).toEqual(data!.tasteWeights);
     });
 
-    it("recall tags lean on last week's pool: a tag every title carries drops, a rare one rises", async () => {
+    it('recall and ranking use the distinctive tags against the snapshot, before any request', async () => {
         answer();
-        cache.set('foryou:baseline:v1:ejustice', {
-            value: { titles: 300, counts: { Revenge: 300, 'Time Skip': 300, Chaebol: 3, Office: 300 } },
-            ttl: 0,
-        });
         await loadForYou({ userName: 'ejustice', now: NOW, signal });
+        // Every fixture tag is on every liked title, far above its snapshot share: all at the cap, totals decide.
         const recall = request.mock.calls.find(([query]) => String(query).includes('TsujiForYouRecall'))!;
-        expect((recall[1] as Vars).core).toEqual(['Chaebol', 'Revenge', 'Time Skip']);
+        expect((recall[1] as Vars).core).toEqual(['Revenge', 'Time Skip', 'Chaebol']);
     });
 
     it('a failed half still shows the other, cached for an hour only', async () => {
@@ -224,7 +220,7 @@ describe('loadForYou', () => {
 
         expect(result.kind === 'ready' && result.data.candidates.map(({ id }) => id).sort()).toEqual([1, 50, 51]);
         expect(result.kind === 'ready' && result.data.isPartial).toBe(true);
-        expect(cache.get('foryou:week:v4:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
+        expect(cache.get('foryou:week:v5:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
     });
 
     it('falls back to one request per seed when AniList rejects the combined one', async () => {

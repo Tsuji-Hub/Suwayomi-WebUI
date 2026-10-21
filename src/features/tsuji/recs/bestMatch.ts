@@ -12,14 +12,16 @@ import type { TasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
 import { getTasteAffinity } from '@/features/tsuji/forYou/distinctive.ts';
 
 /*
- * Discover's Best match (brief #14): how well a card fits the picked chips, and how well it fits the user's taste.
- * score = 0.6 x chip fit + 0.4 x taste affinity (affinity normalized 0..1 per page); without taste weights (no
- * For You profile cached; Discover never fetches one) the score is the chip fit alone. Ties keep the feed's order
- * of popularity. Each page is ranked on its own: pages append, never reshuffle.
+ * Discover's Best match (brief #14): how well a card fits the picked chips, how well it fits the user's taste, and
+ * how popular it is. score = 0.5 x chip fit + 0.3 x taste affinity (normalized 0..1 per page) + 0.2 x popularity
+ * percentile on the page (r3431: 4,000-user adult titles beat 10-20k ones on taste alone). Without taste weights
+ * (no For You profile cached; Discover never fetches one) the score is the chip fit alone. Ties keep the feed's
+ * order of popularity. Each page is ranked on its own: pages append, never reshuffle.
  */
 
-export const WEIGHT_FIT = 0.6;
-export const WEIGHT_TASTE = 0.4;
+export const WEIGHT_FIT = 0.5;
+export const WEIGHT_TASTE = 0.3;
+export const WEIGHT_POPULARITY = 0.2;
 
 /** The included chips of a search, as the fit scores them. */
 export type FitChips = {
@@ -53,6 +55,20 @@ export const getChipFit = (media: Pick<RecMedia, 'tags' | 'genres'>, chips: FitC
     return (chips.matched + tagFit + genreFit) / total;
 };
 
+/** Each value's percentile among the values, 0..1 (ties share the mean rank; unknown popularity counts as 0). */
+export const getPercentiles = (values: (number | null | undefined)[]): number[] => {
+    if (values.length < 2) {
+        return values.map(() => 1);
+    }
+    const known = values.map((value) => value ?? 0);
+    const sorted = [...known].sort((a, b) => a - b);
+    return known.map((value) => {
+        const below = sorted.findIndex((each) => each >= value);
+        const equal = sorted.filter((each) => each === value).length;
+        return (below + (equal - 1) / 2) / (known.length - 1);
+    });
+};
+
 /**
  * One page by Best match, best first. Ties: AniList popularity (`'popularity'`), or the order the page came in
  * (`'order'`: MangaBaka pages, already by MangaBaka's popularity rank).
@@ -65,9 +81,14 @@ export const rankBestMatch = <T extends Pick<RecMedia, 'tags' | 'genres' | 'popu
 ): T[] => {
     const affinities = page.map((media) => (weights ? getTasteAffinity(media, weights) : 0));
     const strongest = Math.max(0, ...affinities);
+    const popularity = weights ? getPercentiles(page.map((media) => media.popularity)) : [];
     const scored = page.map((media, index) => {
         const fit = getChipFit(media, chips);
-        const score = weights ? WEIGHT_FIT * fit + WEIGHT_TASTE * (strongest ? affinities[index] / strongest : 0) : fit;
+        const score = weights
+            ? WEIGHT_FIT * fit +
+              WEIGHT_TASTE * (strongest ? affinities[index] / strongest : 0) +
+              WEIGHT_POPULARITY * popularity[index]
+            : fit;
         return { media, index, score };
     });
     return scored

@@ -13,16 +13,16 @@ import { PROFILE_TAG_COUNT } from '@/features/tsuji/forYou/tasteProfile.ts';
 import snapshot from '@/features/tsuji/forYou/tagBaseline.json';
 
 /*
- * Distinctive tags (brief #14): a tag almost every manhwa carries (Male Protagonist, 57 % of liked titles vs 48 %
- * of everything) says little about taste; one the user reads five times as often as usual (Medicine) says a lot.
- * weight = total x clamp(lift, 0.5, 3), lift = liked share / baseline share. The baseline is the tag's share of
- * the week's merged candidate pool (200+ titles), else the committed snapshot (AniList's 500 most popular KR / CN
- * titles, tools/scripts/tsuji/build-tag-baseline.mjs), else no lift.
+ * Distinctive tags (brief #14): a tag almost every manhwa carries (Male Protagonist) says little about taste; one
+ * the user reads several times as often as usual (Medicine) says a lot. weight = total x lift^2, lift = liked share /
+ * baseline share clamped to 0.33..3. The baseline is the committed snapshot (AniList's 500 most popular KR / CN
+ * titles, tools/scripts/tsuji/build-tag-baseline.mjs), never the week's candidate pool: that pool is built from the
+ * user's own recommendations and shares their bias (r3431: Male Protagonist 62 % of the pool vs 58 % liked).
  */
 
-export const LIFT_MIN = 0.5;
+export const LIFT_MIN = 0.33;
 export const LIFT_MAX = 3;
-/** Fewer titles than this make too noisy a baseline. */
+/** Fewer titles than this make too noisy a baseline (then no lift). */
 export const MIN_BASELINE_TITLES = 200;
 /** Tags kept in the stored taste weights (Discover's Best match, the family row). */
 export const TASTE_WEIGHT_COUNT = 60;
@@ -35,38 +35,22 @@ export type TagBaseline = { titles: number; counts: Record<string, number> };
 /** Taste weights by tag name, strongest = 1. */
 export type TasteWeights = Record<string, number>;
 
-export const SNAPSHOT_BASELINE: TagBaseline = { titles: snapshot.titles, counts: snapshot.counts };
+const SNAPSHOT: TagBaseline = { titles: snapshot.titles, counts: snapshot.counts };
 
-/** Tag shares of a pool of titles (each title once). */
-export const buildTagBaseline = (pool: Pick<RecMedia, 'id' | 'tags'>[]): TagBaseline => {
-    const seen = new Set<number>();
-    const counts: Record<string, number> = {};
-    pool.forEach((media) => {
-        if (seen.has(media.id)) {
-            return;
-        }
-        seen.add(media.id);
-        new Set(getContentTags(media).map(({ name }) => name)).forEach((name) => {
-            counts[name] = (counts[name] ?? 0) + 1;
-        });
-    });
-    return { titles: seen.size, counts };
-};
-
-/** The first baseline large enough to trust, else null (no lift). */
-export const pickBaseline = (...baselines: (TagBaseline | null | undefined)[]): TagBaseline | null =>
-    baselines.find((baseline) => !!baseline && baseline.titles >= MIN_BASELINE_TITLES) ?? null;
+/** The committed snapshot when it is large enough to trust, else null (no lift). */
+export const getBaseline = (baseline: TagBaseline = SNAPSHOT): TagBaseline | null =>
+    baseline.titles >= MIN_BASELINE_TITLES ? baseline : null;
 
 export const clampLift = (lift: number): number => Math.min(LIFT_MAX, Math.max(LIFT_MIN, lift));
 
-/** Liked share / baseline share, clamped to 0.5..3. */
+/** Liked share / baseline share, clamped to 0.33..3. */
 export const getLift = (stat: Pick<TagStat, 'name' | 'titles'>, likedCount: number, baseline: TagBaseline): number => {
     const likedShare = stat.titles / Math.max(1, likedCount);
     const baselineShare = Math.max(UNSEEN_TAG_TITLES, baseline.counts[stat.name] ?? 0) / baseline.titles;
     return clampLift(likedShare / baselineShare);
 };
 
-/** Liked tags by distinctive weight (total x lift; total alone without a baseline), strongest first. */
+/** Liked tags by distinctive weight (total x lift^2; total alone without a baseline), strongest first. */
 export const getDistinctiveTags = (
     stats: TagStat[],
     likedCount: number,
@@ -75,7 +59,7 @@ export const getDistinctiveTags = (
     stats
         .map((stat) => ({
             name: stat.name,
-            weight: stat.total * (baseline ? getLift(stat, likedCount, baseline) : 1),
+            weight: stat.total * (baseline ? getLift(stat, likedCount, baseline) ** 2 : 1),
         }))
         .sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
 

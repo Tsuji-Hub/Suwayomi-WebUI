@@ -35,7 +35,7 @@ import { ScrollRow } from '@/features/tsuji/recs/components/ScrollRow.tsx';
 import { CappedCardGrid } from '@/features/tsuji/recs/components/CardGrid.tsx';
 import { setTsujiGlobalMeta, useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { CommentsPill, SeriesCommentsHost } from '@/features/tsuji/comments/components/CommentsButton.tsx';
-import { needsSameTagsFill, SIMILAR_MAX } from '@/features/tsuji/similar/sameTags.ts';
+import { needsSameTagsFill, SIMILAR_MAX, SIMILAR_MIN_VISIBLE } from '@/features/tsuji/similar/sameTags.ts';
 import { useSameTags } from '@/features/tsuji/similar/useSameTags.ts';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
@@ -100,23 +100,28 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
 
     // Too few cards (brief #14): MangaBaka fills in with titles sharing the series' most distinctive tags.
     const isFillNeeded = !!data && !isLoading && needsSameTagsFill(visible.length);
-    const sameTags = useSameTags(data?.seedId ?? null, isFillNeeded);
-    const fill = useMemo(() => {
-        if (!sameTags || !data || !libraryIndex || !needsSameTagsFill(visible.length)) {
-            return [];
-        }
-        const shown = new Set([data.seedId, ...data.candidates.map(({ id }) => id)]);
-        return sameTags
-            .filter(
-                (item) =>
-                    !shown.has(item.id) &&
-                    passesFilters(item, filters, libraryIndex, {
-                        applyTagFilters: false,
-                        getSeenState: seen.getSeenState,
-                    }),
-            )
-            .slice(0, Math.max(0, SIMILAR_MAX - visible.length));
-    }, [sameTags, data, libraryIndex, visible.length, filters, seen.getSeenState]);
+    const isFillVisible = useCallback(
+        (item: RecMedia) =>
+            !!data &&
+            !!libraryIndex &&
+            item.id !== data.seedId &&
+            !data.candidates.some(({ id }) => id === item.id) &&
+            passesFilters(item, filters, libraryIndex, { applyTagFilters: false, getSeenState: seen.getSeenState }),
+        [data, libraryIndex, filters, seen.getSeenState],
+    );
+    const sameTags = useSameTags(
+        data?.seedId ?? null,
+        isFillNeeded,
+        SIMILAR_MIN_VISIBLE - visible.length,
+        isFillVisible,
+    );
+    const fill = useMemo(
+        () =>
+            sameTags && needsSameTagsFill(visible.length)
+                ? sameTags.filter(isFillVisible).slice(0, Math.max(0, SIMILAR_MAX - visible.length))
+                : [],
+        [sameTags, visible.length, isFillVisible],
+    );
     const sourceLabel = data?.sources.includes('mal') ? t`AniList + MAL` : t`AniList`;
 
     const body = (() => {

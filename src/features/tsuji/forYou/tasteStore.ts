@@ -8,14 +8,11 @@
 
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 import { DAY_MS } from '@/features/tsuji/Tsuji.constants.ts';
-import type { TagBaseline, TasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
+import type { TasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
 
-/** What For You keeps for a month: the taste weights (Discover's Best match) and last week's pool baseline. */
-
+/** The taste weights For You last computed, kept a month: Discover's Best match reads them. */
 const WEIGHTS_TTL_MS = 30 * DAY_MS;
-const BASELINE_TTL_MS = 30 * DAY_MS;
-const weightsKey = (userName: string) => `foryou:weights:v1:${userName.toLowerCase()}`;
-const baselineKey = (userName: string) => `foryou:baseline:v1:${userName.toLowerCase()}`;
+const weightsKey = (userName: string) => `foryou:weights:v2:${userName.toLowerCase()}`;
 
 /** Taste weights For You last computed for the user (Discover reads them, never fetches a profile). */
 export const readTasteWeights = (userName: string): TasteWeights | null => {
@@ -25,10 +22,3 @@ export const readTasteWeights = (userName: string): TasteWeights | null => {
 
 export const writeTasteWeights = (userName: string, weights: TasteWeights) =>
     TsujiCache.set(weightsKey(userName), weights, WEIGHTS_TTL_MS);
-
-/** Last week's pool baseline: this week's recall tags are picked before this week's pool exists. */
-export const readPoolBaseline = (userName: string): TagBaseline | null =>
-    TsujiCache.get<TagBaseline>(baselineKey(userName));
-
-export const writePoolBaseline = (userName: string, baseline: TagBaseline) =>
-    TsujiCache.set(baselineKey(userName), baseline, BASELINE_TTL_MS);

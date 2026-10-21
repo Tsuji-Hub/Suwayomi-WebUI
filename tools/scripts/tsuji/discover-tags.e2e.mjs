@@ -925,7 +925,7 @@ const runBrowser = async (browserName) => {
     );
     await bestPage.evaluate(() =>
         localStorage.setItem(
-            'tsujiCache2:foryou:weights:v1:ejustice',
+            'tsujiCache2:foryou:weights:v2:ejustice',
             JSON.stringify({ expiresAt: Date.now() + 86_400_000, value: { Medicine: 1 } }),
         ),
     );

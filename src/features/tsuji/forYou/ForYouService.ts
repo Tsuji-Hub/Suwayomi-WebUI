@@ -28,21 +28,8 @@ import type { StoredWeek } from '@/features/tsuji/forYou/weekStore.ts';
 import { fromStoredWeek, toStoredWeek } from '@/features/tsuji/forYou/weekStore.ts';
 import { buildTasteProfile } from '@/features/tsuji/forYou/tasteProfile.ts';
 import type { TasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
-import {
-    buildTagBaseline,
-    getDistinctiveTags,
-    MIN_BASELINE_TITLES,
-    pickBaseline,
-    SNAPSHOT_BASELINE,
-    toProfileTags,
-    toTasteWeights,
-} from '@/features/tsuji/forYou/distinctive.ts';
-import {
-    readPoolBaseline,
-    readTasteWeights,
-    writePoolBaseline,
-    writeTasteWeights,
-} from '@/features/tsuji/forYou/tasteStore.ts';
+import { getBaseline, getDistinctiveTags, toProfileTags, toTasteWeights } from '@/features/tsuji/forYou/distinctive.ts';
+import { readTasteWeights, writeTasteWeights } from '@/features/tsuji/forYou/tasteStore.ts';
 import {
     createWeeklyRandom,
     getIsoWeekKey,
@@ -86,8 +73,8 @@ export type ForYouResult = { kind: 'ready'; data: ForYouData } | { kind: 'empty'
 
 // v3 (brief #14): the profile has tag counts (the lift) and family seeds.
 const profileKey = (userName: string) => `foryou:taste:v3:${userName.toLowerCase()}`;
-// v4 (brief #14): ranked by distinctive tags, with the family row's inputs. v3: stored compact (weekStore.ts).
-const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v4:${userName.toLowerCase()}:${weekKey}`;
+// v5 (brief #14 fix): distinctive tags against the snapshot. v4: the family row's inputs. v3: stored compact.
+const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v5:${userName.toLowerCase()}:${weekKey}`;
 
 type SeedEdgeList = { rating: number | null; media: RecMedia | null }[];
 
@@ -224,14 +211,12 @@ export const loadForYou = async ({
 
     const random = createWeeklyRandom(userName, weekKey);
     const seeds = pickWeeklySeeds(profile.seedPool, random);
-    // This week's pool doesn't exist yet: the recall tags lean on last week's pool, else the snapshot.
-    const recallBaseline = pickBaseline(readPoolBaseline(userName), SNAPSHOT_BASELINE);
-    const weekTags = pickWeeklyTags(
-        recallBaseline
-            ? toProfileTags(getDistinctiveTags(profile.tagStats, profile.likedCount, recallBaseline))
-            : profile.tags,
-        random,
-    );
+    // Distinctive tags (brief #14) drive the recall, the ranking, the chips and Discover's Best match.
+    const distinctive = getDistinctiveTags(profile.tagStats, profile.likedCount, getBaseline());
+    const profileTags = toProfileTags(distinctive);
+    const tasteWeights = toTasteWeights(distinctive);
+    writeTasteWeights(userName, tasteWeights);
+    const weekTags = pickWeeklyTags(profileTags, random);
 
     const [seedsResult, recallResult, bestResult] = await Promise.allSettled([
         loadSeedEdges(
@@ -262,21 +247,10 @@ export const loadForYou = async ({
 
     const merged = mergeForYouCandidates({ seeds: seedEdges, recall, excludeIds: profile.listedIds });
     const best = bestResult.status === 'fulfilled' ? bestResult.value : { edges: [], isPartial: true };
-    const allBestMatches = mergeBestMatches({ seeds: best.edges, excludeIds: profile.listedIds });
-
-    // Distinctive tags against this week's whole pool (brief #14), kept for next week's recall and for Discover.
-    const poolBaseline = buildTagBaseline([...merged, ...allBestMatches]);
-    if (poolBaseline.titles >= MIN_BASELINE_TITLES) {
-        writePoolBaseline(userName, poolBaseline);
-    }
-    const distinctive = getDistinctiveTags(
-        profile.tagStats,
-        profile.likedCount,
-        pickBaseline(poolBaseline, SNAPSHOT_BASELINE),
+    const bestMatches = mergeBestMatches({ seeds: best.edges, excludeIds: profile.listedIds }).slice(
+        0,
+        MAX_CACHED_BEST,
     );
-    const profileTags = toProfileTags(distinctive);
-    const tasteWeights = toTasteWeights(distinctive);
-    writeTasteWeights(userName, tasteWeights);
 
     // Keep the strongest by this week's ranking (without history) so the cache stays small.
     const kept = new Set(
@@ -285,7 +259,6 @@ export const loadForYou = async ({
             .slice(0, MAX_CACHED_CANDIDATES)
             .map(({ id }) => id),
     );
-    const bestMatches = allBestMatches.slice(0, MAX_CACHED_BEST);
 
     const isPartial = seedsResult.status === 'rejected' || recallResult.status === 'rejected' || best.isPartial;
     const data: ForYouData = {

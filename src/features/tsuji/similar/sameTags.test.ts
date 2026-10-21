@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest';
 import type { BakaSeries, BakaSeriesTag } from '@/features/tsuji/tags/baka.ts';
 import { buildBakaSearch } from '@/features/tsuji/tags/baka.ts';
 import {
+    getSameTagsSearches,
+    getTagTfIdf,
     needsSameTagsFill,
     pickDistinctiveBakaTags,
     rankBySameTags,
@@ -49,24 +51,32 @@ describe('Similar fill', () => {
         expect(SIMILAR_MAX).toBe(24);
     });
 
-    it('the 3 most distinctive tags: lowest global frequency, strong weights first, one-offs skipped', () => {
+    it('the 3 most characteristic tags by tf-idf: strongly carried and rare, but on 50+ series', () => {
+        // Investor (r3431): the rarest tags alone (Bride of the Water God) were off-topic.
         const picked = pickDistinctiveBakaTags([
-            tag(1, 9000),
-            tag(2, 300),
-            tag(3, 40, 'incidental'),
+            tag(1, 9000, 'core'),
+            tag(2, 300, 'defining'),
+            tag(3, 60, 'incidental'),
             tag(4, 120, 'core'),
-            tag(5, 10),
+            tag(5, 30, 'core'),
             tag(6, 800, 'recurrent'),
         ]);
+        // 4: 1 x ln(833) = 6.7, 2: .75 x ln(333) = 4.4, 6: .5 x ln(125) = 2.41, 1: ln(11) = 2.40, 3: .25 x ln(1667) = 1.9.
         expect(picked.map(({ id }) => id)).toEqual([4, 2, 6]);
-        expect(pickDistinctiveBakaTags([tag(3, 40, 'incidental'), tag(1, 9000)]).map(({ id }) => id)).toEqual([1, 3]);
+        expect(getTagTfIdf({ weight: 'core', count: 120 })).toBeGreaterThan(
+            getTagTfIdf({ weight: 'incidental', count: 60 }),
+        );
     });
 
-    it('one search for any of them, all content ratings', () => {
+    it('one search per pair of tags (both tags), all content ratings', () => {
+        expect(getSameTagsSearches([4, 2, 1])).toEqual([
+            [4, 2],
+            [4, 1],
+            [2, 1],
+        ]);
         const query = new URLSearchParams(
             buildBakaSearch({
-                tagIds: [4, 2, 6],
-                tagMode: 'or',
+                tagIds: [4, 2],
                 excludeIds: [],
                 types: [],
                 sort: 'POPULARITY',
@@ -76,12 +86,12 @@ describe('Similar fill', () => {
                 limit: 50,
             }),
         );
-        expect(query.getAll('tag')).toEqual(['2', '4', '6']);
-        expect(query.get('tag_mode')).toBe('or');
+        expect(query.getAll('tag')).toEqual(['2', '4']);
+        expect(query.get('tag_mode')).toBeNull();
         expect(query.getAll('content_rating')).toEqual(['safe', 'suggestive', 'erotica', 'pornographic']);
     });
 
-    it('ranked by shared tags (a subtag counts for its parent), then popularity; the series itself left out', () => {
+    it('2+ shared tags (a subtag counts for its parent), most shared first, then popularity; not the series itself', () => {
         const ranked = rankBySameTags(
             [
                 { series: series(1, 1), tags: [tag(4, 0)] },
@@ -93,6 +103,7 @@ describe('Similar fill', () => {
             [4, 2, 6],
             7,
         );
-        expect(ranked.map(({ id }) => id)).toEqual([3, 2, 1]);
+        // 1 shares one tag only: out.
+        expect(ranked.map(({ id }) => id)).toEqual([3, 2]);
     });
 });

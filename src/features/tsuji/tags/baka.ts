@@ -475,7 +475,8 @@ export const toBakaMedia = (series: BakaSeries, details?: RecMedia | null): RecM
     }
     return {
         ...details,
-        title: details.title ?? base.title,
+        // AniList's titles; its English one, else MangaBaka's, before a romanized one.
+        title: details.title ? { ...details.title, english: details.title.english ?? series.english } : base.title,
         coverImage: base.coverImage?.large ? base.coverImage : details.coverImage,
         averageScore: base.averageScore ?? details.averageScore,
         chapters: base.chapters ?? details.chapters,

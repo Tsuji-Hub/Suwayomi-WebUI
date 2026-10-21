@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { RecMedia, RecTag } from '@/features/tsuji/recs/Recs.types.ts';
-import { getChipFit, NO_FIT_CHIPS, rankBestMatch } from '@/features/tsuji/recs/bestMatch.ts';
+import { getChipFit, getPercentiles, NO_FIT_CHIPS, rankBestMatch } from '@/features/tsuji/recs/bestMatch.ts';
 import { getBakaFitChips } from '@/features/tsuji/tags/baka.ts';
 
 const tag = (name: string, rank: number, extra: Partial<RecTag> = {}): RecTag => ({ name, rank, ...extra });
@@ -56,10 +56,23 @@ describe('Best match', () => {
     it('without a profile: chip fit, ties by popularity', () =>
         expect(ids(rankBestMatch(page, chips, null))).toEqual([1, 2, 3, 4]));
 
-    it('with a profile: 0.6 fit + 0.4 taste (normalized on the page); the card without the chip stays last', () => {
-        // Fit .9/.9/.4/0, taste .09/.8/.9/1 of the strongest: .576, .86, .6, .4.
+    it('with a profile: 0.5 fit + 0.3 taste (normalized on the page) + 0.2 popularity percentile', () => {
+        // Fit .9/.9/.4/0, taste .09/.8/.9/1 of the strongest, popularity percentile 2/3, 0, 1/3, 1:
+        // .61, .69, .54, .5.
         const ranked = ids(rankBestMatch(page, chips, { Medicine: 1, 'Male Protagonist': 0.1 }));
-        expect(ranked).toEqual([2, 3, 1, 4]);
+        expect(ranked).toEqual([2, 1, 3, 4]);
+    });
+
+    it('popularity percentiles: ties share the mean rank, unknown counts as 0', () => {
+        expect(getPercentiles([10, 30, 20])).toEqual([0, 1, 0.5]);
+        expect(getPercentiles([5, 5, null])).toEqual([0.75, 0.75, 0]);
+        expect(getPercentiles([7])).toEqual([1]);
+    });
+
+    it('a little-read title with the same taste falls behind a well-read one (r3431: 4,000 vs 15,000 users)', () => {
+        const all = { matched: 1, tags: [], genres: [] };
+        const pair = [card(1, [tag('Medicine', 80)], 4000), card(2, [tag('Medicine', 75)], 15_000)];
+        expect(ids(rankBestMatch(pair, all, { Medicine: 1 }, 'order'))).toEqual([2, 1]);
     });
 
     it('the taste orders cards that all match (MangaBaka), ties keep the page order', () => {

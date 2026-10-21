@@ -114,6 +114,9 @@ const createAniList = () => {
     const answer = ({ query, variables = {} }) => {
         const operation = query.match(/query\s+(\w+)/)?.[1] ?? 'unknown';
         counts[operation] = (counts[operation] ?? 0) + 1;
+        if (operation.startsWith('TsujiForYou') || operation === 'TsujiTasteList') {
+            counts.weekLastAt = Date.now();
+        }
         switch (operation) {
             case 'TsujiMyList':
                 return {
@@ -251,11 +254,12 @@ const bakaSeries = (id, anilistId, popularity, tags = []) => ({
 
 /** Fake MangaBaka: the source lookup and the search, counted per path. */
 const createBaka = () => {
-    const counts = { source: 0, search: 0 };
+    const counts = { source: 0, search: 0, firstAt: 0 };
     const answer = (url) => {
         const sourceMatch = url.pathname.match(/^\/v1\/source\/anilist\/(\d+)$/);
         if (sourceMatch) {
             counts.source += 1;
+            counts.firstAt ||= Date.now();
             const id = Number(sourceMatch[1]);
             const tags = SYSTEM_LIKED.includes(id) ? [3081] : [77];
             return { status: 200, data: { source_response: null, series: [bakaSeries(id + 50_000, id, 10, tags)] } };
@@ -263,17 +267,23 @@ const createBaka = () => {
         if (url.pathname === '/v1/series/search') {
             counts.search += 1;
             const tag = url.searchParams.get('tag');
-            const rows =
-                tag === '3081'
-                    ? [
-                          ...SYSTEM_IDS.map((id, index) => bakaSeries(id, id, index + 1, [3081])),
-                          // Already in Best matches, in the library, read-marked, and on the list.
-                          ...[BEST_ID, LIBRARY_ID, READ_MARK_ID, 1003].map((id, index) =>
-                              bakaSeries(id + 70_000, id, 100 + index, [3081]),
-                          ),
-                      ]
-                    : [];
-            return { data: rows, pagination: { count: rows.length, next: null } };
+            const page = Number(url.searchParams.get('page') ?? 1);
+            // System: page 1 has 6 titles that show and 4 that don't (only 6 of the 10 wanted), page 2 the rest.
+            const pages = [
+                [
+                    ...SYSTEM_IDS.slice(0, 6).map((id, index) => bakaSeries(id, id, index + 1, [3081])),
+                    // Already in Best matches, in the library, read-marked, and on the list.
+                    ...[BEST_ID, LIBRARY_ID, READ_MARK_ID, 1003].map((id, index) =>
+                        bakaSeries(id + 70_000, id, 100 + index, [3081]),
+                    ),
+                ],
+                SYSTEM_IDS.slice(6).map((id, index) => bakaSeries(id, id, index + 7, [3081])),
+            ];
+            const rows = tag === '3081' ? (pages[page - 1] ?? []) : [];
+            return {
+                data: rows,
+                pagination: { count: rows.length, next: tag === '3081' && page < 2 ? '?page=2' : null },
+            };
         }
         return null;
     };
@@ -484,12 +494,17 @@ const runBrowser = async (browserName) => {
         familyTitles,
     );
     check(
-        label('MangaBaka for the row: one lookup per liked title, one search per System tag'),
-        baka.counts.source === LIST_SIZE && baka.counts.search === 3,
+        label('the row is built after the week: its first lookup comes after the last For You AniList request'),
+        baka.counts.firstAt > aniList.counts.weekLastAt,
+        { firstLookup: baka.counts.firstAt, weekLast: aniList.counts.weekLastAt },
+    );
+    check(
+        label('MangaBaka for the row: one lookup per liked title, one search per System tag, a 2nd page for 10+ cards'),
+        baka.counts.source === LIST_SIZE && baka.counts.search === 4,
         baka.counts,
     );
     const familyStored = await page.evaluate(() =>
-        Object.keys(localStorage).filter((key) => key.includes('foryou:family:v1:ejustice')),
+        Object.keys(localStorage).filter((key) => key.includes('foryou:family:v2:ejustice')),
     );
     check(label('the row is stored for the week'), familyStored.length === 1, familyStored);
 
@@ -500,7 +515,7 @@ const runBrowser = async (browserName) => {
     );
     check(
         label('the week (with Best matches) is stored in localStorage, under the cache limit'),
-        stored.length === 1 && stored[0][0].includes('foryou:week:v4:ejustice') && stored[0][1] < 300_000,
+        stored.length === 1 && stored[0][0].includes('foryou:week:v5:ejustice') && stored[0][1] < 300_000,
         stored,
     );
 
@@ -518,7 +533,7 @@ const runBrowser = async (browserName) => {
         label('reload: the row again, 0 MangaBaka requests'),
         (await page.getByRole('group', { name: 'More System' }).isVisible()) &&
             baka.counts.source === LIST_SIZE &&
-            baka.counts.search === 3,
+            baka.counts.search === 4,
         baka.counts,
     );
     check(

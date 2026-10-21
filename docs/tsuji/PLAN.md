@@ -30,8 +30,8 @@ Off `custom` (r3429). Not shipped yet: Cowork checks the prerelease live.
    weights, fit alone. Ties: AniList popularity (AniList engine) or MangaBaka's order (MangaBaka engine). Each page
    ranked on its own. On MangaBaka with Best match and weights (or an AniList-only include chip), a page waits for
    its AniList details before it shows, so cards don't jump (`useBakaFeed` `waitForDetails`).
-2. **Distinctive tags** (`forYou/distinctive.ts`): weight = total x clamp(lift, 0.5, 3), lift = liked share / baseline
-   share. Baseline = tag share of the week's whole merged pool (weekly candidates + every Best match, 200+ titles),
+2. **Distinctive tags** (`forYou/distinctive.ts`; superseded by fix 1 below): weight = total x clamp(lift, 0.5, 3),
+   lift = liked share / baseline share. Baseline = tag share of the week's whole merged pool (weekly candidates + every Best match, 200+ titles),
    else the committed snapshot `forYou/tagBaseline.json`, else no lift. **The snapshot is empty** (this container
    can't reach AniList): run `node tools/scripts/tsuji/build-tag-baseline.mjs` (20 AniList requests, 2.5 s apart) and
    commit the JSON. The week's recall tags are picked before the week's pool exists, so they use last week's pool
@@ -54,6 +54,26 @@ Off `custom` (r3429). Not shipped yet: Cowork checks the prerelease live.
    title.
 5. **One hide rule:** `LibraryIndex` is every library title, started or not; the filter reads "Hide what's in my
    library" (same `hideInLibrary` key). Applies to Discover, Similar and For You; read marks and Not for me stay.
+
+**Fixed after Cowork's r3431 check** (passed live: 1, 2, 6, 7, 8; snapshot committed from the PC, 500 titles, 248
+tags):
+
+1. Taste weights: the pool baseline shared Ethan's bias (Male Protagonist 62 % of the pool vs 58 % liked, #2).
+   Baseline is now always the snapshot, weight = total x lift^2, lift clamped 0.33..3 (Cowork's simulation on the
+   cached stats: Male Protagonist #7, 5 of 7 distinctive tags in the top 15). Pool baseline code removed. Keys
+   `foryou:week:v5`, `foryou:weights:v2`.
+2. Family row: built after the cards show (1 s later), never cancelled by leaving the tab (one build per user and
+   week, joined on return), shown in the same visit. Lookups 6 at a time (`lookupQueue`), cached 30 days. Member
+   searches page on (max 3 pages) until 10+ cards pass the tab's hide rules; AniList details 50 a request, each
+   tried twice; a card's English title is AniList's, else MangaBaka's, before a romanized one. Key
+   `foryou:family:v2`.
+3. First open: the row's lookups no longer overlap the week's AniList requests (e2e checks the order).
+4. Similar fill: tags by tf-idf (MangaBaka weight core 1 / defining .75 / recurrent .5 / incidental .25 x ln(N /
+   series count), 50+ series); one search per pair of the 3 tags (both tags), so every card shares 2+; searches stop
+   once enough cards pass Similar's hide rules (at most 4 searches + the lookup; usually 1-2). Key
+   `similar:sametags:v2`.
+5. Best match with a taste: 0.5 fit + 0.3 taste + 0.2 popularity percentile on the page (ties share the mean rank,
+   unknown = 0). Without a taste: chip fit, as before.
 
 **Tests:** unit for fit scoring (AniList rank, MangaBaka matched, post-filter, blend, no profile), lift clamp and
 baseline choice, distinctive order, family threshold (4 no, 5 yes) and rotation, Similar fill trigger (11 yes, 12

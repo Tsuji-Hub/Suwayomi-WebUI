@@ -20,8 +20,12 @@ import { rankBestMatch } from '@/features/tsuji/recs/bestMatch.ts';
 
 /** Liked titles (of the 60 looked up) that must carry a family for it to earn a row. */
 export const FAMILY_MIN_TITLES = 5;
+/** Cards the row should show: the family's searches page on until this many pass the hide rules. */
+export const FAMILY_ROW_MIN = 10;
+/** Pages per member search at most. */
+export const FAMILY_MAX_PAGES = 3;
 /** Cards kept for the row (filters run at render). */
-export const FAMILY_ROW_STORED = 40;
+export const FAMILY_ROW_STORED = 60;
 
 export type FamilyRef = { key: string; label: string };
 

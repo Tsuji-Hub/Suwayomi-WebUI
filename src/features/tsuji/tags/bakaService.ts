@@ -40,6 +40,8 @@ const DEFAULT_RETRY_MS = 5000;
 
 // Sub-searches of one selection go out together (brief #11: 16 one after another took ~40 s), like Makimono.
 const searchQueue = new ParallelQueue(4);
+// Series lookups by AniList id (For You's family row asks 60 at once; 180/min allows it): 6 at a time.
+const lookupQueue = new ParallelQueue(6);
 const defaultQueue = new SpacedQueue(500, { burst: 5 });
 
 export class BakaError extends Error {
@@ -156,15 +158,15 @@ export const searchBakaSeries = (query: string, signal?: AbortSignal): Promise<S
 };
 
 /**
- * The MangaBaka series behind an AniList id, with its tags (null = MangaBaka doesn't know it). One request on the
- * tag queue (180/min); callers cache what they keep.
+ * The MangaBaka series behind an AniList id, with its tags (null = MangaBaka doesn't know it). One request (180/min,
+ * 6 at a time); callers cache what they keep.
  */
 export const lookupBakaSource = async (
     anilistId: number,
     signal?: AbortSignal,
 ): Promise<{ series: BakaSeries; tags: BakaSeriesTag[] } | null> => {
     try {
-        return parseBakaSource(await getJson(defaultQueue, `/v1/source/anilist/${anilistId}`, signal));
+        return parseBakaSource(await getJson(lookupQueue, `/v1/source/anilist/${anilistId}`, signal));
     } catch (error) {
         if (error instanceof BakaError && error.message.endsWith(' 404')) {
             return null;
@@ -173,9 +175,10 @@ export const lookupBakaSource = async (
     }
 };
 
-const FAMILIES_TTL_MS = 7 * DAY_MS;
+/** A series' tags rarely change. */
+const FAMILIES_TTL_MS = 30 * DAY_MS;
 
-/** The MangaBaka families (BAKA_FAMILIES keys) of the series behind an AniList id, cached a week. */
+/** The MangaBaka families (BAKA_FAMILIES keys) of the series behind an AniList id, cached a month. */
 export const getBakaFamiliesOf = async (anilistId: number, signal?: AbortSignal): Promise<string[]> => {
     const key = `baka:families:v1:${anilistId}`;
     const cached = TsujiCache.get<string[]>(key);

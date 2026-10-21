@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
@@ -122,25 +122,21 @@ export const ForYouTab = () => {
     );
     // "More <Family>" (brief #14): MangaBaka's take on a family the liked titles share, same rules as Best matches,
     // without what Best matches and Top picks show.
-    const familyRow = useFamilyRow(userName, data);
-    const familyItems = useMemo(() => {
-        if (!familyRow?.family || !libraryIndex) {
-            return [];
-        }
-        const shown = new Set([...bestIds, ...topPicks.map(({ id }) => id)]);
-        return familyRow.items
-            .filter(
-                (item) =>
-                    !shown.has(item.id) &&
-                    (item.averageScore !== null || (item.popularity ?? 0) >= QUALITY_MIN_POPULARITY) &&
-                    !isInLibrary(item, libraryIndex) &&
-                    passesFilters(item, filters, libraryIndex, {
-                        applyTagFilters: false,
-                        getSeenState: seen.getSeenState,
-                    }),
-            )
-            .slice(0, FAMILY_ROW_LENGTH);
-    }, [familyRow, libraryIndex, bestIds, topPicks, filters, seen.getSeenState]);
+    const isFamilyCardVisible = useCallback(
+        (item: RecMedia) =>
+            !!libraryIndex &&
+            !bestIds.has(item.id) &&
+            !topPicks.some(({ id }) => id === item.id) &&
+            (item.averageScore !== null || (item.popularity ?? 0) >= QUALITY_MIN_POPULARITY) &&
+            !isInLibrary(item, libraryIndex) &&
+            passesFilters(item, filters, libraryIndex, { applyTagFilters: false, getSeenState: seen.getSeenState }),
+        [libraryIndex, bestIds, topPicks, filters, seen.getSeenState],
+    );
+    const familyRow = useFamilyRow(userName, data, !!data && !!libraryIndex && seen.isSettled, isFamilyCardVisible);
+    const familyItems = useMemo(
+        () => (familyRow?.family ? familyRow.items.filter(isFamilyCardVisible).slice(0, FAMILY_ROW_LENGTH) : []),
+        [familyRow, isFamilyCardVisible],
+    );
     const familyLabel = familyRow?.family?.label ?? '';
 
     const seedRows = useMemo(
