@@ -16,7 +16,8 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #15: keep Discover, Similar and For You working when AniList is down (branch `feat/anilist-fallback`)
 
-Off `custom` (r3432). Not shipped yet: Cowork checks the prerelease live (AniList route-blocked, then unblocked).
+**Shipped as r3435** (2026-10-21). Off `custom` (r3432); r3434 checked live during the real AniList outage, fixed in
+r3435.
 
 **Done:**
 
