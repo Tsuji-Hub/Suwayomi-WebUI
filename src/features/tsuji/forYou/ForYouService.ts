@@ -45,8 +45,8 @@ const PROFILE_TTL_MS = DAY_MS;
 /** A week missing its seeds or recall is only cached briefly, so the next visit retries. */
 const PARTIAL_TTL_MS = 60 * 60 * 1000;
 const MIN_WEEK_TTL_MS = 60 * 60 * 1000;
-/** Candidates kept per week (strongest first); filters run at render, so keep room for hidden ones. */
-const MAX_CACHED_CANDIDATES = 120;
+/** Candidates kept per week (strongest first); filters run at render, so keep room for hidden ones and Best's. */
+const MAX_CACHED_CANDIDATES = 160;
 /** Best matches kept per week (30 are shown; filters run at render). */
 const MAX_CACHED_BEST = 120;
 
@@ -71,6 +71,11 @@ export type ForYouData = {
     listedIds: number[];
     isPartial: boolean;
     /**
+     * Only Best matches are in yet (brief #18: shown as soon as they are; Top picks and the seed rows follow). Never
+     * stored.
+     */
+    isPending?: boolean;
+    /**
      * Built from Comick while AniList is down (brief #15): on the last list AniList gave (`listFetchedAt`), on the
      * Suwayomi library, or Comick's trending titles.
      */
@@ -82,8 +87,9 @@ export type ForYouResult = { kind: 'ready'; data: ForYouData } | { kind: 'empty'
 // v3 (brief #14): the profile has tag counts (the lift) and family seeds.
 const profileKey = (userName: string) => `foryou:taste:v3:${userName.toLowerCase()}`;
 
-// v5 (brief #14 fix): distinctive tags against the snapshot. v4: the family row's inputs. v3: stored compact.
-const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v5:${userName.toLowerCase()}:${weekKey}`;
+// v6 (brief #18): Top picks from every edge and a recall without listed titles (v5 weeks could leave it empty).
+// v5: distinctive tags against the snapshot. v4: the family row's inputs. v3: stored compact.
+const weekKeyOf = (userName: string, weekKey: string) => `foryou:week:v6:${userName.toLowerCase()}:${weekKey}`;
 
 type SeedEdgeList = { rating: number | null; media: RecMedia | null }[];
 
@@ -130,37 +136,41 @@ const loadSeedEdges = async (seedIds: number[], signal: AbortSignal): Promise<Se
 /**
  * "Best matches" edges: the strongest liked titles in aliased requests of 8 (10 recommendations each, 5 requests
  * for 40 seeds), through the shared AniList queue. A batch that fails is left out (the week is then partial).
+ * `onBatch` gets the edges in so far, strongest seeds first, as each batch comes in.
  */
 const loadBestEdges = async (
     seeds: SeedCandidate[],
     signal: AbortSignal,
+    onBatch?: (edges: SeedRecommendations[]) => void,
 ): Promise<{ edges: SeedRecommendations[]; isPartial: boolean }> => {
     const batches = Array.from({ length: Math.ceil(seeds.length / BEST_BATCH_SIZE) }, (_, index) =>
         seeds.slice(index * BEST_BATCH_SIZE, (index + 1) * BEST_BATCH_SIZE),
     );
+    const done: (SeedRecommendations[] | null)[] = batches.map(() => null);
+    const collect = () => done.flatMap((edges) => edges ?? []);
     const results = await Promise.allSettled(
-        batches.map((batch) =>
-            aniList.request<SeedsResponse>(
-                buildSeedsQuery(batch.length, BEST_EDGES_PER_SEED, 'TsujiForYouBest'),
-                Object.fromEntries(batch.map(({ mediaId }, index) => [`id${index}`, mediaId])),
-                { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
-            ),
+        batches.map((batch, batchIndex) =>
+            aniList
+                .request<SeedsResponse>(
+                    buildSeedsQuery(batch.length, BEST_EDGES_PER_SEED, 'TsujiForYouBest'),
+                    Object.fromEntries(batch.map(({ mediaId }, index) => [`id${index}`, mediaId])),
+                    { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
+                )
+                .then((response) => {
+                    done[batchIndex] = batch.map((seed, index) => ({
+                        seed,
+                        recommendations: (response[`s${index}`]?.recommendations?.nodes ?? []).map(
+                            ({ rating, mediaRecommendation }) => ({ rating, media: mediaRecommendation }),
+                        ),
+                    }));
+                    if (!signal.aborted) {
+                        onBatch?.(collect());
+                    }
+                }),
         ),
     );
     signal.throwIfAborted();
-    const edges = batches.flatMap((batch, batchIndex) => {
-        const result = results[batchIndex];
-        if (result.status === 'rejected') {
-            return [];
-        }
-        return batch.map((seed, index) => ({
-            seed,
-            recommendations: (result.value[`s${index}`]?.recommendations?.nodes ?? []).map(
-                ({ rating, mediaRecommendation }) => ({ rating, media: mediaRecommendation }),
-            ),
-        }));
-    });
-    return { edges, isPartial: results.some(({ status }) => status === 'rejected') };
+    return { edges: collect(), isPartial: results.some(({ status }) => status === 'rejected') };
 };
 
 const loadProfile = async (userName: string, force: boolean, signal: AbortSignal): Promise<TasteProfile> => {
@@ -194,6 +204,7 @@ export const loadForYou = async ({
     force = false,
     signal,
     loadLibrary,
+    onProgress,
 }: {
     userName: string;
     now?: Date;
@@ -201,6 +212,8 @@ export const loadForYou = async ({
     signal: AbortSignal;
     /** The Suwayomi library, for For You while AniList is down and no list is known. */
     loadLibrary?: () => Promise<LibraryEntry[]>;
+    /** Best matches so far (`isPending`), as each batch of them comes in: shown before the rest of the week. */
+    onProgress?: (data: ForYouData) => void;
 }): Promise<ForYouResult> => {
     const weekKey = getIsoWeekKey(now);
     const { start, end } = getWeekBounds(now);
@@ -251,21 +264,52 @@ export const loadForYou = async ({
     writeTasteWeights(userName, tasteWeights);
     const weekTags = pickWeeklyTags(profileTags, random);
 
-    const [seedsResult, recallResult, bestResult] = await Promise.allSettled([
+    const base = {
+        weekKey,
+        weekStart: start.getTime(),
+        seeds: seeds.map(({ mediaId, title }) => ({ mediaId, title })),
+        profileTags,
+        tasteWeights,
+        weekTags,
+        entryCount: profile.entryCount,
+        bestSeeds: profile.bestSeeds,
+        familySeeds: profile.familySeeds,
+        listedIds: profile.listedIds,
+    };
+    const toBestMatches = (edges: SeedRecommendations[]) =>
+        mergeBestMatches({ seeds: edges, excludeIds: profile.listedIds }).slice(0, MAX_CACHED_BEST);
+
+    // Best matches first in the AniList queue (brief #18: the first cards in under 20 s), then the week's seeds and
+    // recall; Best matches show as they come in.
+    const [bestResult, seedsResult, recallResult] = await Promise.allSettled([
+        loadBestEdges(profile.bestSeeds, signal, (edges) =>
+            onProgress?.({
+                ...base,
+                candidates: [],
+                bestMatches: toBestMatches(edges),
+                isPartial: false,
+                isPending: true,
+            }),
+        ),
         loadSeedEdges(
             seeds.map(({ mediaId }) => mediaId),
             signal,
         ),
         aniList.request<RecallResponse>(
             TASTE_RECALL_QUERY,
-            { core: weekTags.core, rotating: weekTags.rotating, withRotating: weekTags.rotating.length > 0 },
+            {
+                core: weekTags.core,
+                rotating: weekTags.rotating,
+                withRotating: weekTags.rotating.length > 0,
+                listed: profile.listedIds,
+            },
             { signal, timeoutMs: ANILIST_TIMEOUT_MS.slow },
         ),
-        loadBestEdges(profile.bestSeeds, signal),
     ]);
     signal.throwIfAborted();
 
-    if (seedsResult.status === 'rejected' && recallResult.status === 'rejected') {
+    const best = bestResult.status === 'fulfilled' ? bestResult.value : { edges: [], isPartial: true };
+    if (seedsResult.status === 'rejected' && recallResult.status === 'rejected' && !best.edges.length) {
         if (AniListHealth.isDown()) {
             return fromComick();
         }
@@ -281,12 +325,15 @@ export const loadForYou = async ({
             ? [...(recallResult.value.core?.media ?? []), ...(recallResult.value.rotating?.media ?? [])]
             : [];
 
-    const merged = mergeForYouCandidates({ seeds: seedEdges, recall, excludeIds: profile.listedIds });
-    const best = bestResult.status === 'fulfilled' ? bestResult.value : { edges: [], isPartial: true };
-    const bestMatches = mergeBestMatches({ seeds: best.edges, excludeIds: profile.listedIds }).slice(
-        0,
-        MAX_CACHED_BEST,
-    );
+    const bestMatches = toBestMatches(best.edges);
+    // Top picks rank every edge, the 40 strongest titles' too (brief #18: the week's 4 seeds are among them, so their
+    // edges alone were all in Best matches, and Top picks came out empty).
+    const weekSeedIds = new Set(seedEdges.map(({ seed }) => seed.mediaId));
+    const merged = mergeForYouCandidates({
+        seeds: [...seedEdges, ...best.edges.filter(({ seed }) => !weekSeedIds.has(seed.mediaId))],
+        recall,
+        excludeIds: profile.listedIds,
+    });
 
     // Keep the strongest by this week's ranking (without history) so the cache stays small.
     const kept = new Set(
@@ -298,18 +345,9 @@ export const loadForYou = async ({
 
     const isPartial = seedsResult.status === 'rejected' || recallResult.status === 'rejected' || best.isPartial;
     const data: ForYouData = {
-        weekKey,
-        weekStart: start.getTime(),
-        seeds: seeds.map(({ mediaId, title }) => ({ mediaId, title })),
-        profileTags,
-        tasteWeights,
-        weekTags,
-        entryCount: profile.entryCount,
+        ...base,
         candidates: merged.filter(({ id }) => kept.has(id)),
-        bestSeeds: profile.bestSeeds,
         bestMatches,
-        familySeeds: profile.familySeeds,
-        listedIds: profile.listedIds,
         isPartial,
     };
 

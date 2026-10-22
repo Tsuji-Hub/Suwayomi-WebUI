@@ -6,11 +6,12 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-21)
 
-| Branch             | Commit             | What                                                                                                                                                                                             |
-| ------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `custom`           | `ef744b49` (r3439) | Briefs #1-#17 (saved AniList list while AniList is down, "Compare translations" card, AniList outage fallback via Comick + MangaBaka, smarter ranking, ...) + reader resume. Shipped 2026-10-22. |
-| `chore/docs-r3439` | this               | Docs only: r3439 shipped. Rides along with the next ship.                                                                                                                                        |
-| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                   |
+| Branch              | Commit             | What                                                                                                                                                                                             |
+| ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `custom`            | `ef744b49` (r3439) | Briefs #1-#17 (saved AniList list while AniList is down, "Compare translations" card, AniList outage fallback via Comick + MangaBaka, smarter ranking, ...) + reader resume. Shipped 2026-10-22. |
+| `chore/docs-r3439`  | this               | Docs only: r3439 shipped. Rides along with the next ship.                                                                                                                                        |
+| `feat/foryou-speed` | this               | Brief #18: Top picks back, Best matches first, family row lookups under MangaBaka's limit with a placeholder. Prerelease, not shipped.                                                           |
+| `master`            | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                   |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and

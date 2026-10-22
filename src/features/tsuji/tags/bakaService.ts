@@ -24,7 +24,8 @@ import {
 
 /*
  * MangaBaka's public API, straight from the browser (it answers CORS with `*`; no relay, no login, never a token).
- * Limits: search 30/min, everything else 180/min, per IP; cached answers don't count. Client side: up to 4 searches
+ * Limits: search 30/min, everything else 180/min (documented; series lookups drew 429s well below it), per IP;
+ * cached answers don't count. Client side: up to 4 searches
  * at once, tags one per 0.5 s; a 429 pauses the whole queue (Retry-After, else 5 s) and the request retries twice.
  * Requests
  * carry no custom header: a browser can't set User-Agent, and an extra header would need a CORS preflight; the
@@ -40,8 +41,14 @@ const DEFAULT_RETRY_MS = 5000;
 
 // Sub-searches of one selection go out together (brief #11: 16 one after another took ~40 s), like Makimono.
 const searchQueue = new ParallelQueue(4);
-// Series lookups by AniList id (For You's family row asks 60 at once; 180/min allows it): 6 at a time.
+// Series lookups by AniList id (Similar's one per title): 6 at a time.
 const lookupQueue = new ParallelQueue(6);
+/**
+ * For You's family row looks up 60 titles: in the background, one per 2.1 s (under MangaBaka's 30/min; brief #18:
+ * 6 at a time drew 429s and left 45 of 60 unknown), about 2 minutes for a cold cache.
+ */
+export const FAMILY_LOOKUP_SPACING_MS = 2100;
+const familyLookupQueue = new SpacedQueue(FAMILY_LOOKUP_SPACING_MS);
 const defaultQueue = new SpacedQueue(500, { burst: 5 });
 
 export class BakaError extends Error {
@@ -158,15 +165,16 @@ export const searchBakaSeries = (query: string, signal?: AbortSignal): Promise<S
 };
 
 /**
- * The MangaBaka series behind an AniList id, with its tags (null = MangaBaka doesn't know it). One request (180/min,
- * 6 at a time); callers cache what they keep.
+ * The MangaBaka series behind an AniList id, with its tags (null = MangaBaka doesn't know it). One request (6 at a
+ * time, or spaced for the family row); callers cache what they keep.
  */
 export const lookupBakaSource = async (
     anilistId: number,
     signal?: AbortSignal,
+    queue: SpacedQueue | ParallelQueue = lookupQueue,
 ): Promise<{ series: BakaSeries; tags: BakaSeriesTag[] } | null> => {
     try {
-        return parseBakaSource(await getJson(lookupQueue, `/v1/source/anilist/${anilistId}`, signal));
+        return parseBakaSource(await getJson(queue, `/v1/source/anilist/${anilistId}`, signal));
     } catch (error) {
         if (error instanceof BakaError && error.message.endsWith(' 404')) {
             return null;
@@ -178,14 +186,19 @@ export const lookupBakaSource = async (
 /** A series' tags rarely change. */
 const FAMILIES_TTL_MS = 30 * DAY_MS;
 
-/** The MangaBaka families (BAKA_FAMILIES keys) of the series behind an AniList id, cached a month. */
+const familiesKeyOf = (anilistId: number) => `baka:families:v1:${anilistId}`;
+
+/**
+ * The MangaBaka families (BAKA_FAMILIES keys) of the series behind an AniList id, cached a month as each answer comes
+ * in (a reload mid-way keeps what is done). Spaced under MangaBaka's limit: the family row's background lookups.
+ */
 export const getBakaFamiliesOf = async (anilistId: number, signal?: AbortSignal): Promise<string[]> => {
-    const key = `baka:families:v1:${anilistId}`;
+    const key = familiesKeyOf(anilistId);
     const cached = TsujiCache.get<string[]>(key);
     if (cached) {
         return cached;
     }
-    const found = await lookupBakaSource(anilistId, signal);
+    const found = await lookupBakaSource(anilistId, signal, familyLookupQueue);
     const families = found ? getBakaFamilies(found.tags) : [];
     TsujiCache.set(key, families, FAMILIES_TTL_MS);
     return families;

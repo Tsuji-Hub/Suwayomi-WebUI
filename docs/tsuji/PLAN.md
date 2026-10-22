@@ -14,6 +14,33 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #18: For You fixes from the #14 recheck (branch `feat/foryou-speed`)
+
+**Built** (2026-10-22). Off `custom` (r3439). Not shipped.
+
+**Done:**
+
+1. **Top picks back.** Cause: the week's 4 seeds come from the 30 strongest liked titles, all among Best matches' 40,
+   so their edges were all in Best matches; and the recall asks for the most popular titles with the distinctive
+   tags, which are the tags the user reads most, so they were all on the list (r3439 week: 47 candidates, every one
+   hidden or already in Best matches). Now Top picks rank every edge (the 40 strongest titles' too; a week seed's
+   edges counted once), and the recall sends `id_not_in: <list ids>`. Up to 160 candidates kept. Week key
+   `foryou:week:v6` (a v5 week is rebuilt once).
+2. **Best matches first.** The 5 Best matches requests go into the AniList queue before the week's seeds and recall,
+   and the tab shows Best matches as each batch comes in (`onProgress`, `isPending`; never stored), with card
+   skeletons where Top picks and the seed rows follow. Family lookups and MangaBaka paging start only once the whole
+   week is in.
+3. **Family row in the same visit.** Its 60 lookups have their own queue, one per 2.1 s (under MangaBaka's 30/min;
+   6 at a time drew 429s, so 45 of 60 stayed unknown and the revisit asked again): about 2 min cold, each answer
+   cached a month as it comes in (a reload keeps what is done). "Finding more like your favourites..." shows until
+   the row is in. A row whose lookups partly failed is not stored (the next visit asks only for those). A stored row
+   shows at once on a revisit (read synchronously, no 1 s delay, 0 MangaBaka requests).
+
+**Tests:** unit (every edge in the candidates, Best requests queued before seeds and recall, progress before the
+week, recall `listed`, everything failing is an error). Browser `for-you.e2e.mjs`: Best matches visible while the
+seeds and recall are held 4 s, Top picks 10+, the placeholder, 10 lookups with no 429 from a fake MangaBaka that
+answers 429 to lookups under 1.5 s apart, the stored row on reload within 1.5 s with 0 requests, key v6.
+
 # Brief #17: hide "on my list" titles while AniList is down + Similar's raw Comick titles (branch `feat/al-list-cache`)
 
 **Shipped as r3439** (2026-10-22). Off `custom` (r3438).

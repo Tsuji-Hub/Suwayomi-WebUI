@@ -172,13 +172,15 @@ describe('loadForYou', () => {
         expect(data!.seeds).toHaveLength(4);
         expect(data!.profileTags.map(({ name }) => name)).toEqual(['Revenge', 'Time Skip', 'Chaebol', 'Office']);
         const ids = data!.candidates.map(({ id }) => id).sort((a, b) => a - b);
-        expect(ids).toEqual([1, 10, 11, 12, 13, 50, 51]);
+        // The week's seeds, the recall and every Best matches edge (brief #18: Top picks rank them all).
+        expect(ids).toEqual(expect.arrayContaining([1, 10, 11, 12, 13, 50, 51, 700]));
+        expect(ids).not.toContain(1001);
         expect(data!.candidates.find(({ id }) => id === 1)!.sources).toEqual(['anilist', 'tags']);
         // Trimmed for the cache.
         expect(data!.candidates[0].description).toHaveLength(160);
         expect(data!.candidates[0].tags).toHaveLength(8);
         expect(data!.isPartial).toBe(false);
-        expect(cache.get('foryou:week:v5:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
+        expect(cache.get('foryou:week:v6:ejustice:2026-W39')!.ttl).toBe(12 * 60 * 60 * 1000);
         expect(data!.bestSeeds).toHaveLength(10);
         expect(data!.bestMatches[0]).toMatchObject({ id: 700 });
         expect(data!.bestMatches.some(({ id }) => id === 1001)).toBe(false);
@@ -217,10 +219,12 @@ describe('loadForYou', () => {
     it('a failed half still shows the other, cached for an hour only', async () => {
         answer({ seedsFail: true });
         const result = await loadForYou({ userName: 'ejustice', now: NOW, signal });
+        const ids = result.kind === 'ready' ? result.data.candidates.map(({ id }) => id) : [];
 
-        expect(result.kind === 'ready' && result.data.candidates.map(({ id }) => id).sort()).toEqual([1, 50, 51]);
+        expect(ids).toEqual(expect.arrayContaining([1, 50, 51, 700]));
+        expect(ids).not.toContain(10);
         expect(result.kind === 'ready' && result.data.isPartial).toBe(true);
-        expect(cache.get('foryou:week:v5:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
+        expect(cache.get('foryou:week:v6:ejustice:2026-W39')!.ttl).toBe(60 * 60 * 1000);
     });
 
     it('falls back to one request per seed when AniList rejects the combined one', async () => {
@@ -235,8 +239,37 @@ describe('loadForYou', () => {
         expect(data!.candidates.filter(({ sources }) => sources.includes('anilist')).length).toBeGreaterThan(0);
     });
 
-    it('both halves failing is an error', async () => {
-        answer({ seedsFail: true, recallFail: true });
+    it('Best matches go first in the queue and show before the rest; the recall leaves listed titles out', async () => {
+        answer();
+        const progress: { isPending?: boolean; bestIds: number[] }[] = [];
+        const result = await loadForYou({
+            userName: 'ejustice',
+            now: NOW,
+            signal,
+            onProgress: (data) =>
+                progress.push({ isPending: data.isPending, bestIds: data.bestMatches.map(({ id }) => id) }),
+        });
+
+        const names = request.mock.calls.map(([query]) => /query (\w+)/.exec(String(query))![1]);
+        expect(names).toEqual([
+            'TsujiTasteList',
+            'TsujiForYouBest',
+            'TsujiForYouBest',
+            'TsujiForYouSeeds',
+            'TsujiForYouRecall',
+        ]);
+        expect(progress.length).toBe(2);
+        expect(progress.every(({ isPending }) => isPending)).toBe(true);
+        expect(progress.at(-1)!.bestIds[0]).toBe(700);
+        expect(result.kind === 'ready' && result.data.isPending).toBeFalsy();
+        const recall = request.mock.calls.find(([query]) => String(query).includes('TsujiForYouRecall'))!;
+        expect([...((recall[1] as Vars).listed as number[])].sort()).toEqual(
+            Array.from({ length: 10 }, (_, index) => 1000 + index),
+        );
+    });
+
+    it('everything failing is an error', async () => {
+        answer({ seedsFail: true, recallFail: true, bestFail: true });
         await expect(loadForYou({ userName: 'ejustice', now: NOW, signal })).rejects.toThrow('timeout');
     });
 

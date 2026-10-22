@@ -10,6 +10,9 @@
 // (mockSuwayomi.mjs), a fixture AniList (graphql.anilist.co answered by the test) and a fake MangaBaka. Checks the
 // tab renders the week's picks and seed rows from 3 AniList requests, applies the list badges, builds the weekly
 // "More System" row from MangaBaka (brief #14), and serves a reload from the week cache without asking again.
+// Brief #18: Best matches show before the week's seeds and recall are in, the row's lookups stay under MangaBaka's
+// rate limit (the fake one answers 429 to lookups closer than 1.5 s) with a placeholder meanwhile, and a revisit
+// shows the stored row at once.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/for-you.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -252,14 +255,25 @@ const bakaSeries = (id, anilistId, popularity, tags = []) => ({
     tags_v2: tags.map((tagId) => ({ id: tagId, parent_id: null, series_count: 900, weight: 'defining' })),
 });
 
+/** How late the week's seeds and recall answer on the first visit. */
+const SLOW_WEEK_MS = 4000;
+/** Lookups closer together than this get a 429 (MangaBaka's limit, brief #18). */
+const BAKA_MIN_GAP_MS = 1500;
+
 /** Fake MangaBaka: the source lookup and the search, counted per path. */
 const createBaka = () => {
-    const counts = { source: 0, search: 0, firstAt: 0 };
+    const counts = { source: 0, search: 0, firstAt: 0, limited: 0, lastAt: 0 };
     const answer = (url) => {
         const sourceMatch = url.pathname.match(/^\/v1\/source\/anilist\/(\d+)$/);
         if (sourceMatch) {
+            const now = Date.now();
+            if (counts.lastAt && now - counts.lastAt < BAKA_MIN_GAP_MS) {
+                counts.limited += 1;
+                return { status: 429 };
+            }
+            counts.lastAt = now;
             counts.source += 1;
-            counts.firstAt ||= Date.now();
+            counts.firstAt ||= now;
             const id = Number(sourceMatch[1]);
             const tags = SYSTEM_LIKED.includes(id) ? [3081] : [77];
             return { status: 200, data: { source_response: null, series: [bakaSeries(id + 50_000, id, 10, tags)] } };
@@ -355,6 +369,7 @@ const runBrowser = async (browserName) => {
     const aniList = createAniList();
     const baka = createBaka();
     const pageErrors = [];
+    let slowWeek = true;
 
     await context.route('**/*', async (route) => {
         const request = route.request();
@@ -364,6 +379,13 @@ const runBrowser = async (browserName) => {
                 return route.fulfill({ status: 204, headers: CORS });
             }
             const body = request.postDataJSON();
+            // The week's seeds and recall answer late the first time: Best matches must not wait for them.
+            const operation = body.query.match(/query\s+(\w+)/)?.[1];
+            if (slowWeek && (operation === 'TsujiForYouSeeds' || operation === 'TsujiForYouRecall')) {
+                await new Promise((done) => {
+                    setTimeout(done, SLOW_WEEK_MS);
+                });
+            }
             return route.fulfill({
                 status: 200,
                 headers: { ...CORS, 'content-type': 'application/json' },
@@ -372,6 +394,9 @@ const runBrowser = async (browserName) => {
         }
         if (url.host === 'api.mangabaka.org') {
             const result = baka.answer(url);
+            if (result?.status === 429) {
+                return route.fulfill({ status: 429, headers: CORS, body: '' });
+            }
             return route.fulfill(
                 result
                     ? {
@@ -402,10 +427,26 @@ const runBrowser = async (browserName) => {
 
     await page.goto(`${ORIGIN}/discover`);
     await page.getByRole('tab', { name: 'For You' }).click();
+    const bestHeading = page.getByRole('heading', { name: 'Best matches' });
+    await bestHeading.waitFor({ timeout: 20_000 }).catch(() => {});
     const topPicks = page.getByRole('heading', { name: 'Top picks' });
+    check(
+        label('Best matches show while the seeds and recall are still out; Top picks follow'),
+        (await bestHeading.isVisible()) &&
+            !(await topPicks.isVisible()) &&
+            (await page.locator('[aria-busy="true"]').count()) > 0,
+        aniList.counts,
+    );
     await topPicks.waitFor({ timeout: 20_000 }).catch(() => {});
+    slowWeek = false;
 
     check(label('top picks render'), await topPicks.isVisible(), {});
+    const topPickCount = await page
+        .locator('h2', { hasText: /^Top picks$/ })
+        .locator('xpath=following-sibling::div[1]')
+        .locator('[aria-label^="Pick "]')
+        .count();
+    check(label('Top picks: 10+ cards'), topPickCount >= 10, { topPickCount });
     const bodyText = await page.locator('body').innerText();
     const seedRows = await page.getByRole('heading', { name: /^Because you read/ }).count();
     check(label('one row per seed ("Because you read ...")'), seedRows === 4, { seedRows });
@@ -479,8 +520,14 @@ const runBrowser = async (browserName) => {
     );
 
     // "More System" (brief #14): 6 of the 10 liked titles carry System on MangaBaka.
+    check(
+        label('a placeholder while the row is found'),
+        await page.getByText('Finding more like your favourites…').isVisible(),
+        {},
+    );
     const familyRow = page.getByRole('group', { name: 'More System' });
-    await familyRow.waitFor({ timeout: 20_000 }).catch(() => {});
+    // 10 lookups one per 2.1 s.
+    await familyRow.waitFor({ timeout: 45_000 }).catch(() => {});
     const familyTitles = await familyRow
         .locator('[aria-label^="Pick "]')
         .evaluateAll((cards) => cards.map((card) => card.getAttribute('aria-label')));
@@ -499,8 +546,10 @@ const runBrowser = async (browserName) => {
         { firstLookup: baka.counts.firstAt, weekLast: aniList.counts.weekLastAt },
     );
     check(
-        label('MangaBaka for the row: one lookup per liked title, one search per System tag, a 2nd page for 10+ cards'),
-        baka.counts.source === LIST_SIZE && baka.counts.search === 4,
+        label(
+            'MangaBaka for the row: one lookup per liked title, under its rate limit (no 429), one search per System tag, a 2nd page for 10+ cards',
+        ),
+        baka.counts.source === LIST_SIZE && baka.counts.limited === 0 && baka.counts.search === 4,
         baka.counts,
     );
     const familyStored = await page.evaluate(() =>
@@ -515,7 +564,7 @@ const runBrowser = async (browserName) => {
     );
     check(
         label('the week (with Best matches) is stored in localStorage, under the cache limit'),
-        stored.length === 1 && stored[0][0].includes('foryou:week:v5:ejustice') && stored[0][1] < 300_000,
+        stored.length === 1 && stored[0][0].includes('foryou:week:v6:ejustice') && stored[0][1] < 300_000,
         stored,
     );
 
@@ -527,10 +576,10 @@ const runBrowser = async (browserName) => {
         .catch(() => {});
     await page
         .getByRole('group', { name: 'More System' })
-        .waitFor({ timeout: 10_000 })
+        .waitFor({ timeout: 1500 })
         .catch(() => {});
     check(
-        label('reload: the row again, 0 MangaBaka requests'),
+        label('reload: the row again at once (within 1.5 s of the cards), 0 MangaBaka requests'),
         (await page.getByRole('group', { name: 'More System' }).isVisible()) &&
             baka.counts.source === LIST_SIZE &&
             baka.counts.search === 4,
@@ -548,7 +597,11 @@ const runBrowser = async (browserName) => {
 
     // Refresh: refetches the list and the week.
     await page.getByRole('button', { name: 'Refresh' }).click();
-    await page.waitForTimeout(1500);
+    // Best matches go first in the queue now (brief #18): the seeds follow a few seconds later.
+    for (let waited = 0; waited < 15_000 && aniList.counts.TsujiForYouSeeds < 2; waited += 250) {
+        // oxlint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(250);
+    }
     check(
         label('Refresh refetches list and week'),
         aniList.counts.TsujiTasteList === 2 && aniList.counts.TsujiForYouSeeds === 2,

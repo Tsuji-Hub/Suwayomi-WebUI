@@ -2235,6 +2235,10 @@ msgstr "Filters"
 msgid "Find to read"
 msgstr "Find to read"
 
+#: src/features/tsuji/forYou/components/ForYouTab.tsx
+msgid "Finding more like your favourites…"
+msgstr "Finding more like your favourites…"
+
 #: src/features/tracker/components/cards/TrackerActiveCard.tsx
 msgid "Finish date"
 msgstr "Finish date"

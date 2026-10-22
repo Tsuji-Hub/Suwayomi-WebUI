@@ -62,7 +62,9 @@ const loadDetails = async (ids: number[]): Promise<{ details: Map<number, RecMed
 const build = async (userName: string, data: FamilyInput, isVisible: (media: RecMedia) => boolean, now: Date) => {
     const lookups = await Promise.allSettled(data.familySeeds.map((id) => getBakaFamiliesOf(id)));
     const counts = countFamilies(lookups.map((result) => (result.status === 'fulfilled' ? result.value : null)));
-    let isPartial = lookups.some(({ status }) => status === 'rejected');
+    // A failed lookup leaves the family counts short: the row is not stored, the next visit asks only for those.
+    const isLookupPartial = lookups.some(({ status }) => status === 'rejected');
+    let isPartial = isLookupPartial;
 
     const family = pickWeeklyFamily(counts, data.weekKey);
     let items: RecMedia[] = [];
@@ -121,20 +123,26 @@ const build = async (userName: string, data: FamilyInput, isVisible: (media: Rec
 
     const row: FamilyRowData = { family, counts, items };
     const untilNextWeek = getWeekBounds(new Date(data.weekStart)).end.getTime() - now.getTime();
-    TsujiCache.set(
-        familyKeyOf(userName, data.weekKey),
-        row,
-        isPartial ? PARTIAL_TTL_MS : Math.max(MIN_TTL_MS, untilNextWeek),
-    );
+    if (!isLookupPartial) {
+        TsujiCache.set(
+            familyKeyOf(userName, data.weekKey),
+            row,
+            isPartial ? PARTIAL_TTL_MS : Math.max(MIN_TTL_MS, untilNextWeek),
+        );
+    }
     return row;
 };
+
+/** This week's stored row, without building it (a revisit shows it at once). */
+export const peekFamilyRow = (userName: string, weekKey: string): FamilyRowData | null =>
+    TsujiCache.get<FamilyRowData>(familyKeyOf(userName, weekKey));
 
 /** Rows being built, by cache key: leaving For You and coming back joins the same build. */
 const building = new Map<string, Promise<FamilyRowData>>();
 
 /**
  * This week's family row (brief #14). Built once the week shows, never on its path, and not cancelled by leaving the
- * tab: the 60 strongest liked titles' MangaBaka families (one lookup each, 6 at a time, cached a month), this week's
+ * tab: the 60 strongest liked titles' MangaBaka families (one lookup each, one per 2.1 s, cached a month), this week's
  * family's member searches (all comic types, safe ratings; the Adult filter can't add what isn't fetched), paged
  * until 10+ cards pass `isVisible` (the tab's hide rules, read when each page is in) or 3 pages, AniList details for
  * the cards, ranked by Best match. Cached until next Monday: a revisit asks nothing.

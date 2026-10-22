@@ -119,15 +119,23 @@ export type SeedsResponse = Record<string, SeedEdges>;
 
 export const RECALL_PER_PAGE = 40;
 
-/** Taste recall: popular titles with the core tags, best-scored ones with this week's rotating tags. */
+/**
+ * Taste recall: popular titles with the core tags, best-scored ones with this week's rotating tags, never one on the
+ * list (`$listed`; brief #18: the distinctive tags are the ones the user reads most, so their most popular titles were
+ * all on the list and the recall came back empty).
+ */
 export const TASTE_RECALL_QUERY = `
     ${MEDIA_FIELDS}
-    query TsujiForYouRecall($core: [String], $rotating: [String], $withRotating: Boolean!) {
+    query TsujiForYouRecall($core: [String], $rotating: [String], $withRotating: Boolean!, $listed: [Int]) {
         core: Page(perPage: ${RECALL_PER_PAGE}) {
-            media(tag_in: $core, type: MANGA, sort: [POPULARITY_DESC], minimumTagRank: 60) { ...TsujiMedia }
+            media(
+                tag_in: $core, id_not_in: $listed, type: MANGA, sort: [POPULARITY_DESC], minimumTagRank: 60
+            ) { ...TsujiMedia }
         }
         rotating: Page(perPage: ${RECALL_PER_PAGE}) @include(if: $withRotating) {
-            media(tag_in: $rotating, type: MANGA, sort: [SCORE_DESC], minimumTagRank: 60) { ...TsujiMedia }
+            media(
+                tag_in: $rotating, id_not_in: $listed, type: MANGA, sort: [SCORE_DESC], minimumTagRank: 60
+            ) { ...TsujiMedia }
         }
     }
 `;

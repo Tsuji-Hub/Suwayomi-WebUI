@@ -77,6 +77,8 @@ export const ForYouTab = () => {
     // Hidden gems and tag filters are Similar-only controls; don't let them silently filter For You.
     const filters: RecFilters = useMemo(() => ({ ...storedFilters, hiddenGems: false }), [storedFilters]);
     const data = state.status === 'ready' ? state.data : null;
+    // Best matches are in, Top picks and the seed rows not yet (brief #18).
+    const isPending = !!data?.isPending;
 
     const lastWeekIds = useMemo(() => {
         const storage = getStorage();
@@ -134,10 +136,18 @@ export const ForYouTab = () => {
             passesFilters(item, filters, libraryIndex, { applyTagFilters: false, getSeenState: seen.getSeenState }),
         [libraryIndex, bestIds, topPicks, filters, seen.getSeenState],
     );
-    const familyRow = useFamilyRow(userName, data, !!data && !!libraryIndex && seen.isSettled, isFamilyCardVisible);
+    const { row: familyRow, isBuilding: isFamilyBuilding } = useFamilyRow(
+        userName,
+        data,
+        !!data && !isPending && !!libraryIndex && seen.isSettled,
+        isFamilyCardVisible,
+    );
     const familyItems = useMemo(
-        () => (familyRow?.family ? familyRow.items.filter(isFamilyCardVisible).slice(0, FAMILY_ROW_LENGTH) : []),
-        [familyRow, isFamilyCardVisible],
+        () =>
+            familyRow?.family && !isPending
+                ? familyRow.items.filter(isFamilyCardVisible).slice(0, FAMILY_ROW_LENGTH)
+                : [],
+        [familyRow, isPending, isFamilyCardVisible],
     );
     const familyLabel = familyRow?.family?.label ?? '';
 
@@ -162,7 +172,7 @@ export const ForYouTab = () => {
     const shownKey = data && areCardsReady ? `${data.weekKey}:${filters.sort}` : null;
     useEffect(() => {
         const storage = getStorage();
-        if (!data || !areCardsReady || !storage || filters.sort !== 'BEST') {
+        if (!data || isPending || !areCardsReady || !storage || filters.sort !== 'BEST') {
             return;
         }
         writeShownIds(
@@ -171,7 +181,7 @@ export const ForYouTab = () => {
             data.weekKey,
             topPicks.slice(0, SHOWN_PER_WEEK).map(({ id }) => id),
         );
-    }, [shownKey, topPicks.length]);
+    }, [shownKey, isPending, topPicks.length]);
 
     const renderCard = (media: RecMedia) => (
         <RecCard
@@ -218,7 +228,7 @@ export const ForYouTab = () => {
             );
         }
 
-        if (!topPicks.length && !bestMatches.length) {
+        if (!topPicks.length && !bestMatches.length && !isPending) {
             return (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {t`Nothing left after filters.`}
@@ -274,6 +284,13 @@ export const ForYouTab = () => {
                         </ScrollRow>
                     </Stack>
                 )}
+                {isPending && (
+                    <CardGrid aria-busy>
+                        {SKELETON_KEYS.map((key) => (
+                            <RecCardSkeleton key={key} />
+                        ))}
+                    </CardGrid>
+                )}
                 {!!topPicks.length && (
                     <Stack sx={{ gap: 1 }}>
                         <Typography variant="h6" component="h2">
@@ -281,6 +298,11 @@ export const ForYouTab = () => {
                         </Typography>
                         <CardGrid>{topPicks.map(renderCard)}</CardGrid>
                     </Stack>
+                )}
+                {isFamilyBuilding && !familyItems.length && (
+                    <Typography variant="body2" role="status" sx={{ color: 'text.secondary' }}>
+                        {t`Finding more like your favourites…`}
+                    </Typography>
                 )}
                 {!!familyItems.length && (
                     <Stack sx={{ gap: 1 }}>

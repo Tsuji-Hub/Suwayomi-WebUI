@@ -65,7 +65,14 @@ export const useForYou = () => {
         shouldForceRef.current = false;
         setResult({ userName, state: LOADING });
 
-        loadForYou({ userName, force, signal, loadLibrary })
+        // Best matches show as soon as they are in (brief #18); the rest of the week follows.
+        const onProgress = (data: ForYouData) => {
+            if (!signal.aborted) {
+                setResult({ userName, state: { status: 'ready', data } });
+            }
+        };
+
+        loadForYou({ userName, force, signal, loadLibrary, onProgress })
             .then((loaded) => {
                 if (!signal.aborted) {
                     setResult({
