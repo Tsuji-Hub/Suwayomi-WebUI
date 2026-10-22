@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #18: For You fixes from the #14 recheck (branch `feat/foryou-speed`)
 
-**Built** (2026-10-22). Off `custom` (r3439). Not shipped.
+**Shipped as r3441** (2026-10-22). Off `custom` (r3439).
 
 **Done:**
 
