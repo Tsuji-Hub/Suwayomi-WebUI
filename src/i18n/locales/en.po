@@ -136,6 +136,13 @@ msgstr "{0, plural, one {Second} other {Seconds}}"
 msgid "{0, plural, one {Show # more chapter} other {Show # more chapters}}"
 msgstr "{0, plural, one {Show # more chapter} other {Show # more chapters}}"
 
+#. placeholder {0}: first.name
+#. placeholder {1}: votes.pctA
+#. placeholder {2}: second.name
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "{0} {1}%, {2} {pctB}%"
+msgstr "{0} {1}%, {2} {pctB}%"
+
 #. placeholder {0}: searchProgress.completed
 #. placeholder {1}: searchProgress.total
 #: src/features/migration/screens/MigrationSearch.tsx
@@ -151,8 +158,8 @@ msgstr "{0} / {1}{2}"
 
 #. placeholder {0}: variant.name
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
-msgid "{0} also uses \"{otherWord}\" in ch {chapters}"
-msgstr "{0} also uses \"{otherWord}\" in ch {chapters}"
+msgid "{0} also uses \"{otherWord}\" in ch {list}"
+msgstr "{0} also uses \"{otherWord}\" in ch {list}"
 
 #. placeholder {0}: media.chapters
 #: src/features/tsuji/recs/components/RecPreviewDialog.tsx
@@ -352,6 +359,10 @@ msgstr "{extensionCount, plural, one {# extension} other {# extensions}}"
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "{extensionStoreCount, plural, one {# extension store} other {# extension stores}}"
 msgstr "{extensionStoreCount, plural, one {# extension store} other {# extension stores}}"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "{firstOut} came out first on most of them, which pulls votes its way"
+msgstr "{firstOut} came out first on most of them, which pulls votes its way"
 
 #: src/features/extension/store/screens/ExtensionStores.tsx
 msgid "{installedExtensionCount, plural, one {# installed} other {# installed}}"
@@ -972,6 +983,11 @@ msgstr "CBZ MIME-Type"
 #: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
 msgid "Center"
 msgstr "Center"
+
+#. placeholder {0}: compared.skipped.join(', ')
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "ch {0} skipped (pages failing)"
+msgstr "ch {0} skipped (pages failing)"
 
 #: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 msgid "Ch {range}"
@@ -2984,6 +3000,10 @@ msgstr "Match based on chapter number"
 msgid "Match found"
 msgstr "Match found"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "matched by the local model, check it"
+msgstr "matched by the local model, check it"
+
 #: src/features/migration/components/migration-entry/MigrationEntry.tsx
 msgid "Matches"
 msgstr "Matches"
@@ -3477,6 +3497,10 @@ msgstr "Original size"
 msgid "Other"
 msgstr "Other"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Other words only one uses"
+msgstr "Other words only one uses"
+
 #: src/features/reader/settings/ReaderSettings.constants.tsx
 msgid "Overlay"
 msgstr "Overlay"
@@ -3712,6 +3736,10 @@ msgstr "Reader — Manga {mangaId} Chapter {chapterSourceOrder}"
 msgid "Reader width"
 msgstr "Reader width"
 
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Readers' pick"
+msgstr "Readers' pick"
+
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Reading"
 msgstr "Reading"
@@ -3895,6 +3923,16 @@ msgstr "Right to left"
 msgid "Rosegold"
 msgstr "Rosegold"
 
+#. placeholder {0}: seen.matched
+#. placeholder {1}: seen.total
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "same spot in {0} of {1} places"
+msgstr "same spot in {0} of {1} places"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "same spot in the text"
+msgstr "same spot in the text"
+
 #. placeholder {0}: manga.title
 #: src/features/tsuji/similar/SimilarSection.tsx
 msgid "Same tags as {0}"
@@ -3903,6 +3941,10 @@ msgstr "Same tags as {0}"
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Same thing, different word"
 msgstr "Same thing, different word"
+
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "same word root"
+msgstr "same word root"
 
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Sampled ch {sampled} · checked {checkedAt} · one-off wording slips in other chapters won't show here"
@@ -5057,6 +5099,12 @@ msgstr "Updating"
 msgid "Uploading"
 msgstr "Uploading"
 
+#. placeholder {0}: votes.source
+#. placeholder {1}: votes.chapters
+#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
+msgid "Upvotes on {0}, {1} chapters both have"
+msgstr "Upvotes on {0}, {1} chapters both have"
+
 #: src/features/settings/Settings.constants.ts
 msgid "URL"
 msgstr "URL"
@@ -5214,10 +5262,6 @@ msgstr "With \"Completed\" status"
 #: src/features/settings/Settings.constants.ts
 msgid "With unread chapter(s)"
 msgstr "With unread chapter(s)"
-
-#: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
-msgid "Words only one uses"
-msgstr "Words only one uses"
 
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Wrong series?"

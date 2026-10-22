@@ -33,8 +33,30 @@ export type TlVariant = {
     tn: number;
 };
 
-/** Words for the same thing: `a` in variants[0], `b` in variants[1]; drift = sampled chapters using the other word. */
-export type TlTerm = { a: string; b: string; countA: number; countB: number; driftA: number[]; driftB: number[] };
+/** How a pair of words was matched: same spot in the same chapters, same word root, or the local model alone. */
+export type TlTermHow = 'aligned' | 'stem' | 'model' | '';
+
+/**
+ * Words (or phrases) for the same thing: `a` in variants[0], `b` in variants[1]; drift = sampled chapters using the
+ * other word. `seen` ("7/9") = matched at 7 of the 9 places the word appears (`aligned` only).
+ */
+export type TlTerm = {
+    a: string;
+    b: string;
+    countA: number;
+    countB: number;
+    how: TlTermHow;
+    seen: string;
+    driftA: number[];
+    driftB: number[];
+};
+
+/**
+ * Comick readers' upvotes on each upload, counted on the chapter numbers both have (brief #16b). `pctA` =
+ * variants[0]'s share; `firstA` = how many of those chapters variants[0] was out first on (readers vote on what they
+ * read first, so it pulls the share its way).
+ */
+export type TlVotes = { source: string; a: number; b: number; pctA: number; chapters: number; firstA: number };
 
 export type TlWord = { w: string; n: number; other: number };
 
@@ -50,6 +72,10 @@ export type TlCompare = {
     terms: TlTerm[];
     onlyA: TlWord[];
     onlyB: TlWord[];
+    /** null when Comick couldn't be matched (no row then). */
+    votes: TlVotes | null;
+    /** Sampled chapters whose pages failed at the source (`sampled` lists only the chapters read). */
+    skipped: number[];
 };
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -77,6 +103,24 @@ const parseVariant = (raw: unknown): TlVariant => {
         pagesAvg: asNumber(variant.pagesAvg),
         words: asNumber(variant.words),
         tn: asNumber(variant.tn),
+    };
+};
+
+const TERM_HOWS: TlTermHow[] = ['aligned', 'stem', 'model'];
+
+const parseVotes = (value: unknown): TlVotes | null => {
+    const votes = asRecord(value);
+    const pctA = asNumber(votes.pctA, Number.NaN);
+    if (!Number.isFinite(pctA)) {
+        return null;
+    }
+    return {
+        source: asString(votes.source) || 'Comick',
+        a: asNumber(votes.a),
+        b: asNumber(votes.b),
+        pctA: Math.min(100, Math.max(0, Math.round(pctA))),
+        chapters: asNumber(votes.chapters),
+        firstA: asNumber(votes.firstA),
     };
 };
 
@@ -121,6 +165,8 @@ export const parseTlCompare = (raw: string | undefined): TlCompare | null => {
                           b,
                           countA: asNumber(term.countA),
                           countB: asNumber(term.countB),
+                          how: TERM_HOWS.includes(term.how as TlTermHow) ? (term.how as TlTermHow) : '',
+                          seen: asString(term.seen),
                           driftA: asNumbers(term.driftA),
                           driftB: asNumbers(term.driftB),
                       },
@@ -129,6 +175,8 @@ export const parseTlCompare = (raw: string | undefined): TlCompare | null => {
         }),
         onlyA: parseWords(root.onlyA),
         onlyB: parseWords(root.onlyB),
+        votes: parseVotes(root.votes),
+        skipped: asNumbers(root.skipped),
     };
 };
 
@@ -191,3 +239,28 @@ export const getActiveVariant = (excluded: string[], names: string[]): string | 
     names.find(
         (name) => !excluded.includes(name) && names.some((other) => other !== name && excluded.includes(other)),
     ) ?? null;
+
+/** "tianyong land" -> "Tianyong Land" (words as the matched rows show them). */
+export const toTitleCase = (phrase: string): string =>
+    phrase.replaceAll(/(^|[\s-])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
+
+/** "7/9" -> { matched: 7, total: 9 }, null when it isn't that shape. */
+export const parseSeen = (seen: string): { matched: number; total: number } | null => {
+    const match = /^(\d+)\s*\/\s*(\d+)$/.exec(seen.trim());
+    return match ? { matched: Number(match[1]), total: Number(match[2]) } : null;
+};
+
+/**
+ * Which upload came out first on most of the chapters both have (so readers met it first and voted on it): 'a' at
+ * 80 %+ of them, 'b' at 20 % or less, else null.
+ */
+export const getFirstOutSkew = ({ chapters, firstA }: Pick<TlVotes, 'chapters' | 'firstA'>): 'a' | 'b' | null => {
+    if (chapters <= 0) {
+        return null;
+    }
+    const share = firstA / chapters;
+    if (share >= 0.8) {
+        return 'a';
+    }
+    return share <= 0.2 ? 'b' : null;
+};

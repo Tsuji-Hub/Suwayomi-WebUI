@@ -38,6 +38,18 @@ Off `custom` (r3435). Not shipped yet: Cowork checks the prerelease live.
 4. `single-upload`: nothing. `error`: "Couldn't compare: <error>" + Retry. `v: 1` (or no `v`): only "Re-check
    translations". Works for any manga id (not in the library too). Only Suwayomi meta is read and written.
 
+**Part 2 (brief #16b, same branch; the service's v2 now writes `votes`, matched `terms` with `how` / `seen`,
+leftover `onlyA` / `onlyB`, `skipped`, groups led by whoever made the most sampled chapters, human `error` text):**
+
+1. "Readers' pick" above Made by when `votes` is present: a split bar across both columns sized by `pctA`, each
+   side's % under its column, the bigger side in the accent colour; "Upvotes on Comick, <n> chapters both have",
+   plus "· <variant> came out first on most of them, which pulls votes its way" when `firstA / chapters` >= 0.8
+   (or <= 0.2 for the other). No "better" / "winner". `votes: null` = no row.
+2. "Same thing, different word" as matched rows: Title Case `a` -> `b` across the columns ("Heavenland ->
+   Tianyong Land"), under it "same spot in 7 of 9 places" (`aligned`), "same word root" (`stem`) or "matched by
+   the local model, check it" (`model`); the drift notes stay. "Other words only one uses" holds the leftovers.
+3. Footer: "· ch <list> skipped (pages failing)" when `skipped` isn't empty. Phone width keeps two columns.
+
 **Tests:** unit on the live 3526 value (parse, group runs, views, request matching, scanlators, active variant).
 Browser `tl-compare.e2e.mjs` (mocked Suwayomi only): the card with every live value, re-upload names muted, Read
 unofficial = 3 of 6 rows and only `webUI_excludedScanlators` written, Show all = 6, Compare -> request written ->

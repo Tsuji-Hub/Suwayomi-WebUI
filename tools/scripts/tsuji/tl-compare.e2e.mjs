@@ -32,9 +32,9 @@ const CONTENT_TYPES = {
     '.woff2': 'font/woff2',
 };
 
-/** The live value for The Game That I Came From (3526), 2026-10-21. */
+/** The live value for The Game That I Came From (3526), 2026-10-22 (brief #16b: votes, matched terms). */
 const LIVE_3526 =
-    '{"v":2,"at":1792614714,"source":"MangaFire (EN)","status":"ok","sampled":[1,51,101,151,200,251,301,351],"variants":[{"name":"unofficial","group":"Asura Scans / Manhwa Freak / UTOON (re-upload site)","groupHits":38,"groupByCh":[[1,"Asura Scans"],[51,"Asura Scans"],[101,"Asura Scans"],[151,"Asura Scans"],[200,"Asura Scans"],[251,"Manhwa Freak"],[301,"UTOON (re-upload site)"],[351,"UTOON (re-upload site) / AcloudMerge (re-upload site) / ColaManga (re-upload site)"]],"chapters":359,"widthMin":201,"widthMax":1280,"pagesAvg":78.2,"words":5467,"tn":3},{"name":"official","group":"WebComics app / Kuaikan","groupHits":36,"groupByCh":[[1,"Kuaikan"],[51,"Kuaikan"],[101,"Kuaikan"],[151,"Kuaikan"],[200,"Kuaikan"],[251,"Kuaikan"],[301,"Kagane (re-upload site) / Kuaikan"],[351,"WebComics app"]],"chapters":351,"widthMin":800,"widthMax":1280,"pagesAvg":82.4,"words":6097,"tn":0}],"terms":[{"a":"awakened","b":"awakener","countA":11,"countB":5,"driftA":[],"driftB":[]}],"onlyA":[{"w":"heavenland","n":8,"other":0},{"w":"thousand","n":7,"other":0},{"w":"slimes","n":6,"other":0},{"w":"narlo","n":5,"other":0},{"w":"autumns","n":5,"other":0},{"w":"site","n":5,"other":0}],"onlyB":[{"w":"tianyong","n":9,"other":0},{"w":"land","n":9,"other":0},{"w":"rumble","n":7,"other":0},{"w":"tiris","n":7,"other":0},{"w":"president","n":6,"other":0},{"w":"daggers","n":5,"other":0}],"secs":0}';
+    '{"v":2,"at":1792614714,"source":"MangaFire (EN)","status":"ok","sampled":[1,51,101,151,200,251,301,351],"variants":[{"name":"unofficial","group":"Asura Scans / UTOON (re-upload site) / Manhwa Freak","groupHits":38,"groupByCh":[[1,"Asura Scans"],[51,"Asura Scans"],[101,"Asura Scans"],[151,"Asura Scans"],[200,"Asura Scans"],[251,"Manhwa Freak"],[301,"UTOON (re-upload site)"],[351,"UTOON (re-upload site) / AcloudMerge (re-upload site) / ColaManga (re-upload site)"]],"chapters":359,"widthMin":201,"widthMax":1280,"pagesAvg":78.2,"words":5467,"tn":3},{"name":"official","group":"Kuaikan / WebComics app","groupHits":36,"groupByCh":[[1,"Kuaikan"],[51,"Kuaikan"],[101,"Kuaikan"],[151,"Kuaikan"],[200,"Kuaikan"],[251,"Kuaikan"],[301,"Kagane (re-upload site) / Kuaikan"],[351,"WebComics app"]],"chapters":351,"widthMin":800,"widthMax":1280,"pagesAvg":82.4,"words":6097,"tn":0}],"terms":[{"a":"heavenland","b":"tianyong land","countA":8,"countB":6,"how":"aligned","seen":"7/9","driftA":[],"driftB":[]},{"a":"awakened","b":"awakener","countA":11,"countB":5,"how":"stem","seen":"4/11","driftA":[],"driftB":[]}],"onlyA":[{"w":"thousand","n":7,"other":0},{"w":"slimes","n":6,"other":0},{"w":"narlo","n":5,"other":0},{"w":"autumns","n":5,"other":0},{"w":"site","n":5,"other":0}],"onlyB":[{"w":"rumble","n":7,"other":0},{"w":"tiris","n":7,"other":0},{"w":"president","n":6,"other":0},{"w":"daggers","n":5,"other":0}],"secs":0,"votes":{"source":"Comick","a":33695,"b":24724,"pctA":58,"chapters":300,"firstA":300},"skipped":[]}';
 
 const chapter = (mangaId, id, number, scanlator) => ({
     id,
@@ -154,16 +154,23 @@ const runBrowser = async (browserName) => {
     const text = (await card.innerText().catch(() => '')).replaceAll(/\s+/g, ' ');
     const expected = [
         'Two English versions on MangaFire (EN)',
+        "Readers' pick",
+        '58%',
+        '42%',
+        'Upvotes on Comick, 300 chapters both have · unofficial came out first on most of them, which pulls votes its way',
         'unofficial · Asura Scans',
-        'official · WebComics app',
-        'Asura Scans / Manhwa Freak / UTOON (re-upload site)',
-        'WebComics app / Kuaikan',
+        'official · Kuaikan',
+        'Asura Scans / UTOON (re-upload site) / Manhwa Freak',
+        'Kuaikan / WebComics app',
         'ch 1-200 Asura Scans · 251 Manhwa Freak · 301-351 UTOON (re-upload site)',
         'ch 1-251 Kuaikan · 301 Kagane (re-upload site) · 351 WebComics app',
-        '“awakened”',
-        '“awakener”',
-        'heavenland ×8',
-        'tianyong ×9',
+        'Heavenland → Tianyong Land',
+        'same spot in 7 of 9 places',
+        'Awakened → Awakener',
+        'same word root',
+        'Other words only one uses',
+        'thousand ×7',
+        'rumble ×7',
         '3 in 8 chapters',
         'none',
         '201-1280 px',
@@ -179,6 +186,23 @@ const runBrowser = async (browserName) => {
         expected.every((part) => text.includes(part)),
         expected.filter((part) => !text.includes(part)),
     );
+    check(
+        label('matched words are not repeated among the other words; no "better" / "winner"'),
+        !/heavenland ×|tianyong ×|land ×/.test(text) && !/better|winner/i.test(text),
+        text,
+    );
+    const bar = card.getByRole('img', { name: 'unofficial 58%, official 42%' });
+    const barSides = await bar
+        .locator(':scope > *')
+        .evaluateAll((sides) =>
+            sides.map((side) => [side.getBoundingClientRect().width, getComputedStyle(side).backgroundColor]),
+        )
+        .catch(() => []);
+    check(
+        label('the bar: 58 / 42 wide, the bigger side in the accent colour'),
+        barSides.length === 2 && barSides[0][0] > barSides[1][0] && barSides[0][1] !== barSides[1][1],
+        barSides,
+    );
     const muted = await card
         .getByText('UTOON (re-upload site)', { exact: true })
         .first()
@@ -190,6 +214,24 @@ const runBrowser = async (browserName) => {
         .evaluate((element) => getComputedStyle(element).color)
         .catch(() => null);
     check(label('a re-upload site is muted'), !!muted && muted !== normal, { muted, normal });
+
+    // Phone width: the bar and the arrow rows stay two columns, nothing runs off the card.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.waitForTimeout(300);
+    const boxOf = (name) =>
+        card
+            .getByText(name, { exact: true })
+            .first()
+            .boundingBox()
+            .catch(() => null);
+    const [left, right] = [await boxOf('Heavenland'), await boxOf('Tianyong Land')];
+    const overflow = await card.evaluate((element) => element.scrollWidth - element.clientWidth).catch(() => -1);
+    check(
+        label('phone width: "Heavenland" and "Tianyong Land" side by side, no overflow'),
+        !!left && !!right && right.x > left.x + left.width - 1 && Math.abs(right.y - left.y) < 30 && overflow === 0,
+        { left, right, overflow },
+    );
+    await page.setViewportSize({ width: 1280, height: 1000 });
 
     // 2. Read unofficial: the chapter list follows it; Show all restores.
     const before = await chapterRows();
@@ -250,6 +292,10 @@ const runBrowser = async (browserName) => {
     answer.at = Math.floor(Date.now() / 1000) + 5;
     answer.variants[0].name = 'official';
     answer.variants[1].name = 'unofficial';
+    // No Comick match, and a chapter whose pages failed.
+    answer.votes = null;
+    answer.skipped = [51];
+    answer.sampled = answer.sampled.filter((number) => number !== 51);
     server.mangaMeta.set('tsuji_tlCompare', JSON.stringify(answer));
     server.meta.delete('tsuji_tlRequest_77');
     const landedAt = Date.now();
@@ -258,6 +304,14 @@ const runBrowser = async (browserName) => {
         label('the card appears without a reload (polled every 30 s)'),
         (await card.isVisible()) && Date.now() - landedAt < 45_000,
         { waitedMs: Date.now() - landedAt },
+    );
+    const landedText = (await card.innerText().catch(() => '')).replaceAll(/\s+/g, ' ');
+    check(
+        label('votes: null = no bar, the rest as usual; skipped chapters in the footer'),
+        !landedText.includes("Readers' pick") &&
+            landedText.includes('Heavenland → Tianyong Land') &&
+            landedText.includes('ch 51 skipped (pages failing)'),
+        landedText,
     );
 
     // 4. One upload: nothing.

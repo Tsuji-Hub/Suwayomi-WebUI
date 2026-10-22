@@ -7,6 +7,7 @@
  */
 
 import { Fragment, useMemo, useState } from 'react';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Link from '@mui/material/Link';
@@ -34,10 +35,11 @@ import {
 } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { getRelativeTime } from '@/features/tsuji/bell/chapterBell.ts';
 import type { SimilarManga } from '@/features/tsuji/similar/useSimilarRecs.ts';
-import type { TlCompare, TlVariant, TlWord } from '@/features/tsuji/tlCompare/tlCompare.ts';
+import type { TlCompare, TlTerm, TlVariant, TlVotes, TlWord } from '@/features/tsuji/tlCompare/tlCompare.ts';
 import {
     formatRunRange,
     getActiveVariant,
+    getFirstOutSkew,
     getGroupRuns,
     getPrimaryGroup,
     getScanlators,
@@ -45,7 +47,9 @@ import {
     getTlView,
     isRequestAnswered,
     isReuploadSite,
+    parseSeen,
     parseTlCompare,
+    toTitleCase,
 } from '@/features/tsuji/tlCompare/tlCompare.ts';
 
 /** While a check runs, the manga meta is read again this often. */
@@ -101,6 +105,103 @@ const getHeading = (variant: TlVariant) => {
     return group ? `${variant.name} · ${group}` : variant.name;
 };
 
+/** Two columns inside a full-width row: the same split as the card's columns. */
+const Pair = styled('div')(({ theme }) => ({
+    gridColumn: '2 / 4',
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+    columnGap: theme.spacing(2),
+}));
+
+/** One side of the votes bar: its share wide, the bigger side in the accent colour. */
+const barSide = (pct: number, isBigger: boolean) => ({
+    width: `${pct}%`,
+    bgcolor: isBigger ? 'primary.main' : 'action.disabled',
+});
+
+/**
+ * "Readers' pick" (brief #16b): Comick readers' upvotes on the chapters both uploads have, as a split bar with each
+ * side's share; the bigger side in the accent colour. Votes, not a verdict: no "better" anywhere.
+ */
+const ReadersPick = ({ votes, first, second }: { votes: TlVotes; first: TlVariant; second: TlVariant }) => {
+    const { t } = useLingui();
+    const pctB = 100 - votes.pctA;
+    const skew = getFirstOutSkew(votes);
+    const firstOut = skew ? { a: first.name, b: second.name }[skew] : null;
+    return (
+        <>
+            <RowLabel>{t`Readers' pick`}</RowLabel>
+            <Stack sx={{ gridColumn: '2 / 4', gap: 0.5 }}>
+                <Stack
+                    direction="row"
+                    role="img"
+                    aria-label={t`${first.name} ${votes.pctA}%, ${second.name} ${pctB}%`}
+                    sx={{ height: 8, borderRadius: 1, overflow: 'hidden', gap: '2px' }}
+                >
+                    <Box sx={barSide(votes.pctA, votes.pctA >= pctB)} />
+                    <Box sx={barSide(pctB, pctB > votes.pctA)} />
+                </Stack>
+                <Pair>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${votes.pctA}%`}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${pctB}%`}</Typography>
+                </Pair>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    {t`Upvotes on ${votes.source}, ${votes.chapters} chapters both have`}
+                    {firstOut && ` · ${t`${firstOut} came out first on most of them, which pulls votes its way`}`}
+                </Typography>
+            </Stack>
+        </>
+    );
+};
+
+/** "Heavenland → Tianyong Land", how the pair was matched under it, and the #16 drift notes. */
+const TermRow = ({ term, first, second }: { term: TlTerm; first: TlVariant; second: TlVariant }) => {
+    const { t } = useLingui();
+    const seen = parseSeen(term.seen);
+    const how = (() => {
+        switch (term.how) {
+            case 'aligned':
+                return seen ? t`same spot in ${seen.matched} of ${seen.total} places` : t`same spot in the text`;
+            case 'stem':
+                return t`same word root`;
+            case 'model':
+                return t`matched by the local model, check it`;
+            default:
+                return null;
+        }
+    })();
+    const drift = (variant: TlVariant, chapters: number[], otherWord: string) => {
+        const list = chapters.join(', ');
+        return chapters.length ? (
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                {t`${variant.name} also uses "${otherWord}" in ch ${list}`}
+            </Typography>
+        ) : null;
+    };
+    return (
+        <Pair>
+            <Cell>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+                    <Typography variant="body2">{toTitleCase(term.a)}</Typography>
+                    <Typography variant="body2" aria-hidden sx={{ color: 'text.secondary' }}>
+                        →
+                    </Typography>
+                </Stack>
+                {drift(first, term.driftA, term.b)}
+            </Cell>
+            <Cell>
+                <Typography variant="body2">{toTitleCase(term.b)}</Typography>
+                {drift(second, term.driftB, term.a)}
+            </Cell>
+            {how && (
+                <Typography variant="caption" sx={{ color: 'text.disabled', gridColumn: '1 / 3' }}>
+                    {how}
+                </Typography>
+            )}
+        </Pair>
+    );
+};
+
 const WordChips = ({ words }: { words: TlWord[] }) => (
     <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
         {words.slice(0, MAX_WORDS).map(({ w, n }) => (
@@ -139,6 +240,8 @@ const CompareGrid = ({
                 </Stack>
             ))}
 
+            {result.votes && <ReadersPick votes={result.votes} first={first} second={second} />}
+
             <RowLabel>{t`Made by`}</RowLabel>
             {columns.map((variant) => (
                 <Cell key={variant.name}>
@@ -150,35 +253,17 @@ const CompareGrid = ({
             {!!result.terms.length && (
                 <>
                     <RowLabel>{t`Same thing, different word`}</RowLabel>
-                    {[
-                        { variant: first, side: 'a' as const },
-                        { variant: second, side: 'b' as const },
-                    ].map(({ variant, side }) => (
-                        <Stack key={variant.name} sx={{ gap: 0.5 }}>
-                            {result.terms.slice(0, MAX_TERMS).map((term) => {
-                                const word = side === 'a' ? term.a : term.b;
-                                const otherWord = side === 'a' ? term.b : term.a;
-                                const drift = side === 'a' ? term.driftA : term.driftB;
-                                const chapters = drift.join(', ');
-                                return (
-                                    <Cell key={`${term.a}|${term.b}`}>
-                                        <Typography variant="body2">“{word}”</Typography>
-                                        {!!drift.length && (
-                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                                {t`${variant.name} also uses "${otherWord}" in ch ${chapters}`}
-                                            </Typography>
-                                        )}
-                                    </Cell>
-                                );
-                            })}
-                        </Stack>
-                    ))}
+                    <Stack sx={{ gridColumn: '2 / 4', gap: 1 }}>
+                        {result.terms.slice(0, MAX_TERMS).map((term) => (
+                            <TermRow key={`${term.a}|${term.b}`} term={term} first={first} second={second} />
+                        ))}
+                    </Stack>
                 </>
             )}
 
             {(!!result.onlyA.length || !!result.onlyB.length) && (
                 <>
-                    <RowLabel>{t`Words only one uses`}</RowLabel>
+                    <RowLabel>{t`Other words only one uses`}</RowLabel>
                     <WordChips words={result.onlyA} />
                     <WordChips words={result.onlyB} />
                 </>
@@ -323,6 +408,7 @@ export const TlCompareCard = ({ manga }: { manga: SimilarManga }) => {
                 )}
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {t`Sampled ch ${sampled} · checked ${checkedAt} · one-off wording slips in other chapters won't show here`}
+                    {!!compared.skipped.length && ` · ${t`ch ${compared.skipped.join(', ')} skipped (pages failing)`}`}
                     {' · '}
                     {isChecking ? (
                         t`Checking…`
