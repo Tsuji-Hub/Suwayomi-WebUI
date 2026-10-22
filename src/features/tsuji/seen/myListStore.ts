@@ -14,7 +14,8 @@ import { MY_LIST_QUERY, parseListTitleIndex, parseMediaListCollection } from '@/
 import { readListTitleIndex, writeListTitleIndex } from '@/features/tsuji/seen/listTitles.ts';
 import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListClient.ts';
 import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
-import { useTsujiGlobalMetaQuery } from '@/features/tsuji/services/TsujiMetadata.ts';
+import { readFreshTsujiRawGlobalMeta, useTsujiGlobalMetaQuery } from '@/features/tsuji/services/TsujiMetadata.ts';
+import { parseSavedList } from '@/features/tsuji/seen/alListCache.ts';
 
 type MyListSnapshot = {
     userName: string | null;
@@ -22,6 +23,8 @@ type MyListSnapshot = {
     list: CompactList | null;
     fetchedAt: number | null;
     failedAt: number | null;
+    /** The list in use is a saved copy (AniList failed): when it was taken, epoch ms. */
+    savedAt: number | null;
 };
 
 /** After a failure, automatic loads wait this long before trying again (the refresh button always retries). */
@@ -30,7 +33,14 @@ const FAILURE_BACKOFF_MS = 5 * 60 * 1000;
 type CachedList = { fetchedAt: number; list: CompactList };
 
 /** One list for the whole tab: Discover and every Similar section share it (and its single request). */
-let snapshot: MyListSnapshot = { userName: null, status: 'idle', list: null, fetchedAt: null, failedAt: null };
+let snapshot: MyListSnapshot = {
+    userName: null,
+    status: 'idle',
+    list: null,
+    fetchedAt: null,
+    failedAt: null,
+    savedAt: null,
+};
 const listeners = new Set<() => void>();
 let inFlight: { userName: string; promise: Promise<void> } | null = null;
 
@@ -51,6 +61,26 @@ const cacheKey = (userName: string) => `myList:v1:${userName.toLowerCase()}`;
 const lastKey = (userName: string) => `myList:last:v1:${userName.toLowerCase()}`;
 const LAST_LIST_TTL_MS = 30 * DAY_MS;
 
+/**
+ * The newest saved copy of the list while AniList fails: this browser's last list from AniList (a month), or the
+ * server's copy in global meta (`tsuji_alListCache`, kept by a PVE timer; also lends its titles to the title index
+ * for Comick cards). Null when there is neither.
+ */
+const loadSavedCopy = async (userName: string): Promise<{ list: CompactList; at: number } | null> => {
+    const local = TsujiCache.get<CachedList>(lastKey(userName));
+    const server = await readFreshTsujiRawGlobalMeta()
+        .then((raw) => parseSavedList(raw as Record<string, string | undefined>, userName))
+        .catch(() => null);
+    if (server) {
+        writeListTitleIndex(userName, { ...server.titleIndex, ...readListTitleIndex(userName) });
+    }
+    const serverAt = server ? server.at * 1000 : 0;
+    if (server && (!local || serverAt > local.fetchedAt)) {
+        return { list: server.list, at: serverAt };
+    }
+    return local ? { list: local.list, at: local.fetchedAt } : null;
+};
+
 /** Cached for 30 minutes; `force` (refresh button) always refetches. Failures keep the last good list. */
 export const loadMyList = (userName: string, { force = false }: { force?: boolean } = {}): Promise<void> => {
     if (!force) {
@@ -63,6 +93,7 @@ export const loadMyList = (userName: string, { force = false }: { force?: boolea
                     list: cached.list,
                     fetchedAt: cached.fetchedAt,
                     failedAt: null,
+                    savedAt: null,
                 });
             }
             return Promise.resolve();
@@ -89,6 +120,7 @@ export const loadMyList = (userName: string, { force = false }: { force?: boolea
         list: previous?.list ?? null,
         fetchedAt: previous?.fetchedAt ?? null,
         failedAt: previous?.failedAt ?? null,
+        savedAt: previous?.savedAt ?? null,
     });
 
     const promise = aniList
@@ -101,19 +133,23 @@ export const loadMyList = (userName: string, { force = false }: { force?: boolea
             writeListTitleIndex(userName, parseListTitleIndex(data));
 
             if (snapshot.userName === userName) {
-                setSnapshot({ userName, status: 'ready', list, fetchedAt, failedAt: null });
+                setSnapshot({ userName, status: 'ready', list, fetchedAt, failedAt: null, savedAt: null });
             }
         })
-        .catch((error) => {
+        .catch(async (error) => {
             defaultPromiseErrorHandler('loadMyList')(error);
+            if (snapshot.userName !== userName) {
+                return;
+            }
+            // A list already in use this session stays. Else a saved copy hides what was read, the newer of the last
+            // list AniList gave this browser and the server's copy (brief #17), and says how old it is.
+            const saved = snapshot.list ? null : await loadSavedCopy(userName);
             if (snapshot.userName === userName) {
-                // AniList down: the last list it gave still hides what was read (it says how old it is).
-                const last = snapshot.list ? null : TsujiCache.get<CachedList>(lastKey(userName));
                 setSnapshot({
                     ...snapshot,
                     status: 'error',
                     failedAt: Date.now(),
-                    ...(last ? { list: last.list, fetchedAt: last.fetchedAt } : {}),
+                    ...(saved ? { list: saved.list, fetchedAt: saved.at, savedAt: saved.at } : {}),
                 });
             }
         })
@@ -149,6 +185,8 @@ export const useMyAniList = () => {
         userName,
         list,
         fetchedAt: isCurrentUser ? state.fetchedAt : null,
+        /** The list in use is a saved copy (AniList failed), taken then (epoch ms). */
+        savedAt: isCurrentUser ? state.savedAt : null,
         count: list ? Object.keys(list).length : 0,
         isError: status === 'error',
         /** No list at all (first load failed): nothing is hidden, show the notice. */

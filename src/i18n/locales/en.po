@@ -570,6 +570,10 @@ msgstr "AniList + MAL"
 msgid "AniList didn't answer in time."
 msgstr "AniList didn't answer in time."
 
+#: src/features/tsuji/seen/components/MyListNotice.tsx
+msgid "AniList is down: hiding titles from your saved list ({savedWhen})."
+msgstr "AniList is down: hiding titles from your saved list ({savedWhen})."
+
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
 msgid "AniList is down: picks from Comick, based on your library."
 msgstr "AniList is down: picks from Comick, based on your library."

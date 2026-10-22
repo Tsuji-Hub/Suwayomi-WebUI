@@ -359,9 +359,7 @@ export const ForYouTab = () => {
                 sortOptions={REC_SORTS.map((value) => ({ value, label: t(REC_SORT_LABELS[value]) }))}
                 onSortChange={(value) => setFilters({ ...storedFilters, sort: value as RecFilters['sort'] })}
             />
-            {seen.myList.isUnavailable && (
-                <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
-            )}
+            <MyListNotice myList={seen.myList} />
             {!!fallbackNote && <AniListFallbackNote message={fallbackNote} />}
             {data?.isPartial && !data.fallback && !isLoading && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>

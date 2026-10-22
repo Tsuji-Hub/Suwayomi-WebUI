@@ -14,9 +14,32 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #17: hide "on my list" titles while AniList is down + Similar's raw Comick titles (branch `feat/al-list-cache`)
+
+Off `custom` (r3438). Not shipped yet: Cowork checks the prerelease live.
+
+**Done:**
+
+1. **Saved list:** when the list load fails (`loadMyList`), the newer of this browser's last AniList list (a month,
+   #15) and the server's copy in global meta (`seen/alListCache.ts`: the `tsuji_alListCache` index is read first, the
+   parts `_0.._<parts-1>` are joined only when the count matches, the user must match; rows
+   `[id, status, progress, title]`) becomes the list in use, so Similar, Discover and For You hide by AniList id as
+   usual. Its titles join the title index, so Comick cards without an id are matched by normalized title. Read with
+   one network-only global meta query, only on failure; never written by the WebUI. The live list takes over again
+   when AniList answers.
+2. **Note** (`MyListNotice`): "AniList is down: hiding titles from your saved list (<relative>)." with a saved copy;
+   the old "Couldn't load ... nothing is hidden." without one.
+3. **Similar's raw Comick titles:** the cause was the comic-page cache `comick:comic:v1`, saved on r3434 as finished
+   cards with Comick's raw titles (r3435's title rule only applied to new parses). Now `comick:comic:v2`; a
+   recommendation with only `title` + `slug` gets the slug's name ("00-solo-leveling" -> Solo Leveling).
+
+**Tests:** unit (split parts, per-part arrays, half-written / other user / unreadable = none; a recommendation with
+only a slug). Browser `anilist-down.e2e.mjs`: a server copy newer than this browser's hides "Rec 305" in Similar
+with the saved-list note, Solo Leveling by name in Similar's Comick cards, no saved-list note once AniList is back.
+
 # Brief #16: "Compare translations" card on the series page (branch `feat/tl-compare`)
 
-Off `custom` (r3435). Not shipped yet: Cowork checks the prerelease live.
+**Shipped as r3438** (2026-10-22, with #16b). Off `custom` (r3435).
 
 **Done:**
 

@@ -89,7 +89,8 @@ type StoredComic = { anilistId: number | null; recommendations: ComickRecommenda
 
 /** A comic's AniList id and recommendations (30, by votes), cached a week; null when Comick has no such comic. */
 export const loadComickComic = async (slug: string, signal: AbortSignal): Promise<StoredComic | null> => {
-    const key = `comick:comic:v1:${slug}`;
+    // v2 (brief #17): v1 pages were saved as cards before r3435's title rule ("I am the only the one who levels up").
+    const key = `comick:comic:v2:${slug}`;
     const cached = TsujiCache.get<StoredComic | { none: true }>(key);
     if (cached) {
         return 'none' in cached ? null : cached;

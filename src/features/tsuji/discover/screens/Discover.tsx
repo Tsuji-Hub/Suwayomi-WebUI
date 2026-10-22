@@ -344,9 +344,7 @@ const DiscoverBrowse = () => {
                 onSortChange={(value) => setSortChoice(value as DiscoverSort)}
             />
             <AniListFallbackNote message={t`AniList is down: showing titles from Comick and MangaBaka.`} />
-            {seen.myList.isUnavailable && (
-                <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
-            )}
+            <MyListNotice myList={seen.myList} />
             {hasFellBack && !isInitialLoading && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {isLanding

@@ -6,11 +6,11 @@ WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
 ## State (2026-10-21)
 
-| Branch            | Commit             | What                                                                                                                                                           |
-| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `custom`          | `14d18cbb` (r3435) | Briefs #1-#15 (AniList outage fallback via Comick + MangaBaka, Comick in Similar, smarter ranking, ...) + reader resume. Shipped 2026-10-21.                   |
-| `feat/tl-compare` | (prerelease)       | Brief #16: "Compare translations" card on the series page (tlcompare meta), Read <variant> via `excludedScanlators`. Includes the r3435 docs. Awaiting Cowork. |
-| `master`          | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                 |
+| Branch               | Commit             | What                                                                                                                                                       |
+| -------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`             | `f3ead848` (r3438) | Briefs #1-#16b ("Compare translations" card, AniList outage fallback via Comick + MangaBaka, smarter ranking, ...) + reader resume. Shipped 2026-10-22.    |
+| `feat/al-list-cache` | (prerelease)       | Brief #17: hide by the server's saved list (`tsuji_alListCache`) while AniList is down; Similar's Comick titles. Includes the r3438 docs. Awaiting Cowork. |
+| `master`             | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                             |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -25,7 +25,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3435 (briefs #4-#15). Cowork's Discord chapter pings are off since the bell shipped. Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+3. The server runs r3438 (briefs #4-#16b). Cowork's Discord chapter pings are off since the bell shipped. Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
    `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;

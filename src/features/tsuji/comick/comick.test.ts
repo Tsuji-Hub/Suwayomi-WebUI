@@ -148,6 +148,18 @@ describe('Comick cards', () => {
         ).toBe('rating');
     });
 
+    it("a recommendation with only a title and a slug gets the slug's name (Similar, brief #17)", () => {
+        const comic = parseComickComic({
+            comic: {
+                recommendations: [
+                    { total: 5, relates: { title: 'I am the only the one who levels up', slug: '00-solo-leveling' } },
+                    { total: 3, relates: { title: 'Item-ppal', slug: 'item-ppal' } },
+                ],
+            },
+        });
+        expect(comic.recommendations.map(({ media }) => media.title?.english)).toEqual(['Solo Leveling', 'Item-ppal']);
+    });
+
     it('a comic page: its AniList id, and its recommendations by votes', () => {
         const comic = parseComickComic({
             comic: {

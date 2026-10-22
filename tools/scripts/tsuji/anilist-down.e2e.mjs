@@ -61,6 +61,29 @@ const titleKey = (title) => {
 };
 
 const LIST_FETCHED_AT = Date.UTC(2026, 9, 20, 12);
+/** The server's copy of the list, split in two parts as the timer writes it. */
+const savedListMeta = () => {
+    // The same list as this browser's older copy, plus "Rec 305".
+    const rows = JSON.stringify([
+        [7305, 'CURRENT', 3, 'Rec 305'],
+        [5001, 'COMPLETED', 100, LIST_TITLE],
+        ...LIKED.map((index) => [1000 + index, 'COMPLETED', 100, `Liked ${index}`]),
+    ]);
+    const half = Math.ceil(rows.length / 2);
+    return {
+        tsuji_alListCache: JSON.stringify({
+            v: 1,
+            user: 'ejustice',
+            at: Math.floor(Date.now() / 1000) - 3600,
+            source: 'seed',
+            n: 5,
+            parts: 2,
+        }),
+        tsuji_alListCache_0: rows.slice(0, half),
+        tsuji_alListCache_1: rows.slice(half),
+    };
+};
+
 const entry = (value) => JSON.stringify({ expiresAt: Date.now() + 10 * 86_400_000, value });
 
 /** What a previous visit left in the cache: the list, its titles, the taste profile. */
@@ -157,6 +180,14 @@ const createComick = () => {
                         comic(3, LIBRARY_TITLE),
                         comic(4, LIST_TITLE),
                         comic(399, 'Rec Adult', { content_rating: 'pornographic' }),
+                        // A recommendation has only a title and a slug: Comick's literal title for Solo Leveling.
+                        {
+                            id: 398,
+                            title: 'I am the only the one who levels up',
+                            slug: '00-solo-leveling',
+                            country: 'kr',
+                            last_chapter: 200,
+                        },
                     ]),
                 },
             };
@@ -345,7 +376,11 @@ const runBrowser = async (browserName) => {
         chapters: [],
         pageCount: 0,
         // Ethan's filters: Manhwa + Manhua, 50+ chapters, hide library and list.
-        globalMeta: { tsuji_recFilters: JSON.stringify({ types: ['MANHWA', 'MANHUA'], minChapters: 50 }) },
+        globalMeta: {
+            tsuji_recFilters: JSON.stringify({ types: ['MANHWA', 'MANHUA'], minChapters: 50 }),
+            // The server's copy of the list (brief #17), newer than this browser's: "Rec 305" is on it.
+            ...savedListMeta(),
+        },
         handlers: {
             'Query.mangas': () => ({
                 // "Liked 0" read 30 chapters: For You's seed when no list is known.
@@ -533,9 +568,20 @@ const runBrowser = async (browserName) => {
         similar.length >= 12 &&
             (await page.getByText('via Comick').count()) > 0 &&
             !similar.includes('Rec Adult') &&
+            // On the server's copy of the list only (brief #17).
+            !similar.includes('Rec 305') &&
             !(await cardTitles(LIBRARY_TITLE)).length &&
             !(await cardTitles(LIST_TITLE)).length,
         similar,
+    );
+
+    check(
+        label("Similar: the saved-list note, and Solo Leveling by its name (Comick's recommendation has only a slug)"),
+        (await page.getByText(/^AniList is down: hiding titles from your saved list \(.+\)\.$/).isVisible()) &&
+            !(await page.getByText(/so nothing is hidden/).count()) &&
+            (await cardTitles('Solo Leveling')).length === 1 &&
+            !(await cardTitles('I am the only')).length,
+        { solo: await cardTitles('Solo'), note: await page.getByText(/saved list/).allTextContents() },
     );
 
     // 4. For You from the cached profile.
@@ -595,8 +641,10 @@ const runBrowser = async (browserName) => {
         .waitFor({ timeout: 20_000 })
         .catch(() => {});
     check(
-        label('back: AniList cards, no note'),
-        (await cardTitles('AniList Title ')).length > 0 && !(await page.getByText(DOWN_NOTE).count()),
+        label('back: AniList cards, no note (nor the saved-list one)'),
+        (await cardTitles('AniList Title ')).length > 0 &&
+            !(await page.getByText(DOWN_NOTE).count()) &&
+            !(await page.getByText(/hiding titles from your saved list/).count()),
         { cards: (await cardTitles('AniList Title ')).length },
     );
     await page.goto(`${ORIGIN}/manga/${MANGA_ID}`);

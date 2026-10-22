@@ -278,9 +278,7 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
                 />
             )}
             <AniListFallbackNote message={t`AniList is down: similar titles from Comick and MangaBaka.`} />
-            {data && seen.myList.isUnavailable && (
-                <MyListNotice userName={seen.myList.userName} onRetry={seen.myList.refresh} />
-            )}
+            {data && <MyListNotice myList={seen.myList} />}
             {body}
             <SeriesCommentsHost manga={manga} />
             <RecPreviewDialog
