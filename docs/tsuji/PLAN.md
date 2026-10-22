@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #17: hide "on my list" titles while AniList is down + Similar's raw Comick titles (branch `feat/al-list-cache`)
 
-Off `custom` (r3438). Not shipped yet: Cowork checks the prerelease live.
+**Shipped as r3439** (2026-10-22). Off `custom` (r3438).
 
 **Done:**
 
