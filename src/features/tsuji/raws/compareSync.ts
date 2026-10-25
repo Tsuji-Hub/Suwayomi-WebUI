@@ -34,35 +34,3 @@ export const getChapterFraction = ({
 
 export const getPaneScrollTop = (fraction: number, scrollHeight: number, clientHeight: number): number =>
     Math.round(clamp01(fraction) * Math.max(0, scrollHeight - clientHeight));
-
-export type EndOffer = { kind: 'read'; number: number } | { kind: 'translate'; number: string; url: string } | null;
-
-/**
- * At the end of the newest English chapter: read the next number in the MTL series when it has it, else translate
- * the raw's next chapter when the raw is ahead. Never anything automatic: the reader shows the offer, the user picks.
- */
-export const getEndOffer = ({
-    isNewestChapter,
-    fraction,
-    chapterNumber,
-    mtlNumbers,
-    row,
-}: {
-    isNewestChapter: boolean;
-    fraction: number;
-    chapterNumber: number;
-    mtlNumbers: Set<number>;
-    row: { ahead: number; next: string; tNext: string } | undefined;
-}): EndOffer => {
-    if (!isNewestChapter || fraction < 0.9 || !(chapterNumber >= 0)) {
-        return null;
-    }
-    const next = Math.floor(chapterNumber) + 1;
-    if (mtlNumbers.has(next)) {
-        return { kind: 'read', number: next };
-    }
-    if (row && row.ahead > 0 && row.tNext) {
-        return { kind: 'translate', number: row.next, url: row.tNext };
-    }
-    return null;
-};

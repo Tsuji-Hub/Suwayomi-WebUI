@@ -12,3 +12,9 @@ import { create } from 'zustand';
 export const useCompareStore = create<{ isActive: boolean }>(() => ({ isActive: false }));
 
 export const setCompareActive = (isActive: boolean) => useCompareStore.setState({ isActive });
+
+/** The "English ran out" card is on screen (brief #19): it takes the place of "There is no next chapter". */
+export const useEndCardStore = create<{ isShown: boolean }>(() => ({ isShown: false }));
+
+/** Upstream hook (ReaderTransitionPage). */
+export const useTsujiHasEndCard = () => useEndCardStore((state) => state.isShown);

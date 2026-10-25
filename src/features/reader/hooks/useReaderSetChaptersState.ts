@@ -22,6 +22,7 @@ import { STABLE_EMPTY_OBJECT } from '@/base/Base.constants.ts';
 import { READER_DEFAULT_CHAPTERS_STATE } from '@/features/reader/stores/ReaderChaptersStore.ts';
 import { AppRoutes } from '@/base/AppRoute.constants.ts';
 import { tsujiRemoveDuplicates } from '@/features/tsuji/duplicates/duplicateChapters.ts';
+import { tsujiCutAtForeign, useTsujiForeignChapters } from '@/features/tsuji/raws/mtlSequence.ts';
 
 export const useReaderSetChaptersState = (
     chaptersResponse: ReturnType<typeof requestManager.useGetMangaChapters<GetChaptersReaderQuery>>,
@@ -38,6 +39,7 @@ export const useReaderSetChaptersState = (
 
     const { updateInitialChapter } = locationState ?? STABLE_EMPTY_OBJECT;
     const finalInitialChapter = updateInitialChapter ? undefined : initialChapter;
+    const tsujiForeign = useTsujiForeignChapters();
 
     useEffect(() => {
         const newMangaChapters = chaptersResponse.data?.chapters.nodes;
@@ -47,7 +49,7 @@ export const useReaderSetChaptersState = (
         const newInitialChapter = finalInitialChapter ?? newCurrentChapter;
         const newChapterForDuplicatesHandling = chapterForDuplicatesHandling ?? newCurrentChapter;
 
-        const visibleChapters = (() => {
+        let visibleChapters = (() => {
             if (!newMangaChapters || !newChapterForDuplicatesHandling) {
                 return [];
             }
@@ -61,6 +63,12 @@ export const useReaderSetChaptersState = (
 
             return uniqueChapters.map((chapter) => getReaderChapterFromCache(chapter.id)!);
         })();
+        visibleChapters = tsujiCutAtForeign(
+            newCurrentChapter,
+            visibleChapters,
+            tsujiForeign,
+            newCurrentChapter?.mangaId,
+        );
         const nextChapter =
             newCurrentChapter &&
             Chapters.getNextChapter(newCurrentChapter, visibleChapters, {
@@ -118,5 +126,6 @@ export const useReaderSetChaptersState = (
         shouldSkipFilteredChapters,
         finalInitialChapter,
         chapterListOptions,
+        tsujiForeign,
     ]);
 };

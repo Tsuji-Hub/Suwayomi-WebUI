@@ -59,6 +59,7 @@ import {
 import { Confirmation } from '@/base/AppAwaitableComponent.ts';
 import { i18n } from '@/i18n';
 import { shouldSkipTsujiProgressWrite } from '@/features/tsuji/reader/resumeState.ts';
+import { tsujiOpenForeignChapter } from '@/features/tsuji/raws/mtlSequence.ts';
 
 const getScrollDirectionInvert = (
     scrollDirection: ScrollDirection,
@@ -204,7 +205,7 @@ class ReaderControlsClass {
         const { shouldInformAboutMissingChapter, shouldInformAboutScanlatorChange, shouldUseInfiniteScroll } =
             getReaderSettingsStore();
 
-        if (!currentChapter) {
+        if (!currentChapter || tsujiOpenForeignChapter(offset)) {
             return;
         }
 

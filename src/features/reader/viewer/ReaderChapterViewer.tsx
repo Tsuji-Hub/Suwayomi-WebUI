@@ -48,6 +48,7 @@ import { getReaderChaptersStore, getReaderPagesStore } from '@/features/reader/s
 import { useTsujiReaderResume } from '@/features/tsuji/reader/useTsujiReaderResume.ts';
 import { usePagePosition } from '@/features/tsuji/reader/position/usePagePosition.ts';
 import { getPagePositionSx } from '@/features/tsuji/reader/position/pagePosition.ts';
+import { useTsujiChapterRefetch } from '@/features/tsuji/raws/chapterRefetch.ts';
 
 const BaseReaderChapterViewer = ({
     currentPageIndex,
@@ -186,6 +187,7 @@ const BaseReaderChapterViewer = ({
             defaultPromiseErrorHandler(`ReaderChapterViewer(${chapterId})::fetchPages`),
         );
     }, [fetchPages, chapterId]);
+    useTsujiChapterRefetch(chapterId, doFetchPages);
 
     const onLoad = useMemo(
         () =>

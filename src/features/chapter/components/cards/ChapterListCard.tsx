@@ -13,6 +13,7 @@ import { ChapterCard } from '@/features/chapter/components/cards/ChapterCard.tsx
 import { Chapters } from '@/features/chapter/services/Chapters.ts';
 import { applyStyles } from '@/base/utils/ApplyStyles.ts';
 import { MissingChaptersInfoSeparator } from '@/features/chapter/components/MissingChaptersInfoSeparator.tsx';
+import { TsujiMissingChapters } from '@/features/tsuji/raws/components/TsujiChapterRawActions.tsx';
 
 type ChapterCardProps = ComponentProps<typeof ChapterCard>;
 
@@ -38,6 +39,7 @@ export const ChapterListCard = ({
         <Stack sx={applyStyles(!isSortDesc, { flexDirection: 'column-reverse' })}>
             <ChapterCard {...chapterCardProps} chapter={chapters[index]} />
             {areChaptersMissing && <MissingChaptersInfoSeparator missingChaptersGap={missingChaptersGap} />}
+            {areChaptersMissing && <TsujiMissingChapters chapter={chapter} previousChapter={previousChapter} />}
         </Stack>
     );
 };

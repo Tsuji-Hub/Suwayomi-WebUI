@@ -13,9 +13,26 @@
  * (`<relay>/mtl/raws.json`), and opens the feed's pre-signed links. Nothing here writes meta or library state.
  */
 
-export type RawLink = { kind: 'raw'; mangaId: number; title: string; source: string };
+/**
+ * `api`: the MTL engine through the relay (brief #19, e.g. `http://<relay>:4568/mtl`); `req`: a series-level
+ * signature that lets the WebUI queue any chapter of this raw. Both '' on older meta.
+ */
+export type RawLink = { kind: 'raw'; mangaId: number; title: string; source: string; api: string; req: string };
 export type MtlLink = { kind: 'mtl'; mangaId: number };
-export type RawLinks = { raw: RawLink | null; mtl: MtlLink | null };
+/** The server's art match of the newest English chapter against the raw (brief #19). Numbers compare numerically. */
+export type AlignLink = {
+    kind: 'align';
+    en: number | null;
+    enSource: string;
+    raw: number | null;
+    score: number | null;
+    /** How far into the English chapter the raw chapter's last page matched (0..1). */
+    lastRaw: number | null;
+    verdict: string;
+    isOk: boolean;
+    nextRaw: number | null;
+};
+export type RawLinks = { raw: RawLink | null; mtl: MtlLink | null; align: AlignLink | null };
 
 export type Origin = 'KR' | 'CN' | 'JP';
 
@@ -62,21 +79,50 @@ const toCount = (value: unknown): number => {
     return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
 };
 
+const toNumber = (value: unknown): number | null => {
+    const number = typeof value === 'string' && value.trim() ? Number(value) : value;
+    return typeof number === 'number' && Number.isFinite(number) ? number : null;
+};
+
+const parseAlign = (entry: Record<string, unknown>): AlignLink => ({
+    kind: 'align',
+    en: toNumber(entry.en),
+    enSource: toText(entry.en_source),
+    raw: toNumber(entry.raw),
+    score: toNumber(entry.score),
+    lastRaw: toNumber(entry.last_raw),
+    verdict: toText(entry.verdict),
+    isOk: entry.ok === true,
+    nextRaw: toNumber(entry.next_raw),
+});
+
 /** `tsuji_raw_links` (JSON array on the English manga). Tolerant: anything malformed counts as no link. */
 export const parseRawLinks = (raw: string | undefined): RawLinks => {
-    const links: RawLinks = { raw: null, mtl: null };
+    const links: RawLinks = { raw: null, mtl: null, align: null };
     if (!raw) {
         return links;
     }
     try {
         const parsed: unknown = JSON.parse(raw);
         (Array.isArray(parsed) ? parsed : []).filter(isRecord).forEach((entry) => {
+            if (entry.kind === 'align' && !links.align) {
+                links.align = parseAlign(entry);
+                return;
+            }
             const mangaId = toId(entry.mangaId);
             if (!mangaId) {
                 return;
             }
             if (entry.kind === 'raw' && !links.raw) {
-                links.raw = { kind: 'raw', mangaId, title: toText(entry.title), source: toText(entry.source) };
+                links.raw = {
+                    kind: 'raw',
+                    mangaId,
+                    title: toText(entry.title),
+                    source: toText(entry.source),
+                    // Only an http(s) base: it is the one host this feature talks to.
+                    api: /^https?:\/\//i.test(toText(entry.api)) ? toText(entry.api).replace(/\/+$/, '') : '',
+                    req: toText(entry.req),
+                };
             }
             if (entry.kind === 'mtl' && !links.mtl) {
                 links.mtl = { kind: 'mtl', mangaId };

@@ -390,6 +390,10 @@ msgstr "{otherResultsCount, plural, one {# more match} other {# more matches}}"
 msgid "{progress}% | Updating…"
 msgstr "{progress}% | Updating…"
 
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "{ready} / {total} pages"
+msgstr "{ready} / {total} pages"
+
 #: src/features/tsuji/comments/components/CommentItem.tsx
 msgid "{replyCount, plural, one {# reply} other {# replies}}"
 msgstr "{replyCount, plural, one {# reply} other {# replies}}"
@@ -993,6 +997,22 @@ msgstr "Center"
 msgid "ch {0} skipped (pages failing)"
 msgstr "ch {0} skipped (pages failing)"
 
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Ch {label}"
+msgstr "Ch {label}"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Ch {label} isn't in English yet."
+msgstr "Ch {label} isn't in English yet."
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Ch {label} isn't in English yet. Raw is out ({rawSource})."
+msgstr "Ch {label} isn't in English yet. Raw is out ({rawSource})."
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Ch {label}: raw is out"
+msgstr "Ch {label}: raw is out"
+
 #: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 msgid "Ch {range}"
 msgstr "Ch {range}"
@@ -1052,6 +1072,10 @@ msgstr "Channel"
 #: src/features/tracker/components/cards/TrackerMangaCard.tsx
 msgid "Chapter"
 msgstr "Chapter"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Chapter {label}"
+msgstr "Chapter {label}"
 
 #: src/features/reader/screens/Reader.tsx
 msgid "Chapter does not exist"
@@ -1170,7 +1194,9 @@ msgstr "Client data"
 #: src/features/app-updates/components/VersionUpdateInfoDialog.tsx
 #: src/features/migration/components/migration-entry/MigrationDestinationEntry.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/raws/components/AlignDetailsDialog.tsx
 #: src/features/tsuji/raws/components/TranslateDialog.tsx
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Close"
 msgstr "Close"
@@ -1259,10 +1285,15 @@ msgstr "Comments relay unreachable"
 msgid "Compact grid"
 msgstr "Compact grid"
 
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Compare"
+msgstr "Compare"
+
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Compare translations"
 msgstr "Compare translations"
 
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
 #: src/features/tsuji/raws/components/TsujiReaderCompareButton.tsx
 msgid "Compare with raw"
 msgstr "Compare with raw"
@@ -1591,6 +1622,10 @@ msgstr "Couldn't load reviews."
 msgid "Couldn't load the raw chapter."
 msgstr "Couldn't load the raw chapter."
 
+#: src/features/tsuji/raws/components/AlignDetailsDialog.tsx
+msgid "Couldn't load the report."
+msgstr "Couldn't load the report."
+
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "Couldn't load the tag list."
 msgstr "Couldn't load the tag list."
@@ -1602,6 +1637,10 @@ msgstr "Couldn't load this list. Check the username and that the list is public.
 #: src/features/tsuji/seen/useSeen.tsx
 msgid "Couldn't move the marks to the new format. Check the connection to the server."
 msgstr "Couldn't move the marks to the new format. Check the connection to the server."
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Couldn't request a translation."
+msgstr "Couldn't request a translation."
 
 #: src/features/tsuji/seen/useSeen.tsx
 msgid "Couldn't save that. Check the connection to the server."
@@ -1821,6 +1860,10 @@ msgstr "Desktop"
 msgid "Destination - {0}"
 msgstr "Destination - {0}"
 
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "details"
+msgstr "details"
+
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Details"
 msgstr "Details"
@@ -2033,10 +2076,6 @@ msgstr "Enable page read progress"
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Enable the WebView via CEF (Chromium)"
 msgstr "Enable the WebView via CEF (Chromium)"
-
-#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
-msgid "End of the English release."
-msgstr "End of the English release."
 
 #: src/features/downloads/screens/DownloadSettings.tsx
 msgid "Entries in excluded categories will not be downloaded even if they are also in included categories"
@@ -2823,6 +2862,7 @@ msgid "Loading theme fonts…"
 msgstr "Loading theme fonts…"
 
 #: src/base/components/settings/SelectSetting.tsx
+#: src/features/tsuji/raws/components/AlignDetailsDialog.tsx
 #: src/features/tsuji/seen/components/TsujiSettingsDialog.tsx
 msgid "Loading…"
 msgstr "Loading…"
@@ -3115,6 +3155,10 @@ msgstr "Minute"
 msgid "Misc"
 msgstr "Misc"
 
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
+msgid "Missing chapters"
+msgstr "Missing chapters"
+
 #. placeholder {0}: entry.missingChapters
 #: src/features/migration/components/migration-entry/MigrationEntryMetadataText.tsx
 msgid "Missing: {0}"
@@ -3155,6 +3199,7 @@ msgid "Mountain Sunset"
 msgstr "Mountain Sunset"
 
 #: src/features/tsuji/raws/components/RawChips.tsx
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
 msgid "MTL"
 msgstr "MTL"
 
@@ -3213,6 +3258,7 @@ msgstr "Next 10"
 #: src/features/reader/hotkeys/settings/components/ReaderSettingHotkey.tsx
 #: src/features/reader/overlay/navigation/desktop/components/ReaderNavBarDesktopChapterNavigation.tsx
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
 msgid "Next chapter"
 msgstr "Next chapter"
 
@@ -3537,6 +3583,10 @@ msgstr "Page position"
 msgid "Pages"
 msgstr "Pages"
 
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "Pages {from}-{total} are still being translated… ({ready} / {total})"
+msgstr "Pages {from}-{total} are still being translated… ({ready} / {total})"
+
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "Parallel source requests"
 msgstr "Parallel source requests"
@@ -3675,6 +3725,14 @@ msgstr "px"
 msgid "Queued"
 msgstr "Queued"
 
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Queued (position {position})…"
+msgstr "Queued (position {position})…"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Queued…"
+msgstr "Queued…"
+
 #: src/features/reader/overlay/navigation/mobile/ReaderBottomBarMobile.tsx
 msgid "Quick settings"
 msgstr "Quick settings"
@@ -3692,14 +3750,34 @@ msgstr "Raw"
 msgid "Raw · {0}"
 msgstr "Raw · {0}"
 
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Raw {raw} follows {source} {en} (art match)"
+msgstr "Raw {raw} follows {source} {en} (art match)"
+
 #: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
 msgid "Raw chapter"
 msgstr "Raw chapter"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Raw matches English ({source} {en} = raw {raw})"
+msgstr "Raw matches English ({source} {en} = raw {raw})"
 
 #. placeholder {0}: index + 1
 #: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
 msgid "Raw page {0}"
 msgstr "Raw page {0}"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Raw upload is incomplete"
+msgstr "Raw upload is incomplete"
+
+#: src/features/tsuji/raws/components/RawChips.tsx
+msgid "Raw upload is incomplete (stops at {percent}% of the English chapter)"
+msgstr "Raw upload is incomplete (stops at {percent}% of the English chapter)"
+
+#: src/features/tsuji/raws/components/AlignDetailsDialog.tsx
+msgid "Raw vs English: art match"
+msgstr "Raw vs English: art match"
 
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "Raws"
@@ -3722,14 +3800,22 @@ msgstr "Read"
 msgid "Read {0}"
 msgstr "Read {0}"
 
-#. placeholder {0}: offer.number
-#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
-msgid "Read MTL ch {0}"
-msgstr "Read MTL ch {0}"
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Read MTL {label}"
+msgstr "Read MTL {label}"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Read now"
+msgstr "Read now"
 
 #: src/features/tsuji/recs/preview/PreviewReviews.tsx
 msgid "Read on AniList"
 msgstr "Read on AniList"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
+msgid "Read raw"
+msgstr "Read raw"
 
 #: src/features/reader/settings/screens/GlobalReaderSettings.tsx
 #: src/features/settings/screens/Settings.tsx
@@ -3895,6 +3981,7 @@ msgstr "Resume"
 #: src/features/tsuji/discover/components/TagPicker.tsx
 #: src/features/tsuji/discover/screens/Discover.tsx
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
 #: src/features/tsuji/recs/preview/PreviewComments.tsx
 #: src/features/tsuji/recs/preview/PreviewReviews.tsx
 #: src/features/tsuji/seen/components/MyListNotice.tsx
@@ -4234,6 +4321,10 @@ msgstr "Share"
 #: src/features/settings/components/DebugInformation.tsx
 msgid "Show"
 msgstr "Show"
+
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
+msgid "Show {more} more"
+msgstr "Show {more} more"
 
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Show adult titles"
@@ -4685,6 +4776,10 @@ msgstr ""
 "As long as the client is open, the migration will run in the background.\n"
 "The client can be closed. The migration will be resumed once it gets opened again on the same device it got started on."
 
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "The MTL engine didn't answer."
+msgstr "The MTL engine didn't answer."
+
 #: src/features/reader/services/ReaderControls.ts
 msgid ""
 "The next chapter has a different scanlator then the current one.\n"
@@ -4694,6 +4789,10 @@ msgstr ""
 "The next chapter has a different scanlator then the current one.\n"
 "Current: {currentScanlator}\n"
 "Next: {nextScanlator}"
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "The next chapter is in English."
+msgstr "The next chapter is in English."
 
 #: src/features/backup/screens/Backup.tsx
 msgid "The path to the directory on the server where automated backups should get saved in"
@@ -4720,6 +4819,10 @@ msgstr ""
 "The previous chapter has a different scanlator then the current one.\n"
 "Previous: {nextScanlator}\n"
 "Current: {currentScanlator}"
+
+#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
+msgid "The rest of this chapter is still being translated…"
+msgstr "The rest of this chapter is still being translated…"
 
 #: src/features/theme/components/CreateThemeDialog.tsx
 msgid "The theme name must be unique and has a limit of 16 characters"
@@ -4866,33 +4969,48 @@ msgstr "Trackers"
 msgid "Tracking"
 msgstr "Tracking"
 
-#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
-msgid "Translate"
-msgstr "Translate"
-
 #. placeholder {0}: row.next
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "Translate {0}"
 msgstr "Translate {0}"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Translate & read"
+msgstr "Translate & read"
 
 #. placeholder {0}: row.nAll
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "Translate all {0}"
 msgstr "Translate all {0}"
 
-#. placeholder {0}: offer.number
-#: src/features/tsuji/raws/components/TsujiReaderRawLayer.tsx
-msgid "Translate ch {0}"
-msgstr "Translate ch {0}"
-
 #. placeholder {0}: row.next
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "Translate chapter {0}"
 msgstr "Translate chapter {0}"
 
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
+msgid "Translate raw (MTL)"
+msgstr "Translate raw (MTL)"
+
+#: src/features/tsuji/raws/components/TsujiChapterRawActions.tsx
+msgid "Translate raw {label}"
+msgstr "Translate raw {label}"
+
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "Translate the next 10"
 msgstr "Translate the next 10"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Translating…"
+msgstr "Translating…"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Translating… {detail}"
+msgstr "Translating… {detail}"
+
+#: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
+msgid "Translation progress"
+msgstr "Translation progress"
 
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Translator notes"

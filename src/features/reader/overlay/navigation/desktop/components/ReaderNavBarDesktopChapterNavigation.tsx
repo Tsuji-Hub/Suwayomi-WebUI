@@ -26,6 +26,7 @@ import type { ReaderStateChapters } from '@/features/reader/Reader.types.ts';
 import { withPropsFrom } from '@/base/hoc/withPropsFrom.tsx';
 import type { ChapterIdInfo } from '@/features/chapter/Chapter.types.ts';
 import { useTheme } from '@mui/material/styles';
+import { useTsujiForeignTargets } from '@/features/tsuji/raws/mtlSequence.ts';
 
 const BaseReaderNavBarDesktopChapterNavigation = ({
     currentChapterId,
@@ -44,6 +45,7 @@ const BaseReaderNavBarDesktopChapterNavigation = ({
     }) => {
     const { t } = useLingui();
     const theme = useTheme();
+    const tsujiForeign = useTsujiForeignTargets();
 
     const popupState = usePopupState({ variant: 'popover', popupId: 'reader-nav-bar-desktop-chapter-list' });
 
@@ -59,7 +61,11 @@ const BaseReaderNavBarDesktopChapterNavigation = ({
                 onClick={() => {
                     ReaderControls.openChapter(getOptionForDirection('previous', 'next', readerThemeDirection));
                 }}
-                disabled={getOptionForDirection(!previousChapter, !nextChapter, readerThemeDirection)}
+                disabled={getOptionForDirection(
+                    !previousChapter && !tsujiForeign.hasPrevious,
+                    !nextChapter && !tsujiForeign.hasNext,
+                    readerThemeDirection,
+                )}
             />
             <FormControl sx={{ flexBasis: '70%', flexGrow: 0, flexShrink: 0 }} dir={theme.direction}>
                 <InputLabel id="reader-nav-bar-desktop-chapter-select">{t`Chapter`}</InputLabel>
@@ -84,7 +90,11 @@ const BaseReaderNavBarDesktopChapterNavigation = ({
                 onClick={() => {
                     ReaderControls.openChapter(getOptionForDirection('next', 'previous', readerThemeDirection));
                 }}
-                disabled={getOptionForDirection(!nextChapter, !previousChapter, readerThemeDirection)}
+                disabled={getOptionForDirection(
+                    !nextChapter && !tsujiForeign.hasNext,
+                    !previousChapter && !tsujiForeign.hasPrevious,
+                    readerThemeDirection,
+                )}
             />
             <Popover
                 {...bindPopover(popupState)}

@@ -44,6 +44,7 @@ import type {
 } from '@/features/chapter/Chapter.types.ts';
 import { IconWebView } from '@/assets/icons/IconWebView.tsx';
 import { IconBrowser } from '@/assets/icons/IconBrowser.tsx';
+import { TsujiRawChapterMenuItems } from '@/features/tsuji/raws/components/TsujiChapterRawActions.tsx';
 
 type BaseProps = { onClose: () => void; selectable?: boolean };
 
@@ -201,6 +202,7 @@ export const ChapterActionMenuItems = ({
                         }}
                         title={t`Open in WebView`}
                     />
+                    <TsujiRawChapterMenuItems chapter={chapter!} onClose={onClose} />
                 </>
             )}
             {shouldShowMenuItem(canBeDownloaded) && (

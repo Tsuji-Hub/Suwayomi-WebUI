@@ -14,6 +14,59 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #19: "English ran out": translate and keep reading, in place (branch `feat/english-ran-out`)
+
+**Built** (2026-10-25). Off `custom` (r3441). Not shipped.
+
+**Backend (Cowork, mtl-engine v7):** `tsuji_raw_links` raw entry carries `api` (the relay, `.../mtl`) and `req` (a
+series-level signature); `kind:"align"` is the art match (`en`, `en_source`, `raw`, `last_raw`, `verdict`, `ok`,
+`next_raw`; floats). `GET {api}/s?raw=&ch=` = none / queued / running / partial / ready (+ `url`, the MTL chapter's
+reader route; only its path is used); `GET {api}/req?raw=&ch=&sig=` queues it (403 on a bad signature); `GET
+{api}/align?raw=` the report.
+
+**Done:**
+
+1. **Reader end card** (`TsujiReaderRawLayer`, `EnglishRanOutPanel`): when the next number (current + 1) has no
+   English chapter in the scanlator filter and the raw (numbering from its names) or the MTL has it, a card at the end
+   of the chapter (vertical: 90 % scrolled; paged: last page), in place of "There is no next chapter": "Ch 225 isn't in
+   English yet. Raw is out (如漫画).", the art-match line ("✓ Raw 225 follows Asura 224 (art match)" when `ok` and
+   `next_raw` is that number, else "⚠ <verdict>", nothing without an align entry), and Translate & read / Read raw /
+   Compare. `/s` once when the card mounts; `ready` / `partial` (or the MTL list having it) makes it "Read MTL 225" with
+   no request. Translate & read calls `/req`, then `/s` every 3 s in the card ("Queued (position 1)…", "Translating… 10
+   / 191 pages · 1:35", a progress bar); Read now as soon as `url` appears, opened by itself while the card is on
+   screen (kept mounted while hidden, so it keeps following). A 403 shows "Couldn't request a translation." and is
+   never retried; an engine that doesn't answer shows Retry.
+2. **Partial MTL chapter:** on an MTL chapter whose `/s` is partial (or running with a `url`), "Pages 11-191 are still
+   being translated… (10 / 191)" at its end, polled; on `ready` the chapter's pages are fetched again in place
+   (`useTsujiChapterRefetch`, the reader resumes at the page last read).
+3. **Chapter list:** the Missing row lists each missing number the raw or the MTL has (10, then "Show N more") with the
+   same panel; the chapter menu gets Read raw, Translate raw (MTL) (the panel in a dialog) and Compare with raw, next
+   to WebView, when the raw has that number.
+4. **MTL inline:** MTL chapters whose number has no English chapter in the filter sit in the English list by number,
+   with an MTL badge and their own read state (the list's unread / downloaded / bookmarked filters apply); English for
+   that number in the filter hides it. Reader Next / Previous go 224 -> MTL 225 -> 226: the reader only knows one
+   series, so the other series' chapters ("foreign", `mtlSequence.ts`) are kept beside it; where one comes next (a tie
+   with an English copy outside the filter goes to the MTL; in the MTL reader English wins), the reader's list is cut
+   there (infinite scroll stops, the card shows) and Next / Previous open it (`ReaderControls.openChapter` guard; the
+   buttons count it). Opening another series' chapter drops the reader's chapter state first (the reader stays
+   mounted across series and would keep the old list) and refetches a new MTL chapter's list (Apollo is cache-first).
+   The MTL -> English link is remembered in this browser (`raws:mtlParent:v1:<mtlId>`; the meta only links English ->
+   MTL).
+5. **Series page:** under the Raw chip, "✓ Raw matches English (Asura 224 = raw 224)", "⚠ Raw upload is incomplete
+   (stops at 28% of the English chapter)" (verdict says INCOMPLETE; the percentage is `last_raw`), or "⚠ <verdict>";
+   "details" opens `{api}/align?raw=` formatted (plain values, each list of records as a table).
+
+Replaced: the #6 end-of-release offer (feed `t_next` in a frame) in the reader. Only `tsuji_raw_links` is read; only
+the meta's `api` host is contacted; nothing is written to Suwayomi meta.
+
+**Tests:** unit (`englishRanOut.test.ts`: the meta's `api` / `req` / align, both alignment lines, engine answers, the
+cut for 224 / 226 / MTL 225, inline rows, the client's URLs, a 403 is final). Browser `english-ran-out.e2e.mjs` (The
+Game That I Came From, unofficial filter, fake engine): series line + report, inline MTL 225 between 226 and 224, the
+Missing row for 227 / 228, the chapter menu, end of 224 "Read MTL 225" with no request, Next from MTL 225 to unofficial
+226, Translate & read on 227 (queued, "Translating… 2 / 9 pages · 1:35", opens by itself), the partial note and the
+full page list without a reload, a bad signature once and no polling, the official filter hiding MTL 225, only the
+relay's `/mtl/` paths, no meta writes. `raws.e2e.mjs` updated for the new card.
+
 # Brief #18: For You fixes from the #14 recheck (branch `feat/foryou-speed`)
 
 **Shipped as r3441** (2026-10-22). Off `custom` (r3439).

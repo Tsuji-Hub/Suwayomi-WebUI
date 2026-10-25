@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getChapterFraction, getEndOffer, getPaneScrollTop } from '@/features/tsuji/raws/compareSync.ts';
+import { getChapterFraction, getPaneScrollTop } from '@/features/tsuji/raws/compareSync.ts';
 import { getMangaIdFromUrl, getSeriesLinks, parseRawFeed, parseRawLinks } from '@/features/tsuji/raws/rawLinks.ts';
 import { buildRawChapterMap, parseRawChapterNumber } from '@/features/tsuji/raws/rawNumbering.ts';
 
@@ -45,18 +45,20 @@ describe('tsuji_raw_links', () => {
                 ]),
             ),
         ).toEqual({
-            raw: { kind: 'raw', mangaId: 13858, title: '나 혼자', source: 'GoodToon' },
+            raw: { kind: 'raw', mangaId: 13858, title: '나 혼자', source: 'GoodToon', api: '', req: '' },
             mtl: { kind: 'mtl', mangaId: 14377 },
+            align: null,
         });
     });
 
     it('treats anything malformed as no link', () => {
-        expect(parseRawLinks(undefined)).toEqual({ raw: null, mtl: null });
-        expect(parseRawLinks('not json')).toEqual({ raw: null, mtl: null });
-        expect(parseRawLinks('{"kind":"raw"}')).toEqual({ raw: null, mtl: null });
+        expect(parseRawLinks(undefined)).toEqual({ raw: null, mtl: null, align: null });
+        expect(parseRawLinks('not json')).toEqual({ raw: null, mtl: null, align: null });
+        expect(parseRawLinks('{"kind":"raw"}')).toEqual({ raw: null, mtl: null, align: null });
         expect(parseRawLinks('[{"kind":"raw","mangaId":"x"},{"kind":"mtl","mangaId":0}]')).toEqual({
             raw: null,
             mtl: null,
+            align: null,
         });
     });
 });
@@ -83,14 +85,14 @@ describe('raws.json', () => {
         expect(getMangaIdFromUrl('http://x/manga/14377/chapter/2')).toBe(14377);
         expect(getMangaIdFromUrl('')).toBeNull();
         const row = parseRawFeed({ rows: [FEED_ROW] }).get(12210);
-        expect(getSeriesLinks({ raw: null, mtl: null }, row)).toEqual({
+        expect(getSeriesLinks({ raw: null, mtl: null, align: null }, row)).toEqual({
             rawId: 13858,
             rawSource: 'GoodToon',
             mtlId: 14377,
             isUncensored: false,
             hasAny: true,
         });
-        expect(getSeriesLinks({ raw: null, mtl: null }, undefined).hasAny).toBe(false);
+        expect(getSeriesLinks({ raw: null, mtl: null, align: null }, undefined).hasAny).toBe(false);
     });
 });
 
@@ -149,22 +151,5 @@ describe('compare sync', () => {
         );
         expect(getPaneScrollTop(0.5, 21000, 1000)).toBe(10000);
         expect(getPaneScrollTop(2, 21000, 1000)).toBe(20000);
-    });
-});
-
-describe('end of the English release', () => {
-    const row = { ahead: 110, next: '141', tNext: 'http://relay/mtl/t?sig=a' };
-    const base = { isNewestChapter: true, fraction: 0.95, chapterNumber: 138, mtlNumbers: new Set<number>(), row };
-
-    it('offers the MTL chapter when it exists, else translating the next raw chapter', () => {
-        expect(getEndOffer({ ...base, mtlNumbers: new Set([139, 140]) })).toEqual({ kind: 'read', number: 139 });
-        expect(getEndOffer(base)).toEqual({ kind: 'translate', number: '141', url: row.tNext });
-    });
-
-    it('offers nothing before the end, on older chapters, or when the raw is not ahead', () => {
-        expect(getEndOffer({ ...base, fraction: 0.5 })).toBeNull();
-        expect(getEndOffer({ ...base, isNewestChapter: false })).toBeNull();
-        expect(getEndOffer({ ...base, row: { ...row, ahead: 0 } })).toBeNull();
-        expect(getEndOffer({ ...base, row: undefined })).toBeNull();
     });
 });

@@ -39,6 +39,7 @@ import {
     getReaderProgressBarStore,
 } from '@/features/reader/stores/ReaderStore.ts';
 import { ReaderControls } from '@/features/reader/services/ReaderControls.ts';
+import { useTsujiForeignTargets } from '@/features/tsuji/raws/mtlSequence.ts';
 
 const PROGRESS_BAR_POSITION_TO_SLIDE_DIRECTION: Record<ProgressBarPosition, SlideProps['direction']> = {
     [ProgressBarPosition.BOTTOM]: 'up',
@@ -61,6 +62,7 @@ const BaseMobileReaderProgressBar = ({
     const isVisible = useReaderOverlayStore('isVisible');
     const { currentPageIndex, pages } = useReaderPagesStore('currentPageIndex', 'pages');
     const { previousChapter, nextChapter } = useReaderChaptersStore('previousChapter', 'nextChapter');
+    const tsujiForeign = useTsujiForeignTargets();
     const { progressBarPosition, progressBarPositionAutoVertical } = useReaderSettingsStore(
         'progressBarPosition',
         'progressBarPositionAutoVertical',
@@ -251,7 +253,7 @@ const BaseMobileReaderProgressBar = ({
                 >
                     <IconButton
                         onClick={() => ReaderControls.openChapter('previous')}
-                        disabled={!previousChapter}
+                        disabled={!previousChapter && !tsujiForeign.hasPrevious}
                         sx={{
                             backgroundColor: (theme) => theme.alpha(theme.palette.background.paper, 0.85),
                             boxShadow: 2,
@@ -330,7 +332,7 @@ const BaseMobileReaderProgressBar = ({
                     />
                     <IconButton
                         onClick={() => ReaderControls.openChapter('next')}
-                        disabled={!nextChapter}
+                        disabled={!nextChapter && !tsujiForeign.hasNext}
                         sx={{
                             backgroundColor: (theme) => theme.alpha(theme.palette.background.paper, 0.85),
                             boxShadow: 2,

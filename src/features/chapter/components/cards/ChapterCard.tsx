@@ -44,6 +44,7 @@ import { MediaQuery } from '@/base/utils/MediaQuery.tsx';
 import type { ChapterType } from '@/lib/graphql/generated/graphql-base.types.ts';
 import { usePress } from '@/base/hooks/usePress.ts';
 import { TsujiChapterCommentsButton } from '@/features/tsuji/comments/components/TsujiChapterCommentsButton.tsx';
+import { TsujiMtlBadge } from '@/features/tsuji/raws/components/TsujiChapterRawActions.tsx';
 
 type TChapter = ChapterIdInfo &
     ChapterMangaInfo &
@@ -210,6 +211,7 @@ export const ChapterCard = memo((props: IProps) => {
                                         </CustomTooltip>
                                     )}
                                 </Stack>
+                                <TsujiMtlBadge chapter={chapter} />
                                 <TsujiChapterCommentsButton chapter={chapter} mode={mode} isSelecting={isSelecting} />
                             </ListCardContent>
                         </CardActionArea>

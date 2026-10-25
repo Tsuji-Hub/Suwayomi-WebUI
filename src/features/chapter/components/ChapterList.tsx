@@ -49,6 +49,7 @@ import { VirtuosoPersisted } from '@/lib/virtuoso/Component/VirtuosoPersisted.ts
 import { STABLE_EMPTY_ARRAY } from '@/base/Base.constants.ts';
 import { getTsujiResumeChapter } from '@/features/tsuji/duplicates/duplicateChapters.ts';
 import { getTsujiReadScanlator } from '@/features/tsuji/duplicates/DuplicateChaptersService.ts';
+import { TsujiRawDialogHost, useTsujiInlineMtl } from '@/features/tsuji/raws/components/TsujiChapterRawActions.tsx';
 
 type ChapterListHeaderProps = {
     scrollbarWidth: number;
@@ -144,7 +145,11 @@ export const ChapterList = ({
     );
     const chapters = chaptersData?.chapters.nodes ?? STABLE_EMPTY_ARRAY;
 
-    const visibleChapters = useMemo(() => filterAndSortChapters(chapters, options), [chapters, options]);
+    const tsujiInlineMtl = useTsujiInlineMtl(manga);
+    const visibleChapters = useMemo(
+        () => tsujiInlineMtl(filterAndSortChapters(chapters, options), options),
+        [chapters, options, tsujiInlineMtl],
+    );
     const visibleChapterIds = useMemo(() => Chapters.getIds(visibleChapters), [visibleChapters]);
     const missingChapterCount = useMemo(() => Chapters.getMissingCount(visibleChapters), [visibleChapters]);
 
@@ -274,6 +279,7 @@ export const ChapterList = ({
                 )}
                 onFABMenuClose={clearSelection}
             />
+            <TsujiRawDialogHost />
         </>
     );
 };

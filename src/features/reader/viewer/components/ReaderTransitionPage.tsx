@@ -38,6 +38,7 @@ import {
 } from '@/features/reader/stores/ReaderStore.ts';
 import { READER_BACKGROUND_TO_COLOR } from '@/features/reader/settings/ReaderSettings.constants.tsx';
 import { getPage } from '@/features/reader/overlay/progress-bar/ReaderProgressBar.utils.tsx';
+import { useTsujiHasEndCard } from '@/features/tsuji/raws/compareStore.ts';
 
 const ChapterInfo = ({
     title,
@@ -109,6 +110,7 @@ const BaseReaderTransitionPage = ({
     const manga = useReaderStore('manga');
     const scrollbar = useReaderScrollbarStore((state) => state);
     const transitionPageMode = useReaderPagesStore('transitionPageMode');
+    const tsujiHasEndCard = useTsujiHasEndCard();
     const { readingMode, backgroundColor, shouldShowTransitionPage } = useReaderSettingsStore((state) => ({
         readingMode: state.readingMode.value,
         backgroundColor: state.backgroundColor,
@@ -199,7 +201,9 @@ const BaseReaderTransitionPage = ({
                         />
                     )}
                 </Stack>
-                {isNextType && isLastChapter && <Typography variant="h6">{t`There is no next chapter`}</Typography>}
+                {isNextType && isLastChapter && !tsujiHasEndCard && (
+                    <Typography variant="h6">{t`There is no next chapter`}</Typography>
+                )}
                 {((isPreviousType && isFirstChapter) || (isNextType && isLastChapter)) && (
                     <Stack sx={{ flexDirection: 'row', flexWrap: 'wrap', gap: 1 }}>
                         <Button

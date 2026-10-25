@@ -6,8 +6,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
@@ -19,23 +19,42 @@ import { Chapters } from '@/features/chapter/services/Chapters.ts';
 import { isContinuousVerticalReadingMode } from '@/features/reader/settings/ReaderSettings.utils.tsx';
 import {
     useReaderChaptersStore,
+    useReaderPagesStore,
     useReaderSettingsStore,
     useReaderStore,
 } from '@/features/reader/stores/ReaderStore.ts';
 import { GET_CHAPTERS_MANGA } from '@/lib/graphql/chapter/ChapterQuery.ts';
-import type { GetChaptersMangaQuery, GetChaptersMangaQueryVariables } from '@/lib/graphql/generated/graphql.ts';
+import { GET_MANGA_META } from '@/lib/graphql/manga/MangaQuery.ts';
+import type {
+    GetChaptersMangaQuery,
+    GetChaptersMangaQueryVariables,
+    GetMangaMetaQuery,
+    GetMangaMetaQueryVariables,
+} from '@/lib/graphql/generated/graphql.ts';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import { TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
 import { readTsujiMangaMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { measureChapter } from '@/features/tsuji/reader/chapterPagesRegistry.ts';
-import { setCompareActive, useCompareStore } from '@/features/tsuji/raws/compareStore.ts';
-import type { EndOffer } from '@/features/tsuji/raws/compareSync.ts';
-import { getChapterFraction, getEndOffer, getPaneScrollTop } from '@/features/tsuji/raws/compareSync.ts';
+import { setCompareActive, useCompareStore, useEndCardStore } from '@/features/tsuji/raws/compareStore.ts';
+import { getChapterFraction, getPaneScrollTop } from '@/features/tsuji/raws/compareSync.ts';
 import { getMangaIdFromUrl, parseRawLinks } from '@/features/tsuji/raws/rawLinks.ts';
 import { useRawFeedRow } from '@/features/tsuji/raws/rawFeed.ts';
 import { buildRawChapterMap } from '@/features/tsuji/raws/rawNumbering.ts';
-import { TranslateDialog } from '@/features/tsuji/raws/components/TranslateDialog.tsx';
+import { useMtlChapter } from '@/features/tsuji/raws/mtlEngine.ts';
+import { refetchChapterPages } from '@/features/tsuji/raws/chapterRefetch.ts';
+import {
+    clearForeignChapters,
+    setForeignChapters,
+    tsujiOpenForeignChapter,
+    useTsujiForeignTargets,
+} from '@/features/tsuji/raws/mtlSequence.ts';
+import type { SeriesChapter, SeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
+import { getMtlRef, readMtlParent, useSeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
+import { EnglishRanOutPanel } from '@/features/tsuji/raws/components/EnglishRanOutPanel.tsx';
+
+/** How far into the chapter counts as its end (vertical modes). */
+const END_FRACTION = 0.9;
 
 type ScrollElementRef = { readonly current: HTMLElement | null };
 
@@ -172,54 +191,15 @@ const ComparePane = ({
     );
 };
 
-/** End of the newest English chapter: read the MTL chapter, or translate it (opens the server's page). */
-const EndOfferCard = ({
-    offer,
-    onRead,
-    onTranslate,
-}: {
-    offer: NonNullable<EndOffer>;
-    onRead: () => void;
-    onTranslate: () => void;
-}) => {
-    const { t } = useLingui();
-
-    return (
-        <Paper
-            elevation={6}
-            onClick={(event) => event.stopPropagation()}
-            role="status"
-            sx={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 2, p: 1.5 }}
-        >
-            <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
-                <Typography variant="body2">{t`End of the English release.`}</Typography>
-                {offer.kind === 'read' ? (
-                    <Button variant="contained" size="small" onClick={onRead}>
-                        {t`Read MTL ch ${offer.number}`}
-                    </Button>
-                ) : (
-                    <Button variant="contained" size="small" onClick={onTranslate}>
-                        {t`Translate ch ${offer.number}`}
-                    </Button>
-                )}
-            </Stack>
-        </Paper>
-    );
-};
-
-const useEndOffer = (
-    scrollElementRef: ScrollElementRef,
-    { mtlId, row }: Pick<ReturnType<typeof useReaderRawLinks>, 'mtlId' | 'row'>,
-) => {
+/** Whether the reader is at the end of the current chapter (vertical: 90 % scrolled; paged: its last page). */
+const useIsAtChapterEnd = (scrollElementRef: ScrollElementRef, isVertical: boolean) => {
     const currentChapter = useReaderChaptersStore('currentChapter');
-    const nextChapter = useReaderChaptersStore('nextChapter');
-    const mtlChapters = useMangaChapters(mtlId);
+    const { currentPageIndex, totalPages } = useReaderPagesStore('currentPageIndex', 'totalPages');
     const [fraction, setFraction] = useState(0);
-    const isNewestChapter = !!currentChapter && !nextChapter;
 
     useEffect(() => {
         const scrollElement = scrollElementRef.current;
-        if (!scrollElement || !currentChapter || !isNewestChapter) {
+        if (!scrollElement || !currentChapter || !isVertical) {
             return undefined;
         }
         const update = () => {
@@ -238,45 +218,202 @@ const useEndOffer = (
         update();
         scrollElement.addEventListener('scroll', update, { passive: true });
         return () => scrollElement.removeEventListener('scroll', update);
-    }, [scrollElementRef, currentChapter?.id, isNewestChapter]);
+    }, [scrollElementRef, currentChapter?.id, isVertical]);
 
-    const mtlByNumber = useMemo(
-        () =>
-            new Map(
-                (mtlChapters ?? [])
-                    .filter(({ chapterNumber }) => chapterNumber >= 0)
-                    .map((chapter) => [chapter.chapterNumber, chapter]),
-            ),
-        [mtlChapters],
-    );
-    const offer = getEndOffer({
-        isNewestChapter,
-        fraction,
-        chapterNumber: currentChapter?.chapterNumber ?? -1,
-        mtlNumbers: new Set(mtlByNumber.keys()),
-        row,
-    });
+    return isVertical ? fraction >= END_FRACTION : totalPages > 0 && currentPageIndex >= totalPages - 1;
+};
 
-    return { offer, mtlChapter: offer?.kind === 'read' ? mtlByNumber.get(offer.number) : undefined };
+const FloatingCard = ({ isShown, children }: { isShown: boolean; children: ReactNode }) => (
+    <Paper
+        elevation={6}
+        onClick={(event) => event.stopPropagation()}
+        role="status"
+        sx={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 2,
+            p: 1.5,
+            maxWidth: 'calc(100vw - 32px)',
+            // Kept mounted while hidden: a translation requested here keeps being followed.
+            display: isShown ? undefined : 'none',
+        }}
+    >
+        {children}
+    </Paper>
+);
+
+/** The reader's series around the English one: the English reader itself, or an MTL series it translates. */
+const useReaderSeries = () => {
+    const manga = useReaderStore('manga');
+    const parentId = readMtlParent(manga?.id);
+    const parent = requestManager.useGetManga<GetMangaMetaQuery, GetMangaMetaQueryVariables>(
+        GET_MANGA_META,
+        parentId ?? -1,
+        { skip: !parentId },
+    ).data?.manga;
+    const series = useSeriesMtl(parentId ? parent : manga);
+    const role = (() => {
+        if (!series || !manga) {
+            return null;
+        }
+        if (parentId && series.enId === parentId) {
+            return 'mtl';
+        }
+        return series.enId === manga.id ? 'english' : null;
+    })();
+    return { manga, series, role } as const;
+};
+
+/** One chapter per number (the first by source order). */
+const firstByNumber = (chapters: SeriesChapter[]) => {
+    const byNumber = new Map<number, SeriesChapter>();
+    [...chapters]
+        .sort((a, b) => a.sourceOrder - b.sourceOrder)
+        .forEach((chapter) => {
+            if (chapter.chapterNumber >= 0 && !byNumber.has(chapter.chapterNumber)) {
+                byNumber.set(chapter.chapterNumber, chapter);
+            }
+        });
+    return byNumber;
 };
 
 /**
- * Reader layer of brief #6 (mounted once by ReaderViewer): the Compare pane while Compare is on, and the offer at
- * the end of the English release. Continuous vertical / webtoon only; nothing translates without a click.
+ * Next / Previous across the series: the English reader gets the MTL chapters English lacks in the scanlator filter, the
+ * MTL reader the English chapters in it; either way the foreign chapter wins a tie.
+ */
+const useForeignChapters = ({ manga, series, role }: ReturnType<typeof useReaderSeries>) => {
+    useEffect(() => {
+        if (!manga || !series || !role) {
+            clearForeignChapters();
+            return;
+        }
+        if (role === 'english') {
+            setForeignChapters(
+                manga.id,
+                [...series.mtlByNumber.entries()]
+                    .filter(([number]) => !series.englishNumbers.has(number))
+                    .map(([number, chapter]) => ({ number, path: Chapters.getReaderUrl(chapter) })),
+                // A tie is an English copy outside the scanlator filter: the MTL chapter comes first.
+                true,
+            );
+            return;
+        }
+        setForeignChapters(
+            manga.id,
+            [...firstByNumber(series.english).entries()].map(([number, chapter]) => ({
+                number,
+                path: Chapters.getReaderUrl(chapter),
+            })),
+            true,
+        );
+    }, [manga?.id, series, role]);
+
+    useEffect(() => () => clearForeignChapters(), []);
+};
+
+/** MTL chapter still being translated: a note at its end, and the full page list once it is in. */
+const PartialChapterNote = ({ series, isAtEnd }: { series: SeriesMtl; isAtEnd: boolean }) => {
+    const { t } = useLingui();
+    const currentChapter = useReaderChaptersStore('currentChapter');
+    const number = currentChapter?.chapterNumber ?? -1;
+    const engine = useMtlChapter(number >= 0 ? getMtlRef(series, number) : null);
+    const wasPartial = useRef(false);
+    const { status } = engine;
+    const isPartial = status?.state === 'partial' || (status?.state === 'running' && !!status.path);
+
+    useEffect(() => {
+        if (isPartial) {
+            wasPartial.current = true;
+        }
+        if (status?.state === 'ready' && wasPartial.current && currentChapter) {
+            wasPartial.current = false;
+            refetchChapterPages(currentChapter.id);
+        }
+    }, [isPartial, status?.state, currentChapter?.id]);
+
+    if (!isPartial || (status.state !== 'partial' && status.state !== 'running')) {
+        return null;
+    }
+    const ready = status.pagesReady ?? 0;
+    const total = status.pagesTotal ?? 0;
+    const from = ready + 1;
+
+    return (
+        <FloatingCard isShown={isAtEnd}>
+            <Typography variant="body2">
+                {total
+                    ? t`Pages ${from}-${total} are still being translated… (${ready} / ${total})`
+                    : t`The rest of this chapter is still being translated…`}
+            </Typography>
+        </FloatingCard>
+    );
+};
+
+/** End of the MTL chapter when English has the next one: Next goes there. */
+const NextInEnglishNote = ({ isAtEnd }: { isAtEnd: boolean }) => {
+    const { t } = useLingui();
+    const { hasNext } = useTsujiForeignTargets();
+
+    if (!hasNext) {
+        return null;
+    }
+
+    return (
+        <FloatingCard isShown={isAtEnd}>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
+                <Typography variant="body2">{t`The next chapter is in English.`}</Typography>
+                <Button variant="contained" size="small" onClick={() => tsujiOpenForeignChapter('next')}>
+                    {t`Next chapter`}
+                </Button>
+            </Stack>
+        </FloatingCard>
+    );
+};
+
+/** The next number has no English chapter in the filter, and the raw or the MTL has it. */
+export const getEndOfEnglishNumber = (series: SeriesMtl | null, chapterNumber: number | undefined): number | null => {
+    if (!series?.isLoaded || chapterNumber === undefined || chapterNumber < 0) {
+        return null;
+    }
+    const next = Math.floor(chapterNumber) + 1;
+    if (series.englishNumbers.has(next)) {
+        return null;
+    }
+    return series.rawByNumber.has(next) || series.mtlByNumber.has(next) ? next : null;
+};
+
+/**
+ * Reader layer of briefs #6 and #19 (mounted once by ReaderViewer): the Compare pane while Compare is on; at the end of
+ * an English chapter whose next number isn't in English, the "English ran out" card; on an MTL chapter still being
+ * translated, its note; and Next / Previous across the English and MTL series.
  */
 export const TsujiReaderRawLayer = ({ scrollElementRef }: { scrollElementRef: ScrollElementRef }) => {
-    const { t } = useLingui();
-    const navigate = useNavigate();
     const links = useReaderRawLinks();
+    const reader = useReaderSeries();
     const isActive = useCompareStore((state) => state.isActive);
     const readingMode = useReaderSettingsStore('readingMode').value;
     const currentChapter = useReaderChaptersStore('currentChapter');
-    const [dialogUrl, setDialogUrl] = useState<string | null>(null);
     const isVertical = isContinuousVerticalReadingMode(readingMode);
-    const { offer, mtlChapter } = useEndOffer(scrollElementRef, links);
+    const isAtEnd = useIsAtChapterEnd(scrollElementRef, isVertical);
+    const { series, role } = reader;
+    useForeignChapters(reader);
+
+    const endNumber = role === 'english' ? getEndOfEnglishNumber(series, currentChapter?.chapterNumber) : null;
+    const isEndCardShown = endNumber !== null && isAtEnd;
+    useEffect(() => {
+        useEndCardStore.setState({ isShown: isEndCardShown });
+    }, [isEndCardShown]);
 
     // Compare is per reader visit.
-    useEffect(() => () => setCompareActive(false), []);
+    useEffect(
+        () => () => {
+            setCompareActive(false);
+            useEndCardStore.setState({ isShown: false });
+        },
+        [],
+    );
 
     return (
         <>
@@ -290,14 +427,19 @@ export const TsujiReaderRawLayer = ({ scrollElementRef }: { scrollElementRef: Sc
                     scrollElementRef={scrollElementRef}
                 />
             )}
-            {isVertical && offer && (
-                <EndOfferCard
-                    offer={offer}
-                    onRead={() => mtlChapter && navigate(Chapters.getReaderUrl(mtlChapter))}
-                    onTranslate={() => offer.kind === 'translate' && setDialogUrl(offer.url)}
-                />
+            {series && endNumber !== null && currentChapter && (
+                <FloatingCard key={`${currentChapter.id}-${endNumber}`} isShown={isEndCardShown}>
+                    <EnglishRanOutPanel
+                        series={series}
+                        number={endNumber}
+                        isShown={isEndCardShown}
+                        isInReader
+                        onCompare={isVertical && series.rawId ? () => setCompareActive(true) : undefined}
+                    />
+                </FloatingCard>
             )}
-            <TranslateDialog url={dialogUrl} title={t`Translate`} onClose={() => setDialogUrl(null)} />
+            {series && role === 'mtl' && <PartialChapterNote series={series} isAtEnd={isAtEnd} />}
+            {role === 'mtl' && <NextInEnglishNote isAtEnd={isAtEnd} />}
         </>
     );
 };

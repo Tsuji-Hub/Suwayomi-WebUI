@@ -10,7 +10,8 @@
 // series, its Korean raw and its MTL series (plus a Chinese pair and a series without links), and a fake relay
 // serving /mtl/raws.json and the pre-signed translate pages. Checks the series page chips and the translate dialog
 // (server confirm page, Yes inside the frame, Cancel, feed refetched), no library writes, Compare mapping by the raw
-// names (KR first N화, CN last 第N话) and syncing by chapter fraction, and the end-of-release offers.
+// names (KR first N화, CN last 第N话) and syncing by chapter fraction, and the end-of-release card (brief #19's,
+// english-ran-out.e2e.mjs covers it in full).
 //
 // Usage: pnpm build && node tools/scripts/tsuji/raws.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -559,14 +560,14 @@ const runBrowser = async (browserName) => {
 
     // End of the newest English chapter: the MTL series has 139.
     await scrollEnglishBy(100_000);
-    const readMtl = page.getByRole('button', { name: 'Read MTL ch 139' });
+    const readMtl = page.getByRole('button', { name: 'Read MTL 139' });
     await readMtl.waitFor({ timeout: 10_000 }).catch(() => {});
-    check(label('end of EN 138: "Read MTL ch 139"'), await readMtl.isVisible().catch(() => false), {});
+    check(label('end of EN 138: "Read MTL 139" (brief #19 card)'), await readMtl.isVisible().catch(() => false), {});
     await readMtl.click().catch(() => {});
     await page.waitForURL(`**/manga/${MTL_ID}/chapter/**`, { timeout: 10_000 }).catch(() => {});
     const mtl139 = mtlChapters.find(({ chapterNumber }) => chapterNumber === 139);
     check(
-        label('"Read MTL ch 139" opens that MTL chapter'),
+        label('"Read MTL 139" opens that MTL chapter'),
         page.url().endsWith(`/manga/${MTL_ID}/chapter/${mtl139.sourceOrder}`),
         { url: page.url() },
     );
@@ -588,19 +589,13 @@ const runBrowser = async (browserName) => {
         (await cnPane.getAttribute('data-raw-chapter').catch(() => null)) === String(expectedCn.id),
         { shown: await cnPane.getAttribute('data-raw-chapter').catch(() => null), expected: expectedCn.id },
     );
+    // Brief #19: the end card needs the next number on the raw (or the MTL); the CN raw stops at 45.
     await scrollEnglishBy(100_000);
-    const translate = page.getByRole('button', { name: 'Translate ch 46' });
-    await translate.waitFor({ timeout: 10_000 }).catch(() => {});
-    await translate.click().catch(() => {});
-    await page
-        .frameLocator('iframe')
-        .getByText('Queued chapter 46')
-        .waitFor({ timeout: 10_000 })
-        .catch(() => {});
+    await page.waitForTimeout(2000);
     check(
-        label('end of the CN release without MTL: "Translate ch 46" opens t_next in the dialog'),
-        relayRequests.some((request) => request.includes(`raw=${CN_RAW_ID}&ch=46&n=1`)),
-        relayRequests.filter((request) => request.includes(String(CN_RAW_ID))),
+        label('end of CN 45 with no raw 46 and no MTL: no "English ran out" card'),
+        (await page.getByText("isn't in English yet").count()) === 0,
+        {},
     );
 
     check(label('no page errors'), pageErrors.length === 0, pageErrors);
