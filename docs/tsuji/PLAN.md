@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #19: "English ran out": translate and keep reading, in place (branch `feat/english-ran-out`)
 
-**Built** (2026-10-25). Off `custom` (r3441). r3443 checked live (6/6); fixes below. Not shipped.
+**Shipped as r3444** (2026-10-25). Off `custom` (r3441). r3443 checked live (6/6); fixes below.
 
 **Backend (Cowork, mtl-engine v7):** `tsuji_raw_links` raw entry carries `api` (the relay, `.../mtl`) and `req` (a
 series-level signature); `kind:"align"` is the art match (`en`, `en_source`, `raw`, `last_raw`, `verdict`, `ok`,

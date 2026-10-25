@@ -4,14 +4,13 @@ Everything a new session needs to continue this fork. The fork adds a small set 
 the owner's Makimono Android fork) to Suwayomi-WebUI and is served by the owner's Suwayomi-Server as the **Custom**
 WebUI flavor. Current plan and last execution report: [PLAN.md](PLAN.md).
 
-## State (2026-10-22)
+## State (2026-10-25)
 
-| Branch                 | Commit             | What                                                                                                                                                                                                                           |
-| ---------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `custom`               | `a6549742` (r3441) | Briefs #1-#18 (For You: Top picks back, Best matches first, family row in one visit; saved AniList list while AniList is down, "Compare translations" card, AniList outage fallback, ...) + reader resume. Shipped 2026-10-22. |
-| `chore/docs-r3441`     | this               | Docs only: r3441 shipped. Rides along with the next ship.                                                                                                                                                                      |
-| `feat/english-ran-out` | this               | Brief #19: "English ran out" card, Translate & read in place, MTL chapters inline, Next across English and MTL, art-match line. Prerelease, not shipped.                                                                       |
-| `master`               | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                                                 |
+| Branch             | Commit             | What                                                                                                                                                                                                                                               |
+| ------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom`           | `a59e3409` (r3444) | Briefs #1-#19 ("English ran out": translate and keep reading in place, MTL inline, Next across English and MTL; For You fixes; saved AniList list, "Compare translations" card, AniList outage fallback, ...) + reader resume. Shipped 2026-10-25. |
+| `chore/docs-r3444` | this               | Docs only: r3444 shipped. Rides along with the next ship.                                                                                                                                                                                          |
+| `master`           | upstream           | Untouched mirror of Suwayomi/Suwayomi-WebUI. Never push to it.                                                                                                                                                                                     |
 
 Server: Suwayomi-Server **v2.4.2366** (upgraded 2026-10-19 from v2.3.2243; r3401 verified on it 2026-10-20), flavor
 Custom. MangaFire is gone (library on Atsumaru, Comix, ...); 32 raw sources (KR/JP/CN) installed, linked and
@@ -26,7 +25,7 @@ Remotes: `origin` = Tsuji-Hub/Suwayomi-WebUI (public fork), `upstream` = Suwayom
    "Fix: webtoon resume lands short". r3388/r3389 came from a second thread; this thread owns the fork.
 2. **For You: done** (r3391, verified live 2026-09-28 against real AniList: 3 calls, all 200, the 4-seed batch
    without retry; 0 calls on reload; no started/completed/dropped titles in the top picks). PLAN.md, "Brief #3".
-3. The server runs r3441 (briefs #4-#18). Cowork's Discord chapter pings are off since the bell shipped. Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
+3. The server runs r3444 (briefs #4-#19). Cowork's Discord chapter pings are off since the bell shipped. Older note: release `r3383-eb23a8e3` has a stale sha256 in its notes (its
    `.sha256` asset is right); the workflow no longer rebuilds an existing tag.
 4. Brief #4: **duplicate chapters** shipped 2026-10-15 (r3392 on `custom`; PLAN.md, "Brief #4").
 5. **Parked (owner: low priority):** paged reading modes follow the route state on F5 and have no in-page offset;
