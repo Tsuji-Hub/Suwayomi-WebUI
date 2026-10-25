@@ -157,22 +157,33 @@ export const useMtlParent = (manga: { id: number; title?: string | null } | null
  * list before opening it.
  */
 export const refreshMangaChapters = async (mangaId: number): Promise<void> => {
+    const variables = {
+        condition: { mangaId },
+        order: [{ by: ChapterOrderBy.SourceOrder, byType: SortOrder.Desc }],
+    };
     try {
-        await requestManager.getChapters<GetChaptersReaderQuery, GetChaptersMangaQueryVariables>(
-            GET_CHAPTERS_READER,
-            { condition: { mangaId }, order: [{ by: ChapterOrderBy.SourceOrder, byType: SortOrder.Desc }] },
-            { fetchPolicy: 'network-only' },
-        ).response;
+        await Promise.all([
+            requestManager.getChapters<GetChaptersReaderQuery, GetChaptersMangaQueryVariables>(
+                GET_CHAPTERS_READER,
+                variables,
+                { fetchPolicy: 'network-only' },
+            ).response,
+            requestManager.getChapters<GetChaptersMangaQuery, GetChaptersMangaQueryVariables>(
+                GET_CHAPTERS_MANGA,
+                variables,
+                { fetchPolicy: 'network-only' },
+            ).response,
+        ]);
     } catch {
         // Opening the chapter still works when the list was already current.
     }
 };
 
-const useChapters = (mangaId: number | null) =>
+const useChapters = (mangaId: number | null, { isLive = false }: { isLive?: boolean } = {}) =>
     requestManager.useGetMangaChapters<GetChaptersMangaQuery, GetChaptersMangaQueryVariables>(
         GET_CHAPTERS_MANGA,
         mangaId ?? -1,
-        { skip: !mangaId },
+        { skip: !mangaId, ...(isLive ? { fetchPolicy: 'cache-and-network' } : {}) },
     ).data?.chapters.nodes;
 
 /** Series by English id, for the chapter rows (they only know their own chapter). */
@@ -210,7 +221,8 @@ export const useSeriesMtl = (
 
     const englishAll = useChapters(enId);
     const rawChapters = useChapters(rawId);
-    const mtlChapters = useChapters(mtlId);
+    // The engine translates ahead by itself (the next raw chapter once one is read): asked again on every visit.
+    const mtlChapters = useChapters(mtlId, { isLive: true });
 
     const series = useMemo((): SeriesMtl | null => {
         if (!enId) {

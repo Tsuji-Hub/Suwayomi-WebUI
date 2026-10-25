@@ -41,7 +41,8 @@ import { getChapterFraction, getPaneScrollTop } from '@/features/tsuji/raws/comp
 import { getMangaIdFromUrl, parseRawLinks } from '@/features/tsuji/raws/rawLinks.ts';
 import { useRawFeedRow } from '@/features/tsuji/raws/rawFeed.ts';
 import { buildRawChapterMap } from '@/features/tsuji/raws/rawNumbering.ts';
-import { useMtlChapter } from '@/features/tsuji/raws/mtlEngine.ts';
+import { fetchMtlStatus, getMtlEntry, getMtlKey, useMtlChapter } from '@/features/tsuji/raws/mtlEngine.ts';
+import { getReadablePath, isMtlPending } from '@/features/tsuji/raws/mtlStatus.ts';
 import { refetchChapterPagesInPlace } from '@/features/tsuji/raws/chapterRefetch.ts';
 import {
     clearForeignChapters,
@@ -50,7 +51,7 @@ import {
     useTsujiForeignTargets,
 } from '@/features/tsuji/raws/mtlSequence.ts';
 import type { SeriesChapter, SeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
-import { getMtlRef, useMtlParent, useSeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
+import { getMtlRef, refreshMangaChapters, useMtlParent, useSeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
 import { EnglishRanOutPanel } from '@/features/tsuji/raws/components/EnglishRanOutPanel.tsx';
 
 /** How far into the chapter counts as its end (vertical modes). */
@@ -386,22 +387,79 @@ const NextInEnglishNote = ({ isAtEnd }: { isAtEnd: boolean }) => {
     );
 };
 
-/** The next number has no English chapter in the filter, and the raw or the MTL has it. */
-export const getEndOfEnglishNumber = (series: SeriesMtl | null, chapterNumber: number | undefined): number | null => {
-    if (!series?.isLoaded || chapterNumber === undefined || chapterNumber < 0) {
+/**
+ * The next number has no English chapter in the filter, and the raw or the MTL has it. In the MTL reader only when
+ * the MTL doesn't have it yet either (its own Next goes there otherwise).
+ */
+export const getEndOfEnglishNumber = (
+    series: SeriesMtl | null,
+    chapterNumber: number | undefined,
+    role: 'english' | 'mtl' | null,
+): number | null => {
+    if (!role || !series?.isLoaded || chapterNumber === undefined || chapterNumber < 0) {
         return null;
     }
     const next = Math.floor(chapterNumber) + 1;
-    if (series.englishNumbers.has(next)) {
+    if (series.englishNumbers.has(next) || (role === 'mtl' && series.mtlByNumber.has(next))) {
         return null;
     }
     return series.rawByNumber.has(next) || series.mtlByNumber.has(next) ? next : null;
 };
 
+/** How often the next chapter's engine state is asked while the reader sits at a chapter's end. */
+const READ_AHEAD_CHECK_MS = 15_000;
+
+/**
+ * MTL read-ahead: once a chapter is read the engine translates the next raw chapter by itself, after the reader loaded
+ * its lists. While the reader is at the end of a chapter whose next number neither English nor the MTL list has (the
+ * raw has it), the engine is asked about it every 15 s (polled every 3 s once queued); as soon as it is readable the
+ * MTL list is fetched again, so Next, the inline rows and the card see the chapter translated ahead.
+ */
+const useReadAhead = (
+    series: SeriesMtl | null,
+    chapter: { id: number; chapterNumber: number } | null | undefined,
+    isAtEnd: boolean,
+) => {
+    const next = chapter && chapter.chapterNumber >= 0 ? Math.floor(chapter.chapterNumber) + 1 : null;
+    const isMissing =
+        !!series?.isLoaded &&
+        next !== null &&
+        !series.englishNumbers.has(next) &&
+        !series.mtlByNumber.has(next) &&
+        series.rawByNumber.has(next);
+    const ref = isMissing && series && next !== null ? getMtlRef(series, next) : null;
+    const engine = useMtlChapter(ref);
+    const readablePath = getReadablePath(engine.status);
+    const refreshedRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!isAtEnd || !ref) {
+            return undefined;
+        }
+        const timer = setInterval(() => {
+            const { status, error } = getMtlEntry(getMtlKey(ref));
+            if (!error && !isMtlPending(status) && !getReadablePath(status)) {
+                fetchMtlStatus(ref);
+            }
+        }, READ_AHEAD_CHECK_MS);
+        return () => clearInterval(timer);
+    }, [isAtEnd, ref ? getMtlKey(ref) : '']);
+
+    useEffect(() => {
+        const key = `${next}|${readablePath}`;
+        if (!readablePath || !series?.mtlId || refreshedRef.current === key) {
+            return;
+        }
+        refreshedRef.current = key;
+        refreshMangaChapters(series.mtlId);
+    }, [readablePath, next, series?.mtlId]);
+};
+
 /**
  * Reader layer of briefs #6 and #19 (mounted once by ReaderViewer): the Compare pane while Compare is on; at the end of
- * an English chapter whose next number isn't in English, the "English ran out" card; on an MTL chapter still being
- * translated, its note; and Next / Previous across the English and MTL series.
+ * a chapter whose next number isn't in English (nor, in the MTL reader, in the MTL), the "English ran out" card; on an
+ * MTL chapter still being translated, its note; Next / Previous across the English and MTL series; and the MTL list
+ * asked again at a chapter's end for what the engine translated ahead.
  */
 export const TsujiReaderRawLayer = ({ scrollElementRef }: { scrollElementRef: ScrollElementRef }) => {
     const links = useReaderRawLinks();
@@ -414,7 +472,8 @@ export const TsujiReaderRawLayer = ({ scrollElementRef }: { scrollElementRef: Sc
     const { series, role } = reader;
     useForeignChapters(reader);
 
-    const endNumber = role === 'english' ? getEndOfEnglishNumber(series, currentChapter?.chapterNumber) : null;
+    useReadAhead(series, currentChapter, isAtEnd);
+    const endNumber = getEndOfEnglishNumber(series, currentChapter?.chapterNumber, role);
     const isEndCardShown = endNumber !== null && isAtEnd;
     useEffect(() => {
         useEndCardStore.setState({ isShown: isEndCardShown });
@@ -460,7 +519,7 @@ export const TsujiReaderRawLayer = ({ scrollElementRef }: { scrollElementRef: Sc
                     isVertical={isVertical}
                 />
             )}
-            {role === 'mtl' && <NextInEnglishNote isAtEnd={isAtEnd} />}
+            {role === 'mtl' && endNumber === null && <NextInEnglishNote isAtEnd={isAtEnd} />}
         </>
     );
 };

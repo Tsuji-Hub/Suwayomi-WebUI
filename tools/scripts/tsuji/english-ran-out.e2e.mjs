@@ -235,10 +235,24 @@ const createWorld = () => {
         server.chapters.set(chapter.id, chapter);
         mtlEntry.pageCount = PARTIAL_PAGES;
     };
+    /** The engine's read-ahead: 228 translated after 227 was read, without a request. */
+    const readAhead228 = () => {
+        const [, , chapter] = chaptersOf(MTL_ID, [
+            ['Chapter 225', 225, 'MTL'],
+            ['Chapter 227', 227, 'MTL'],
+            ['Chapter 228', 228, 'MTL'],
+        ]);
+        mtlEntry.chapters.unshift(chapter);
+        server.chapters.set(chapter.id, chapter);
+        engine.stage[228] = 'ready';
+    };
     const path = (sourceOrder) => `http://192.168.5.85:4567/manga/${MTL_ID}/chapter/${sourceOrder}`;
     const status = (raw, ch) => {
         if (raw !== RAW_ID) {
             return { state: 'none' };
+        }
+        if (ch === 228 && engine.stage[228] === 'ready') {
+            return { state: 'ready', url: path(3) };
         }
         if (ch === 225) {
             return { state: 'ready', url: path(1) };
@@ -315,7 +329,7 @@ const createWorld = () => {
         return { status: 404, body: {} };
     };
 
-    return { server, engine, answer, enChapters, mtlEntry };
+    return { server, engine, answer, enChapters, mtlEntry, readAhead228 };
 };
 
 const launchers = {
@@ -347,7 +361,7 @@ const check = (label, ok, detail) => {
 const runBrowser = async (browserName) => {
     const browser = await launchers[browserName]();
     const label = (text) => `[${browserName}] ${text}`;
-    const { server, engine, answer, enChapters, mtlEntry } = createWorld();
+    const { server, engine, answer, enChapters, mtlEntry, readAhead228 } = createWorld();
     const hosts = new Set();
     const relayPaths = [];
 
@@ -394,12 +408,6 @@ const runBrowser = async (browserName) => {
     });
     const page = await context.newPage();
     const pageErrors = [];
-    if (process.env.E2E_SHOTS) {
-        page.on(
-            'console',
-            (message) => message.type() === 'error' && console.log('CONSOLE', page.url(), message.text().slice(0, 300)),
-        );
-    }
     page.on('pageerror', (error) =>
         pageErrors.push(`${error.message} @ ${page.url()} ${error.stack?.split('\n')[1] ?? ''}`),
     );
@@ -545,20 +553,6 @@ const runBrowser = async (browserName) => {
     // Next from MTL 225: unofficial 226.
     await waitForPages(EN_PAGES);
     await scrollToEnd();
-    if (process.env.E2E_SHOTS) {
-        await page.waitForTimeout(3000);
-        await page.screenshot({ path: `${process.env.E2E_SHOTS}/mtl225.png` });
-        console.log('BODY', (await page.locator('body').innerText()).slice(0, 800));
-        console.log(
-            'IMGS',
-            await page.evaluate(() =>
-                [...document.querySelectorAll('img')].map((img) => `${img.alt}:${img.naturalHeight}`).join(','),
-            ),
-        );
-        (await import('node:fs')).writeFileSync(`${process.env.E2E_SHOTS}/mtl.html`, await page.content());
-        console.log('DBG', await page.evaluate(() => JSON.stringify(window.tsujiDebug)));
-        console.log('LS', await page.evaluate(() => Object.keys(localStorage).filter((key) => key.includes('raws'))));
-    }
     const nextInEnglish = page
         .getByRole('status')
         .filter({ hasText: 'The next chapter is in English.' })
@@ -664,6 +658,29 @@ const runBrowser = async (browserName) => {
         place,
     );
 
+    // Read-ahead: the engine translates 228 while 227 is open (its list has no 228 yet). At the end of 227 the
+    // reader picks it up: Next is 228, not "There is no next chapter".
+    // The engine starts after the chapter is read, so 228 shows up while the reader already sits at the end.
+    await scrollToEnd();
+    await page.waitForTimeout(2000);
+    readAhead228();
+    await page
+        .getByText('Chapter 228')
+        .first()
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {});
+    check(
+        label('read-ahead: MTL 228, translated while 227 was open, comes next at its end'),
+        (await page.getByText('Chapter 228').count()) > 0 &&
+            (await page.getByText('There is no next chapter').count()) === 0,
+        { requests: engine.requests },
+    );
+    check(
+        label('read-ahead: nothing requested for 228'),
+        !engine.requests.some((request) => request.includes(':228:')),
+        engine.requests,
+    );
+
     // MTL 225 opened directly, without the 224 card (r3443: Next went to MTL 226): the English series is found.
     await page.evaluate(() =>
         Object.keys(localStorage)
@@ -735,8 +752,8 @@ const runBrowser = async (browserName) => {
         .locator('a', { has: page.locator('.MuiChip-root', { hasText: /^MTL$/ }) })
         .allInnerTexts();
     check(
-        label('filter on official (has 225): no MTL 225 row; MTL 227 stays (official has no 227)'),
-        mtlRows.length === 1 && mtlRows[0].includes('Chapter 227'),
+        label('filter on official (has 225): no MTL 225 row; MTL 227 and 228 stay (official has neither)'),
+        mtlRows.length === 2 && mtlRows.every((row) => !row.includes('Chapter 225')),
         { mtlRows },
     );
 

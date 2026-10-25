@@ -14,6 +14,24 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Fix: MTL read-ahead in the reader (branch `feat/mtl-readahead`)
+
+**Built** (2026-10-25). Off `custom` (r3444). Not shipped.
+
+The engine translates the next raw chapter by itself once one is read (brief #19 backend note), so it appears after
+the reader loaded its chapter lists (Apollo is cache-first): at the end of MTL 227 the reader said "There is no next
+chapter" although MTL 228 was ready, and the card had asked the engine once, before the read-ahead started.
+
+1. While the reader sits at the end of a chapter whose next number neither English (filter) nor the MTL list has and
+   the raw has, the engine is asked about it every 15 s (every 3 s once queued / running); when it is readable the MTL
+   chapter list is fetched again, so Next, the inline rows and the card see it (no request is ever sent for it).
+2. The MTL reader shows the "English ran out" card too when the next number has no English and no MTL chapter yet
+   (Translate & read, or Read MTL once the read-ahead has it); "The next chapter is in English" gives way to it.
+3. The series' MTL chapter list is asked again on every visit (cache-and-network).
+
+**Tests:** `english-ran-out.e2e.mjs`: MTL 228 published by the fake engine while MTL 227 is open and at its end; Next
+is 228 within 30 s, nothing requested for 228 (fails on r3444).
+
 # Brief #19: "English ran out": translate and keep reading, in place (branch `feat/english-ran-out`)
 
 **Shipped as r3444** (2026-10-25). Off `custom` (r3441). r3443 checked live (6/6); fixes below.
