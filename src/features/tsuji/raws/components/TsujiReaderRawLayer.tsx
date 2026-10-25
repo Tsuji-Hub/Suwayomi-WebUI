@@ -42,7 +42,7 @@ import { getMangaIdFromUrl, parseRawLinks } from '@/features/tsuji/raws/rawLinks
 import { useRawFeedRow } from '@/features/tsuji/raws/rawFeed.ts';
 import { buildRawChapterMap } from '@/features/tsuji/raws/rawNumbering.ts';
 import { useMtlChapter } from '@/features/tsuji/raws/mtlEngine.ts';
-import { refetchChapterPages } from '@/features/tsuji/raws/chapterRefetch.ts';
+import { refetchChapterPagesInPlace } from '@/features/tsuji/raws/chapterRefetch.ts';
 import {
     clearForeignChapters,
     setForeignChapters,
@@ -50,7 +50,7 @@ import {
     useTsujiForeignTargets,
 } from '@/features/tsuji/raws/mtlSequence.ts';
 import type { SeriesChapter, SeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
-import { getMtlRef, readMtlParent, useSeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
+import { getMtlRef, useMtlParent, useSeriesMtl } from '@/features/tsuji/raws/useSeriesMtl.ts';
 import { EnglishRanOutPanel } from '@/features/tsuji/raws/components/EnglishRanOutPanel.tsx';
 
 /** How far into the chapter counts as its end (vertical modes). */
@@ -247,7 +247,7 @@ const FloatingCard = ({ isShown, children }: { isShown: boolean; children: React
 /** The reader's series around the English one: the English reader itself, or an MTL series it translates. */
 const useReaderSeries = () => {
     const manga = useReaderStore('manga');
-    const parentId = readMtlParent(manga?.id);
+    const parentId = useMtlParent(manga);
     const parent = requestManager.useGetManga<GetMangaMetaQuery, GetMangaMetaQueryVariables>(
         GET_MANGA_META,
         parentId ?? -1,
@@ -314,7 +314,17 @@ const useForeignChapters = ({ manga, series, role }: ReturnType<typeof useReader
 };
 
 /** MTL chapter still being translated: a note at its end, and the full page list once it is in. */
-const PartialChapterNote = ({ series, isAtEnd }: { series: SeriesMtl; isAtEnd: boolean }) => {
+const PartialChapterNote = ({
+    series,
+    isAtEnd,
+    scrollElementRef,
+    isVertical,
+}: {
+    series: SeriesMtl;
+    isAtEnd: boolean;
+    scrollElementRef: ScrollElementRef;
+    isVertical: boolean;
+}) => {
     const { t } = useLingui();
     const currentChapter = useReaderChaptersStore('currentChapter');
     const number = currentChapter?.chapterNumber ?? -1;
@@ -329,7 +339,11 @@ const PartialChapterNote = ({ series, isAtEnd }: { series: SeriesMtl; isAtEnd: b
         }
         if (status?.state === 'ready' && wasPartial.current && currentChapter) {
             wasPartial.current = false;
-            refetchChapterPages(currentChapter.id);
+            refetchChapterPagesInPlace({
+                chapterId: currentChapter.id,
+                scrollElement: scrollElementRef.current,
+                isVertical,
+            });
         }
     }, [isPartial, status?.state, currentChapter?.id]);
 
@@ -438,7 +452,14 @@ export const TsujiReaderRawLayer = ({ scrollElementRef }: { scrollElementRef: Sc
                     />
                 </FloatingCard>
             )}
-            {series && role === 'mtl' && <PartialChapterNote series={series} isAtEnd={isAtEnd} />}
+            {series && role === 'mtl' && (
+                <PartialChapterNote
+                    series={series}
+                    isAtEnd={isAtEnd}
+                    scrollElementRef={scrollElementRef}
+                    isVertical={isVertical}
+                />
+            )}
             {role === 'mtl' && <NextInEnglishNote isAtEnd={isAtEnd} />}
         </>
     );

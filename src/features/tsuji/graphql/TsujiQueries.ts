@@ -107,3 +107,27 @@ export const TSUJI_BELL_CHAPTERS = gql`
         }
     }
 `;
+
+/**
+ * Library series whose title contains `title`, with their meta and last read chapter: the English series an MTL
+ * series ("<title> [MTL]") translates, found by its `tsuji_raw_links` (brief #19).
+ */
+export const TSUJI_MTL_PARENTS = gql`
+    query TSUJI_MTL_PARENTS($title: String!) {
+        mangas(condition: { inLibrary: true }, filter: { title: { includesInsensitive: $title } }) {
+            nodes {
+                id
+                title
+                meta {
+                    mangaId
+                    key
+                    value
+                }
+                lastReadChapter {
+                    id
+                    lastReadAt
+                }
+            }
+        }
+    }
+`;

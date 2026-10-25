@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import type { GqlMetaHolder } from '@/features/metadata/Metadata.types.ts';
 import { FALLBACK_MANGA } from '@/features/manga/Manga.constants.ts';
@@ -16,7 +16,11 @@ import type {
     GetChaptersMangaQuery,
     GetChaptersMangaQueryVariables,
     GetChaptersReaderQuery,
+    TsujiMtlParentsQuery,
+    TsujiMtlParentsQueryVariables,
 } from '@/lib/graphql/generated/graphql.ts';
+import { TSUJI_MTL_PARENTS } from '@/features/tsuji/graphql/TsujiQueries.ts';
+import { getMtlBaseTitle, pickMtlParent } from '@/features/tsuji/raws/crossSeries.ts';
 import { ChapterOrderBy, SortOrder } from '@/lib/graphql/generated/graphql-base.types.ts';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { DAY_MS, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
@@ -91,6 +95,61 @@ export const rememberMtlSeries = (enId: number, mtlId: number) => {
     if (TsujiCache.get<number>(mtlKey(enId)) !== mtlId) {
         TsujiCache.set(mtlKey(enId), mtlId, PARENT_TTL_MS);
     }
+};
+
+const parentLookups = new Map<number, Promise<number | null>>();
+
+/** Finds and remembers the English series of an MTL series opened without it (one library query per series). */
+const lookupMtlParent = (mtlId: number, baseTitle: string): Promise<number | null> => {
+    let lookup = parentLookups.get(mtlId);
+    if (!lookup) {
+        lookup = requestManager.graphQLClient.client
+            .query<TsujiMtlParentsQuery, TsujiMtlParentsQueryVariables>({
+                query: TSUJI_MTL_PARENTS,
+                variables: { title: baseTitle },
+                fetchPolicy: 'network-only',
+            })
+            .then(({ data }) => {
+                const parent = pickMtlParent(
+                    mtlId,
+                    (data?.mangas.nodes ?? []).map(({ id, meta, lastReadChapter }) => ({
+                        id,
+                        meta,
+                        lastReadAt: Number(lastReadChapter?.lastReadAt ?? 0) || 0,
+                    })),
+                );
+                if (parent) {
+                    rememberMtlSeries(parent, mtlId);
+                }
+                return parent;
+            })
+            .catch(() => null);
+        parentLookups.set(mtlId, lookup);
+    }
+    return lookup;
+};
+
+/**
+ * The English series of the reader's manga when it is an MTL series: remembered in this browser, else looked up once
+ * (an MTL series opened directly, brief #19 r3443 check).
+ */
+export const useMtlParent = (manga: { id: number; title?: string | null } | null | undefined): number | null => {
+    const remembered = readMtlParent(manga?.id);
+    const baseTitle = getMtlBaseTitle(manga?.title);
+    const [found, setFound] = useState<{ mtlId: number; parent: number | null } | null>(null);
+
+    useEffect(() => {
+        if (!manga || remembered || !baseTitle) {
+            return undefined;
+        }
+        let isCurrent = true;
+        lookupMtlParent(manga.id, baseTitle).then((parent) => isCurrent && setFound({ mtlId: manga.id, parent }));
+        return () => {
+            isCurrent = false;
+        };
+    }, [manga?.id, remembered, baseTitle]);
+
+    return remembered ?? (found && found.mtlId === manga?.id ? found.parent : null);
 };
 
 /**

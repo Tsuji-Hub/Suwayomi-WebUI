@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #19: "English ran out": translate and keep reading, in place (branch `feat/english-ran-out`)
 
-**Built** (2026-10-25). Off `custom` (r3441). Not shipped.
+**Built** (2026-10-25). Off `custom` (r3441). r3443 checked live (6/6); fixes below. Not shipped.
 
 **Backend (Cowork, mtl-engine v7):** `tsuji_raw_links` raw entry carries `api` (the relay, `.../mtl`) and `req` (a
 series-level signature); `kind:"align"` is the art match (`en`, `en_source`, `raw`, `last_raw`, `verdict`, `ok`,
@@ -56,6 +56,17 @@ reader route; only its path is used); `GET {api}/req?raw=&ch=&sig=` queues it (4
    (stops at 28% of the English chapter)" (verdict says INCOMPLETE; the percentage is `last_raw`), or "⚠ <verdict>";
    "details" opens `{api}/align?raw=` formatted (plain values, each list of records as a table).
 
+**After the r3443 check (6/6 pass):**
+
+1. **Partial -> ready kept the page:** the reader reloaded the chapter's 59 pages and started at page 1 (it reloads
+   pages from scratch: its first page or lastPageRead). Now `refetchChapterPagesInPlace` notes the page being read and
+   the offset in it, holds lastPageRead writes until the new pages are in, then pins that spot like a resume
+   (continuous vertical) or selects the page (other modes).
+2. **MTL 225 opened directly:** Next went to MTL 226; the MTL -> English link was only known after visiting the
+   English series in this browser. Now the reader looks it up once (`TSUJI_MTL_PARENTS`: library series whose title
+   is the MTL title without " [MTL]", whose `tsuji_raw_links` name this MTL series; the copy read last when several do)
+   and remembers it.
+
 Replaced: the #6 end-of-release offer (feed `t_next` in a frame) in the reader. Only `tsuji_raw_links` is read; only
 the meta's `api` host is contacted; nothing is written to Suwayomi meta.
 
@@ -64,7 +75,8 @@ cut for 224 / 226 / MTL 225, inline rows, the client's URLs, a 403 is final). Br
 Game That I Came From, unofficial filter, fake engine): series line + report, inline MTL 225 between 226 and 224, the
 Missing row for 227 / 228, the chapter menu, end of 224 "Read MTL 225" with no request, Next from MTL 225 to unofficial
 226, Translate & read on 227 (queued, "Translating… 2 / 9 pages · 1:35", opens by itself), the partial note and the
-full page list without a reload, a bad signature once and no polling, the official filter hiding MTL 225, only the
+full page list without a reload and still on the page being read (fails on r3443), MTL 225 opened directly with Next
+to unofficial 226, a bad signature once and no polling, the official filter hiding MTL 225, only the
 relay's `/mtl/` paths, no meta writes. `raws.e2e.mjs` updated for the new card.
 
 # Brief #18: For You fixes from the #14 recheck (branch `feat/foryou-speed`)

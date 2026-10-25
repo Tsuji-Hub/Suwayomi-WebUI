@@ -640,12 +640,60 @@ const runBrowser = async (browserName) => {
         await note.isVisible().catch(() => false),
         {},
     );
+    // Read on to the middle of the last partial page (r3443: the full list reset the reader to page 1).
+    await page.evaluate((pages) => {
+        document.querySelector(`img[alt="Page #${pages}"]`)?.scrollIntoView({ block: 'start' });
+    }, PARTIAL_PAGES);
     await waitForPages(FULL_PAGES);
+    await page.waitForTimeout(2500);
     const pagesShown = await page.locator('img[alt^="Page #"]').count();
     check(
         label('ready: the full page list (9) in place, no reload'),
         pagesShown >= FULL_PAGES && (await page.evaluate(() => window.tsujiNoReload === true)),
         { pagesShown, mtlPages: mtlEntry.pageCount },
+    );
+    const place = await page.evaluate((pages) => {
+        const [first, last] = ['Page #1', `Page #${pages}`].map(
+            (alt) => document.querySelector(`img[alt="${alt}"]`)?.getBoundingClientRect().top ?? null,
+        );
+        return { first, last, viewport: window.innerHeight };
+    }, PARTIAL_PAGES);
+    check(
+        label('ready: still on page 3 (not back to page 1)'),
+        place.last !== null && Math.abs(place.last) < 50 && place.first !== null && place.first < -1000,
+        place,
+    );
+
+    // MTL 225 opened directly, without the 224 card (r3443: Next went to MTL 226): the English series is found.
+    await page.evaluate(() =>
+        Object.keys(localStorage)
+            .filter((key) => key.includes('raws:mtl'))
+            .forEach((key) => localStorage.removeItem(key)),
+    );
+    await page.goto(`${ORIGIN}/manga/${MTL_ID}/chapter/1`);
+    await waitForPages(EN_PAGES);
+    await scrollToEnd();
+    const directNext = page
+        .getByRole('status')
+        .filter({ hasText: 'The next chapter is in English.' })
+        .getByRole('button', { name: 'Next chapter' });
+    // The English series is looked up first (one library query): give a loaded machine time, scrolling again.
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        // oxlint-disable-next-line no-await-in-loop
+        if (await directNext.isVisible().catch(() => false)) {
+            break;
+        }
+        // oxlint-disable-next-line no-await-in-loop
+        await directNext.waitFor({ timeout: 5000 }).catch(() => {});
+        // oxlint-disable-next-line no-await-in-loop
+        await scrollToEnd();
+    }
+    await directNext.click().catch(() => {});
+    await page.waitForURL(`**/manga/${EN_ID}/chapter/${en(226).sourceOrder}`, { timeout: 10_000 }).catch(() => {});
+    check(
+        label('MTL 225 opened directly: Next is unofficial 226'),
+        page.url().endsWith(`/manga/${EN_ID}/chapter/${en(226).sourceOrder}`),
+        { url: page.url() },
     );
 
     // A bad signature: "Couldn't request a translation", once.

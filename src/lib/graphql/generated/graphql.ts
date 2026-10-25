@@ -109,6 +109,24 @@ export type TsujiBellChaptersQuery = {
     };
 };
 
+export type TsujiMtlParentsQueryVariables = Exact<{
+    title: string;
+}>;
+
+export type TsujiMtlParentsQuery = {
+    __typename: 'Query';
+    mangas: {
+        __typename: 'MangaNodeList';
+        nodes: Array<{
+            __typename: 'MangaType';
+            id: number;
+            title: string;
+            meta: Array<{ __typename: 'MangaMetaType'; mangaId: number; key: string; value: string }>;
+            lastReadChapter: { __typename: 'ChapterType'; id: number; lastReadAt: string } | null;
+        }>;
+    };
+};
+
 export type CreateBackupMutationVariables = Exact<{
     input: Types.CreateBackupInput;
 }>;

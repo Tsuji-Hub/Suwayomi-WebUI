@@ -17,9 +17,14 @@ import {
     getShortSource,
     parseMtlStatus,
 } from '@/features/tsuji/raws/mtlStatus.ts';
-import { cutAtForeign, mergeInlineMtl } from '@/features/tsuji/raws/crossSeries.ts';
+import { cutAtForeign, getMtlBaseTitle, mergeInlineMtl, pickMtlParent } from '@/features/tsuji/raws/crossSeries.ts';
 import { fetchMtlStatus, getMtlEntry, getMtlKey, requestMtl, resetMtlEngine } from '@/features/tsuji/raws/mtlEngine.ts';
 
+const metaWithMtl = (mtl: number) =>
+    JSON.stringify([
+        { kind: 'raw', mangaId: 1 },
+        { kind: 'mtl', mangaId: mtl },
+    ]);
 const chapter = (id: number, chapterNumber: number) => ({ id, chapterNumber });
 const at = (chapterNumber: number, id = chapterNumber) => ({ id, chapterNumber });
 
@@ -261,5 +266,23 @@ describe('inline MTL rows', () => {
     it('English for 225 in the filter: no MTL row', () => {
         const english = [at(226), at(225), at(224)];
         expect(mergeInlineMtl(english, [at(225, 1225)], new Set([224, 225, 226]), true)).toBe(english);
+    });
+});
+
+describe('the English series of an MTL series opened directly', () => {
+    it('reads the title under "[MTL]"', () => {
+        expect(getMtlBaseTitle('The Game That I Came From [MTL]')).toBe('The Game That I Came From');
+        expect(getMtlBaseTitle('The Game That I Came From')).toBeNull();
+    });
+
+    it('picks the copy that links this MTL series, the one read last', () => {
+        const candidates = [
+            { id: 3526, meta: [{ key: 'tsuji_raw_links', value: metaWithMtl(16353) }], lastReadAt: 100 },
+            { id: 3600, meta: [{ key: 'tsuji_raw_links', value: metaWithMtl(16353) }], lastReadAt: 200 },
+            { id: 3700, meta: [{ key: 'tsuji_raw_links', value: metaWithMtl(99) }], lastReadAt: 300 },
+            { id: 3800, meta: [], lastReadAt: 400 },
+        ];
+        expect(pickMtlParent(16353, candidates)).toBe(3600);
+        expect(pickMtlParent(1, candidates)).toBeNull();
     });
 });

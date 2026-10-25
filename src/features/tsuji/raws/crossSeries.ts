@@ -6,6 +6,9 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+import { TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
+import { parseRawLinks } from '@/features/tsuji/raws/rawLinks.ts';
+
 /** Reading across the English and the MTL series (brief #19), pure part: see mtlSequence.ts. */
 
 export type ForeignChapter = { number: number; path: string };
@@ -81,3 +84,25 @@ export const mergeInlineMtl = <T extends { chapterNumber: number }>(
     });
     return result;
 };
+
+/** The English title an MTL series ("<title> [MTL]") translates, or null. */
+export const getMtlBaseTitle = (title: string | null | undefined): string | null => {
+    const match = /^(.*\S)\s*\[MTL\]\s*$/i.exec(title ?? '');
+    return match ? match[1] : null;
+};
+
+/**
+ * The English series of an MTL series among library series (`tsuji_raw_links` naming it as their MTL): the one read
+ * last when several copies link it (Asura and MangaFire both translate to one MTL series).
+ */
+export const pickMtlParent = (
+    mtlId: number,
+    candidates: { id: number; meta: { key: string; value: string }[]; lastReadAt: number }[],
+): number | null =>
+    candidates
+        .filter(({ meta }) =>
+            meta.some(
+                ({ key, value }) => key === TSUJI_META_KEYS.rawLinks && parseRawLinks(value).mtl?.mangaId === mtlId,
+            ),
+        )
+        .sort((a, b) => b.lastReadAt - a.lastReadAt || a.id - b.id)[0]?.id ?? null;

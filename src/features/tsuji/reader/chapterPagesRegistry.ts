@@ -23,6 +23,10 @@ export const registerChapterPages = (chapterId: number, imageRefs: MutableRefObj
     };
 };
 
+/** The chapter's page elements (by pages index), when it is rendered. */
+export const getChapterPageRefs = (chapterId: number): MutableRefObject<(HTMLElement | null)[]> | null =>
+    chapterPages.get(chapterId) ?? null;
+
 /** Top and bottom of the chapter's rendered pages in the scroll element's content coordinates, or null. */
 export const measureChapter = (
     chapterId: number,
