@@ -689,6 +689,15 @@ const runBrowser = async (browserName) => {
     );
     await page.goto(`${ORIGIN}/manga/${MTL_ID}/chapter/1`);
     await waitForPages(EN_PAGES);
+    // The English series is looked up first (one library query, then remembered): scroll once it is known, as a reader
+    // reaching the end would (CI's Firefox scrolled before the lookup and raced the reader's own preloading).
+    const parentKey = `raws:mtlParent:v1:${MTL_ID}`;
+    const isParentKnown = await page
+        .waitForFunction((key) => Object.keys(localStorage).some((each) => each.endsWith(key)), parentKey, {
+            timeout: 15_000,
+        })
+        .then(() => true)
+        .catch(() => false);
     await scrollToEnd();
     const directNext = page
         .getByRole('status')
@@ -709,8 +718,8 @@ const runBrowser = async (browserName) => {
     await page.waitForURL(`**/manga/${EN_ID}/chapter/${en(226).sourceOrder}`, { timeout: 10_000 }).catch(() => {});
     check(
         label('MTL 225 opened directly: Next is unofficial 226'),
-        page.url().endsWith(`/manga/${EN_ID}/chapter/${en(226).sourceOrder}`),
-        { url: page.url() },
+        isParentKnown && page.url().endsWith(`/manga/${EN_ID}/chapter/${en(226).sourceOrder}`),
+        { url: page.url(), isParentKnown },
     );
 
     // A bad signature: "Couldn't request a translation", once.
