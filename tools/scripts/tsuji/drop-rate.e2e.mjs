@@ -35,6 +35,11 @@ const TINY = { id: 5, anilistId: 999, title: 'Tiny Series' };
 const OUTSIDE_ID = 4242;
 /** Discover only: in the relay's index, not in the library (library titles are hidden there, brief #21). */
 const INDEXED_PICK_ID = 3131;
+/** Discover only: the relay answers after 9 s (a cold title: over the old 8 s client timeout). */
+const SLOW_ID = 5252;
+const SLOW_MS = 9000;
+/** Discover only: the relay is still mapping it (no numbers yet). */
+const MAPPING_ID = 6363;
 
 const CONTENT_TYPES = {
     '.html': 'text/html',
@@ -161,6 +166,14 @@ const createRelay = () => {
             notes: [],
         }),
         [TINY.anilistId]: () => ({ id: TINY.anilistId, chapters: 10, dist: dist(150, 12.0), map: null, notes: [] }),
+        [SLOW_ID]: () => ({
+            id: SLOW_ID,
+            chapters: 50,
+            dist: dist(4000, 9.0),
+            map: map({ buckets: buckets(10, [3, 30, 4, 2, 1]), cliffs: [{ from: 11, to: 20, count: 30, share: 60 }] }),
+            notes: [],
+        }),
+        [MAPPING_ID]: () => ({ id: MAPPING_ID, map: { state: 'pending', eta_s: 30 } }),
         [OUTSIDE_ID]: () => ({
             id: OUTSIDE_ID,
             chapters: 90,
@@ -186,7 +199,15 @@ const createRelay = () => {
                         [MYTHIC.anilistId]: { drop_pct: 7.1, started: 30210, median: 107 },
                         [FEW.anilistId]: { drop_pct: 5.0, started: 5000 },
                         [TINY.anilistId]: { drop_pct: 12.0, started: 150 },
-                        [INDEXED_PICK_ID]: { drop_pct: 3.4, started: 9000, cliffs: [[21, 40]] },
+                        // The live shape: [from, to, share %]; the biggest share is "most quit".
+                        [INDEXED_PICK_ID]: {
+                            drop_pct: 3.4,
+                            started: 9000,
+                            cliffs: [
+                                [5, 10, 12],
+                                [21, 40, 31],
+                            ],
+                        },
                     },
                 },
             };
@@ -227,7 +248,7 @@ const createAniList = () => {
             return {
                 Page: {
                     pageInfo: { hasNextPage: false },
-                    media: [INDEXED_PICK_ID, OUTSIDE_ID].map((id) => ({
+                    media: [INDEXED_PICK_ID, OUTSIDE_ID, SLOW_ID, MAPPING_ID].map((id) => ({
                         id,
                         idMal: null,
                         siteUrl: null,
@@ -370,6 +391,11 @@ const runBrowser = async (browserName) => {
                 return route.abort();
             }
             const { status, body } = relay.answer(url);
+            if (url.pathname === `/drops/${SLOW_ID}`) {
+                await new Promise((done) => {
+                    setTimeout(done, SLOW_MS);
+                });
+            }
             return route.fulfill({
                 status,
                 headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
@@ -415,6 +441,13 @@ const runBrowser = async (browserName) => {
     const pageErrors = [];
     const consoleErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
+    const failedDrops = [];
+    page.on('requestfailed', (request) => {
+        const { pathname } = new URL(request.url());
+        if (pathname.startsWith('/drops/')) {
+            failedDrops.push(`${pathname} ${request.failure()?.errorText}`);
+        }
+    });
     page.on('console', (message) => message.type() === 'error' && consoleErrors.push(message.text()));
     const block = page.getByRole('region', { name: 'Readers' }).or(page.locator('section[aria-label="Readers"]'));
     const blockText = async () =>
@@ -647,6 +680,41 @@ const runBrowser = async (browserName) => {
         (await hoverLine.isVisible().catch(() => false)) &&
             relay.state.requests.slice(relayBeforeHover).every((path) => !path.startsWith('/drops/')),
         relay.state.requests.slice(relayBeforeHover),
+    );
+    await page.mouse.move(0, 0);
+
+    // A short hover on a cold title: the request runs on (no abort, no AniList call) and fills the cache.
+    const slowCard = page.getByRole('button', { name: `Pick ${SLOW_ID}` }).first();
+    await slowCard.hover();
+    await page.waitForTimeout(1200);
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(SLOW_MS);
+    await slowCard.hover();
+    const slowLine = page.getByRole('tooltip').getByText('▼ 9.0 % dropped · most quit ch 11-20');
+    await slowLine.waitFor({ timeout: 5000 }).catch(() => {});
+    const slowRequests = relay.state.requests.filter((path) => path === `/drops/${SLOW_ID}`).length;
+    check(
+        label('short hover on a cold title: one /drops request, not cut (> 8 s), cached, no AniList call'),
+        (await slowLine.isVisible().catch(() => false)) &&
+            slowRequests === 1 &&
+            failedDrops.length === 0 &&
+            (aniList.counts.TsujiDropStats ?? 0) === statsBefore,
+        { slowRequests, failedDrops, stats: aniList.counts.TsujiDropStats ?? 0 },
+    );
+    await page.mouse.move(0, 0);
+
+    // Still mapping: no line, no AniList call.
+    await page
+        .getByRole('button', { name: `Pick ${MAPPING_ID}` })
+        .first()
+        .hover();
+    await page.waitForTimeout(1500);
+    check(
+        label('relay still mapping: no line, no AniList call'),
+        relay.state.requests.includes(`/drops/${MAPPING_ID}`) &&
+            (await page.getByRole('tooltip').getByText('% dropped').count()) === 0 &&
+            (aniList.counts.TsujiDropStats ?? 0) === statsBefore,
+        { stats: aniList.counts.TsujiDropStats ?? 0 },
     );
     await page.mouse.move(0, 0);
 

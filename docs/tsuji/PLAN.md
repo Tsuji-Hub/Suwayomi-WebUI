@@ -44,10 +44,11 @@ PAUSED), recomputed from `dist`.
 **After the r3449 check (Cowork):**
 
 1. **Preview line** on every preview surface (the long-press / right-click dialog and the card's hover tooltip):
-   "▼ 3.2 % dropped · most quit ch 106-120" ("most quit" only with a cliff). From `index.json` (its `cliffs`, the first
-   one), else one `GET /drops/<id>` when the preview opens (the biggest cliff of a usable map), cached for the session;
-   AniList's rate only when the relay doesn't answer; nothing on a relay 404. Shown whatever the starter count (no band
-   on it).
+   "▼ 3.2 % dropped · most quit ch 106-120" ("most quit" only with a cliff), whatever the starter count. From
+   `index.json` (its cliffs are `[from, to, share %]`: the largest share, the first one without shares), else one shared
+   `GET /drops/<id>` per title and session that the preview closing never cuts (30 s client timeout: a cold title makes
+   the relay ask AniList first; r3452 gave up at 8 s, relay 499, then asked AniList too). AniList's rate only on a relay
+   error or timeout; nothing on a 404; still mapping: nothing, and a fresh request on the next open.
 2. **Under 200 starters** the Readers block shows "x % dropped" without low / typical / high (the chips' threshold).
 3. **Two cliffs** are both named, by chapter: "Most drops: ch 21-60 (12 %) and ch 121-160 (9 %)".
 4. `tsuji_anilistId` on a non-library series: written by Similar since brief #1 (the resolved id, saves the title
@@ -57,7 +58,9 @@ PAUSED), recomputed from `dist`.
 ongoing series, notes split, AniList fallback, bands, index, AniList id, the sort). Browser `drop-rate.e2e.mjs`:
 Solo Leveling (rate, low, 14 bars with the 106-120 cliff, marker at 110, summary + footer, notes), Mythic Item
 Obtained (7.1 %, median 107, ongoing), pending map arriving without a reload, "Not enough drops to map", library (one
-index request, chips, none under 200 starters, the sort), Discover (no per-card request) a hover tooltip (the index line, no request), a preview outside the index (one `/drops` request, cached), 150
+index request, chips, none under 200 starters, the sort), Discover (no per-card request), a hover tooltip (the index line by largest share, no request), a short hover on a cold title (9 s relay: not cut,
+one request, cached, no AniList call), still mapping (no AniList call), a preview outside the index (one `/drops`
+request, cached), 150
 starters (no band), two cliffs named, relay down (AniList's rate, no map), no app errors.
 
 # Brief #21: Similar / Discover fixes (branch `fix/similar-freshness`)

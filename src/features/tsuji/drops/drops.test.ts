@@ -195,6 +195,21 @@ describe('index and library sort', () => {
     it('drop rate by AniList id, the median', () => {
         expect(index.medianDropPct).toBe(5.1);
         expect(index.items.get(151025)).toEqual({ dropPct: 7.1, started: 30210, cliffs: [] });
+        const shared = parseDropIndex({
+            items: {
+                1: {
+                    drop_pct: 5,
+                    started: 900,
+                    cliffs: [
+                        [21, 60, 25],
+                        [121, 160, 28],
+                    ],
+                },
+                2: { drop_pct: 5, started: 900, cliffs: [{ from: 1, to: 10 }, null, [30, 40]] },
+            },
+        });
+        expect(getIndexDropLine(shared.items.get(1)!).quit).toEqual({ from: 121, to: 160 });
+        expect(getIndexDropLine(shared.items.get(2)!).quit).toEqual({ from: 1, to: 10 });
         expect(getIndexDropLine(index.items.get(105398)!)).toEqual({ dropPct: 3.2, quit: { from: 106, to: 120 } });
         expect(getIndexDropLine(index.items.get(151025)!)).toEqual({ dropPct: 7.1, quit: null });
         expect(index.items.has(999)).toBe(false);

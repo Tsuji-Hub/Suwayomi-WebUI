@@ -26,6 +26,11 @@ import {
  */
 
 const TIMEOUT_MS = 8000;
+/**
+ * The preview line waits longer: a cold title makes the relay ask AniList first, and giving up earlier cut that request
+ * (relay 499) and cost an AniList call on top (r3452 check).
+ */
+const LINE_TIMEOUT_MS = 30_000;
 /** Series answers and the index are kept this long in the session. */
 const CACHE_TTL_MS = 10 * 60 * 1000;
 export const MAP_POLL_MS = 5000;
@@ -50,9 +55,9 @@ export type DropFetch =
 const isMappingAnswer = (json: unknown) =>
     !!json && typeof json === 'object' && (json as { map?: { state?: unknown } }).map?.state === 'pending';
 
-const getJson = async (url: string): Promise<{ status: number; json: unknown }> => {
+const getJson = async (url: string, timeoutMs = TIMEOUT_MS): Promise<{ status: number; json: unknown }> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const response = await fetch(url, {
             signal: controller.signal,
@@ -67,9 +72,9 @@ const getJson = async (url: string): Promise<{ status: number; json: unknown }> 
 };
 
 /** One `/drops/<anilistId>`. */
-export const fetchDropData = async (base: string, anilistId: number): Promise<DropFetch> => {
+export const fetchDropData = async (base: string, anilistId: number, timeoutMs = TIMEOUT_MS): Promise<DropFetch> => {
     try {
-        const { status, json } = await getJson(`${base}/${anilistId}`);
+        const { status, json } = await getJson(`${base}/${anilistId}`, timeoutMs);
         if (status === 404 || status === 503) {
             return { kind: 'none' };
         }
@@ -257,8 +262,9 @@ export const useSeriesDrops = (anilistId: number | null): SeriesDrops => {
 const lineCache = new Map<string, Promise<DropLine | null>>();
 
 /**
- * A preview's drop line for a title outside the index: one `/drops/<id>` per title and session (AniList's rate only
- * when the relay doesn't answer); none when the relay knows nothing of it.
+ * A preview's drop line for a title outside the index: one shared `/drops/<id>` per title and session, never cut short
+ * by the preview closing (the answer is kept for the next one). AniList's rate only on a relay error or timeout; nothing
+ * on a 404; while the relay is still mapping, nothing now and a fresh request on the next open.
  */
 const loadDropLine = (base: string, anilistId: number): Promise<DropLine | null> => {
     const key = `${base}|${anilistId}`;
@@ -266,15 +272,20 @@ const loadDropLine = (base: string, anilistId: number): Promise<DropLine | null>
     if (cached) {
         return cached;
     }
-    const line = fetchDropData(base, anilistId).then(async (answer) => {
-        if (answer.kind === 'data') {
-            return getDataDropLine(answer.data);
+    const line = fetchDropData(base, anilistId, LINE_TIMEOUT_MS).then(async (answer) => {
+        switch (answer.kind) {
+            case 'data':
+                return getDataDropLine(answer.data);
+            case 'none':
+                return null;
+            case 'mapping':
+                lineCache.delete(key);
+                return null;
+            default: {
+                const data = await loadTier1(anilistId);
+                return data ? getDataDropLine(data) : null;
+            }
         }
-        if (answer.kind === 'none') {
-            return null;
-        }
-        const data = await loadTier1(anilistId);
-        return data ? getDataDropLine(data) : null;
     });
     lineCache.set(key, line);
     return line;
