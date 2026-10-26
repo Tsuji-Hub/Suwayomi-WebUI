@@ -14,6 +14,21 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief: translated drop notes (branch `feat/drop-notes-translated`)
+
+**Built** (2026-10-26). Off `custom` (r3453). Not shipped.
+
+al-drops translates non-English reader notes on the server: a note may carry `tr: true` (`text` is the English) and
+`orig` (the reader's words). The Readers notes show a muted "· translated" after the chapter tag; tapping it switches
+that note between the English and the original (local state, no request). `orig` counts only with `tr`; other notes
+render as before. Files: `drops/drops.ts` (`DropNote.orig`), `drops/components/ReadersBlock.tsx`. Tests: unit (parse),
+`drop-rate.e2e.mjs` (a Portuguese note: English shown, tap, original, tap back, no request).
+
+## Acceptance (Cowork, live)
+
+King of Martial Arts (AniList 119602): the ch 67 note in English with "· translated"; a tap shows the Portuguese
+original; request count unchanged.
+
 # Brief #20: Drop rate + drop map (branch `feat/drop-rate`)
 
 **Shipped** as r3453-8f252040 (2026-10-26; Cowork: r3452 checked live, D1 fixed after it). Off `custom` (r3446), `custom` r3447 merged in.

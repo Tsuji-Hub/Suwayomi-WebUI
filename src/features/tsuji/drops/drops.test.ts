@@ -146,10 +146,26 @@ describe('drop data', () => {
 
     it("notes past the reader's chapter are kept apart (spoilers)", () => {
         expect(splitNotes(data.notes, 120)).toEqual({
-            safe: [{ ch: 110, text: '#korean propaganda' }],
-            ahead: [{ ch: 170, text: 'prime solo leveling was goated, but the ending fell off hard' }],
+            safe: [{ ch: 110, text: '#korean propaganda', orig: null }],
+            ahead: [{ ch: 170, text: 'prime solo leveling was goated, but the ending fell off hard', orig: null }],
         });
         expect(splitNotes(data.notes, null).safe).toEqual([]);
+    });
+
+    it('translated notes keep the original (tr + orig); orig without tr is ignored', () => {
+        const {notes} = parseDropData({
+            ...SOLO_LEVELING,
+            notes: [
+                { ch: 67, text: 'Got boring after the tournament', tr: true, orig: 'Ficou chato depois do torneio' },
+                { ch: 68, text: 'fine', orig: 'stray' },
+                { ch: 69, text: 'no original', tr: true },
+            ],
+        })!;
+        expect(notes).toEqual([
+            { ch: 67, text: 'Got boring after the tournament', orig: 'Ficou chato depois do torneio' },
+            { ch: 68, text: 'fine', orig: null },
+            { ch: 69, text: 'no original', orig: null },
+        ]);
     });
 });
 

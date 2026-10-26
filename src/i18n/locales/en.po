@@ -4552,6 +4552,14 @@ msgstr "Show tap zones overlay"
 msgid "Show the category selection dialog when adding a manga to the library"
 msgstr "Show the category selection dialog when adding a manga to the library"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Show the English translation"
+msgstr "Show the English translation"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Show the original"
+msgstr "Show the original"
+
 #: src/features/reader/settings/behaviour/ReaderBehaviourSettings.tsx
 msgid "Show transition page"
 msgstr "Show transition page"
@@ -5136,6 +5144,10 @@ msgstr "Translate raw {label}"
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "Translate the next 10"
 msgstr "Translate the next 10"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "translated"
+msgstr "translated"
 
 #: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
 msgid "Translating…"

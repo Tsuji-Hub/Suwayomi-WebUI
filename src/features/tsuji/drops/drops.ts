@@ -20,7 +20,8 @@ export type DropBand = 'low' | 'typical' | 'high';
 
 export type DropBucket = { from: number; to: number; count: number };
 export type DropCliff = { from: number; to: number; count: number; share: number };
-export type DropNote = { ch: number | null; text: string };
+/** `orig`: the reader's own words when al-drops translated the note to English (`tr`); null otherwise. */
+export type DropNote = { ch: number | null; text: string; orig: string | null };
 
 export type DropMap = {
     state: 'ready' | 'pending' | 'refreshing';
@@ -157,13 +158,20 @@ export const parseDropData = (json: unknown): DropData | null => {
     if (id === null || !rates.started) {
         return null;
     }
-    const notes = (Array.isArray(json.notes) ? json.notes : [])
-        .filter(isRecord)
-        .flatMap((note) =>
-            typeof note.text === 'string' && note.text.trim()
-                ? [{ ch: toNumber(note.ch), text: note.text.trim() }]
-                : [],
-        );
+    const notes = (Array.isArray(json.notes) ? json.notes : []).filter(isRecord).flatMap((note) =>
+        typeof note.text === 'string' && note.text.trim()
+            ? [
+                  {
+                      ch: toNumber(note.ch),
+                      text: note.text.trim(),
+                      orig:
+                          note.tr === true && typeof note.orig === 'string' && note.orig.trim()
+                              ? note.orig.trim()
+                              : null,
+                  },
+              ]
+            : [],
+    );
     return {
         id,
         chapters: toNumber(json.chapters),

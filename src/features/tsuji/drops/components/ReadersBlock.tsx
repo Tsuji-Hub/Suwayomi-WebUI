@@ -176,15 +176,40 @@ const MapSummary = ({ map }: { map: DropMap }) => {
     );
 };
 
+/** A note; a translated one says so, and "translated" shows the reader's own words (and back). */
 const NoteLine = ({ note }: { note: DropNote }) => {
     const { t } = useLingui();
-    const { ch } = note;
+    const [isOriginal, setIsOriginal] = useState(false);
+    const { ch, orig } = note;
     return (
         <Typography variant="body2">
             <Box component="span" sx={{ color: 'text.secondary', mr: 1 }}>
                 {ch !== null ? t`ch ${ch}` : t`ch ?`}
+                {orig !== null && (
+                    <>
+                        {' · '}
+                        <Box
+                            component="button"
+                            type="button"
+                            onClick={() => setIsOriginal(!isOriginal)}
+                            aria-pressed={isOriginal}
+                            title={isOriginal ? t`Show the English translation` : t`Show the original`}
+                            sx={{
+                                p: 0,
+                                border: 0,
+                                background: 'none',
+                                font: 'inherit',
+                                color: 'inherit',
+                                cursor: 'pointer',
+                                textDecoration: 'underline dotted',
+                            }}
+                        >
+                            {t`translated`}
+                        </Box>
+                    </>
+                )}
             </Box>
-            {note.text}
+            {orig !== null && isOriginal ? orig : note.text}
         </Typography>
     );
 };

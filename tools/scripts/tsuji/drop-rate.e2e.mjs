@@ -115,6 +115,8 @@ const SL_ANSWER = {
     map: map({}),
     notes: [
         { ch: 110, text: '#korean propaganda' },
+        // Translated by al-drops (tr + orig).
+        { ch: 67, text: 'Got boring after the tournament', tr: true, orig: 'Ficou chato depois do torneio' },
         { ch: 170, text: 'prime solo leveling was goated, but the ending fell off hard' },
     ],
 };
@@ -527,6 +529,34 @@ const runBrowser = async (browserName) => {
             blurred.includes('blur'),
         { blurred },
     );
+    // A translated note: "· translated" after its chapter, a tap shows the original and back, no request.
+    const requestsBeforeToggle = relay.state.requests.length;
+    const translated = block.first().getByRole('button', { name: 'translated' });
+    const english = await page
+        .getByText('Got boring after the tournament')
+        .isVisible()
+        .catch(() => false);
+    await translated.click().catch(() => {});
+    const original = await page
+        .getByText('Ficou chato depois do torneio')
+        .isVisible()
+        .catch(() => false);
+    await translated.click().catch(() => {});
+    const back = await page
+        .getByText('Got boring after the tournament')
+        .isVisible()
+        .catch(() => false);
+    check(
+        label('translated note: English with "· translated", tap shows the original and back, no request'),
+        english &&
+            original &&
+            back &&
+            (await block.first().getByRole('button', { name: 'translated' }).count()) === 1 &&
+            (await block.first().getByText('ch 67 · translated').count()) === 1 &&
+            relay.state.requests.length === requestsBeforeToggle,
+        { english, original, back, requests: relay.state.requests.slice(requestsBeforeToggle) },
+    );
+
     await past.click().catch(() => {});
     const unblurred = await page
         .getByText('the ending fell off hard', { exact: false })
