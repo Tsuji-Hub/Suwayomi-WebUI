@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Fix: MTL read-ahead in the reader (branch `feat/mtl-readahead`)
 
-**Built** (2026-10-25). Off `custom` (r3444). Not shipped.
+**Shipped as r3446** (2026-10-26). Off `custom` (r3444).
 
 The engine translates the next raw chapter by itself once one is read (brief #19 backend note), so it appears after
 the reader loaded its chapter lists (Apollo is cache-first): at the end of MTL 227 the reader said "There is no next
