@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #20: Drop rate + drop map (branch `feat/drop-rate`)
 
-**Built** (2026-10-26). Off `custom` (r3446), `custom` r3447 merged in (r3451). Not shipped.
+**Shipped** as r3453-8f252040 (2026-10-26; Cowork: r3452 checked live, D1 fixed after it). Off `custom` (r3446), `custom` r3447 merged in.
 
 **Backend (Cowork, al-drops on CT100):** `<relay>/drops/<anilistId>` (AniList's status distribution, a map of where
 the latest 400 public DROPPED lists stopped, up to 15 reader notes; `map.state` ready / pending / refreshing; 404 /
