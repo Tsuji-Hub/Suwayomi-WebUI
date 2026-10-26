@@ -20,6 +20,9 @@ export const TSUJI_PALETTE = {
     statusPaused: '#BDBDBD',
     badgeScrim: 'rgba(0, 0, 0, 0.6)',
     badgeText: '#FFFFFF',
+    /** Freshness tag (brief #21): latest chapter 6-12 months old (muted amber), 12+ months (warning). */
+    stale6Months: '#E0B354',
+    stale1Year: '#FF7043',
     progressBadge: '#424242',
     /** Drop rate vs the library median (brief #20). */
     dropLow: '#66BB6A',

@@ -19,6 +19,11 @@ export const TSUJI_LIBRARY_INDEX = gql`
                 chapters {
                     totalCount
                 }
+                meta {
+                    mangaId
+                    key
+                    value
+                }
                 trackRecords {
                     nodes {
                         id

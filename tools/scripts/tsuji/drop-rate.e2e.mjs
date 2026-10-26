@@ -33,6 +33,8 @@ const FEW = { id: 4, anilistId: 888, title: 'Niche Series' };
 const TINY = { id: 5, anilistId: 999, title: 'Tiny Series' };
 /** Discover / preview only: not in the relay's index. */
 const OUTSIDE_ID = 4242;
+/** Discover only: in the relay's index, not in the library (library titles are hidden there, brief #21). */
+const INDEXED_PICK_ID = 3131;
 
 const CONTENT_TYPES = {
     '.html': 'text/html',
@@ -171,6 +173,7 @@ const createRelay = () => {
                         [MYTHIC.anilistId]: { drop_pct: 7.1, started: 30210, median: 107 },
                         [FEW.anilistId]: { drop_pct: 5.0, started: 5000 },
                         [TINY.anilistId]: { drop_pct: 12.0, started: 150 },
+                        [INDEXED_PICK_ID]: { drop_pct: 3.4, started: 9000 },
                     },
                 },
             };
@@ -211,7 +214,7 @@ const createAniList = () => {
             return {
                 Page: {
                     pageInfo: { hasNextPage: false },
-                    media: [SL.anilistId, OUTSIDE_ID].map((id) => ({
+                    media: [INDEXED_PICK_ID, OUTSIDE_ID].map((id) => ({
                         id,
                         idMal: null,
                         siteUrl: null,
@@ -592,7 +595,10 @@ const runBrowser = async (browserName) => {
     const outsideCard = page.getByRole('button', { name: `Pick ${OUTSIDE_ID}` }).first();
     await outsideCard.waitFor({ timeout: 20_000 }).catch(() => {});
     await page.waitForTimeout(1500);
-    const discoverRelay = relay.state.requests.slice(relayBefore).filter((path) => path !== '/drops/index.json');
+    // Per-card drop requests only (Comick freshness searches for ongoing cards are brief #21's).
+    const discoverRelay = relay.state.requests
+        .slice(relayBefore)
+        .filter((path) => path.startsWith('/drops/') && path !== '/drops/index.json');
     check(
         label('Discover: zero per-card drop requests; ▼3% on the card in the index'),
         discoverRelay.length === 0 &&

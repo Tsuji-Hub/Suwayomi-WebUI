@@ -11,8 +11,15 @@ vi.mock('@/features/tsuji/services/TsujiCache.ts', () => ({
     TsujiCache: { get: () => null, set: () => {}, remove: () => {} },
 }));
 
-const { buildComickSearch, parseComickComic, parseComickGenres, parseComickSearch, titleFromSlug, toComickMedia } =
-    await import('@/features/tsuji/comick/comickCatalog.ts');
+const {
+    buildComickSearch,
+    getComickAniListId,
+    parseComickComic,
+    parseComickGenres,
+    parseComickSearch,
+    titleFromSlug,
+    toComickMedia,
+} = await import('@/features/tsuji/comick/comickCatalog.ts');
 const { adoptListIds } = await import('@/features/tsuji/comick/listMatch.ts');
 const { getComickExtras } = await import('@/features/tsuji/comick/comickExtras.ts');
 const { parseListTitleIndex } = await import('@/features/tsuji/seen/myList.ts');
@@ -73,6 +80,22 @@ describe('Comick cards', () => {
         expect(comic).toMatchObject({ id: 119_257, idMal: 123, isAdult: true });
         expect(comic?.tags?.map(({ name }) => name)).toEqual(['Fantasy', 'Weak to Strong']);
         expect(toComickMedia({ title: 'no id' })).toBeNull();
+    });
+
+    it('search rows: AniList id from external_ids, latest chapter date from uploaded_at, Comick score flag', () => {
+        const row = hit(9, {
+            external_ids: { anilist: '133070', mangabaka: '1' },
+            uploaded_at: '2025-03-01T00:00:00Z',
+        });
+        expect(getComickAniListId(row)).toBe(133_070);
+        expect(toComickMedia(row)).toMatchObject({
+            id: 133_070,
+            lastChapterAt: Date.parse('2025-03-01T00:00:00Z'),
+            scoreSource: 'comick',
+        });
+        expect(toComickMedia(hit(10))).toMatchObject({ lastChapterAt: null });
+        expect(getComickAniListId({ links: { al: '5' }, external_ids: { anilist: '6' } })).toBe(5);
+        expect(getComickAniListId({ external_ids: {} })).toBeNull();
     });
 
     it("the English title: an alternative close to the slug, else the slug, else Comick's (kept as an alternative)", () => {

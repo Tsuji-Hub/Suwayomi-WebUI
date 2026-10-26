@@ -42,6 +42,10 @@ export type RecMedia = {
     genres?: string[] | null;
     /** A card from Comick (brief #15): "via Comick" on it. */
     via?: 'comick' | null;
+    /** When the latest chapter came out (ms; brief #21's freshness tag): Comick's `uploaded_at`. */
+    lastChapterAt?: number | null;
+    /** `comick`: the score is Comick's (bayesian x 10), not AniList's ("CK" on the card, brief #21). */
+    scoreSource?: 'comick' | null;
 };
 
 /**

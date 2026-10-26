@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
 import Chip from '@mui/material/Chip';
@@ -29,6 +29,8 @@ import { MANGA_COVER_ASPECT_RATIO } from '@/features/manga/Manga.constants.ts';
 import { getScoreColor, TSUJI_MOTION, TSUJI_PALETTE } from '@/features/tsuji/Tsuji.palette.ts';
 import { COMIC_TYPE_LABELS, getStatusBadge } from '@/features/tsuji/recs/Recs.constants.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
+import { isComickScored } from '@/features/tsuji/recs/mergedScore.ts';
+import { useCardFreshness } from '@/features/tsuji/recs/useCardFreshness.ts';
 import {
     abbreviateCount,
     getComicType,
@@ -108,10 +110,14 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
     const tags = getContentTags(media).slice(0, 2);
     const popularity = media.popularity ?? 0;
 
+    const cardRef = useRef<HTMLDivElement | null>(null);
+    const freshness = useCardFreshness(media, cardRef);
+    const isComickScore = isComickScored(media);
+
     const bindPress = usePress({ onLongPress: () => onPreview(media), onPress: () => onOpen(media) });
 
     return (
-        <Stack sx={{ minWidth: 0, gap: 0.5, containerType: 'inline-size' }}>
+        <Stack ref={cardRef} sx={{ minWidth: 0, gap: 0.5, containerType: 'inline-size' }}>
             <CustomTooltip
                 title={synopsis ? <Box sx={{ whiteSpace: 'pre-line' }}>{synopsis}</Box> : ''}
                 disabled={!synopsis}
@@ -148,9 +154,17 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
                             />
                         )}
                         {media.averageScore !== null && (
-                            <CoverBadge sx={{ top: 6, left: 6 }}>
+                            <CoverBadge
+                                sx={{ top: 6, left: 6 }}
+                                title={isComickScore ? t`Comick's score (no AniList score)` : undefined}
+                            >
                                 <StarIcon sx={{ fontSize: '0.9rem', color: getScoreColor(media.averageScore) }} />
                                 {`${media.averageScore}%`}
+                                {isComickScore && (
+                                    <Box component="span" sx={{ opacity: 0.7, fontSize: '0.65rem', ml: 0.25 }}>
+                                        CK
+                                    </Box>
+                                )}
                             </CoverBadge>
                         )}
                         {!!media.chapters && media.chapters > 0 && (
@@ -159,7 +173,7 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
                                 {media.chapters}
                             </CoverBadge>
                         )}
-                        {(seenBadge || status) && (
+                        {(seenBadge || status || freshness) && (
                             <BottomBadges>
                                 {seenBadge && (
                                     <CoverBadge sx={{ position: 'static' }}>
@@ -167,6 +181,24 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
                                             ■
                                         </Box>
                                         {seenBadge.text}
+                                    </CoverBadge>
+                                )}
+                                {freshness && (
+                                    <CoverBadge
+                                        sx={{
+                                            position: 'static',
+                                            color:
+                                                freshness === '1yr'
+                                                    ? TSUJI_PALETTE.stale1Year
+                                                    : TSUJI_PALETTE.stale6Months,
+                                        }}
+                                        title={
+                                            freshness === '1yr'
+                                                ? t`No new chapter in over a year`
+                                                : t`No new chapter in over 6 months`
+                                        }
+                                    >
+                                        {freshness === '1yr' ? t`> 1 YR` : t`> 6 MO`}
                                     </CoverBadge>
                                 )}
                                 {status && (

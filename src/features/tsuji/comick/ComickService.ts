@@ -12,13 +12,18 @@ import { TsujiCache } from '@/features/tsuji/services/TsujiCache.ts';
 import { SpacedQueue } from '@/features/tsuji/services/RequestQueue.ts';
 import { createRelayClient } from '@/features/tsuji/comments/comickSource.ts';
 import { getCommentsRelayUrl } from '@/features/tsuji/comments/relayUrl.ts';
-import { getAniListLink, rankComickHits } from '@/features/tsuji/comments/aniListResolve.ts';
+import { rankComickHits } from '@/features/tsuji/comments/aniListResolve.ts';
 import type { ComickSearchResult } from '@/features/tsuji/comments/comick.ts';
 import { titleSimilarity } from '@/features/tsuji/comments/comick.ts';
 import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
 import { compactMedia } from '@/features/tsuji/forYou/weekStore.ts';
 import type { ComickGenres, ComickRecommendation } from '@/features/tsuji/comick/comickCatalog.ts';
-import { parseComickComic, parseComickGenres, parseComickSearch } from '@/features/tsuji/comick/comickCatalog.ts';
+import {
+    getComickAniListId,
+    parseComickComic,
+    parseComickGenres,
+    parseComickSearch,
+} from '@/features/tsuji/comick/comickCatalog.ts';
 
 /*
  * Comick through the comments relay for Discover, Similar and For You (brief #15). The relay allows 120 requests a
@@ -133,11 +138,15 @@ export const resolveComickSlug = async (
         const hits =
             (await client.get<ComickHit[]>(`/v1.0/search?q=${encodeURIComponent(title)}&limit=10&t=false`, signal)) ??
             [];
-        for (const { slug, links } of rankComickHits(title, hits)) {
+        for (const hit of rankComickHits(title, hits)) {
+            const { slug } = hit;
             if (slug && !tried.has(slug)) {
                 tried.add(slug);
-                // oxlint-disable-next-line no-await-in-loop
-                const linked = getAniListLink(links) ?? (await loadComickComic(slug, signal))?.anilistId ?? null;
+                const linked =
+                    getComickAniListId(hit as unknown as Record<string, unknown>) ??
+                    // oxlint-disable-next-line no-await-in-loop
+                    (await loadComickComic(slug, signal))?.anilistId ??
+                    null;
                 if (linked === anilistId) {
                     return slug;
                 }
@@ -199,4 +208,73 @@ export const loadComickRecommendationsByTitle = async (
 ): Promise<ComickRecommendation[]> => {
     const slug = await resolveComickSlugByTitle(title, signal);
     return slug ? ((await loadComickComic(slug, signal))?.recommendations ?? []) : [];
+};
+
+/** What a Comick search row says about a series (brief #21): its AniList id, status and latest chapter date. */
+export type ComickSeriesInfo = { anilistId: number | null; status: string | null; lastChapterAt: number | null };
+
+const INFO_TTL_MS = 7 * DAY_MS;
+const FRESHNESS_TTL_MS = DAY_MS;
+
+const searchRows = async (title: string, signal: AbortSignal): Promise<RecMedia[]> =>
+    parseComickSearch(
+        await client.get<unknown>(`/v1.0/search?q=${encodeURIComponent(title)}&limit=10&t=false`, signal),
+        {},
+    );
+
+const slugOf = (media: Pick<RecMedia, 'siteUrl'>) => media.siteUrl?.split('/comic/')[1] ?? null;
+
+const toInfo = (media: RecMedia | undefined): ComickSeriesInfo | null =>
+    media
+        ? {
+              anilistId: media.id > 0 ? media.id : null,
+              status: media.status,
+              lastChapterAt: media.lastChapterAt ?? null,
+          }
+        : null;
+
+/**
+ * A Comick recommendation's series (its entry carries only a slug, a title and Comick's numbers): the search row with
+ * that slug, by its title. One search per recommendation, cached a week (a miss a day). Similar hides by the AniList
+ * id and dates the card by it.
+ */
+export const loadComickRecInfo = async (
+    slug: string,
+    title: string,
+    signal: AbortSignal,
+): Promise<ComickSeriesInfo | null> => {
+    const key = `comick:slug:v1:${slug}`;
+    const cached = TsujiCache.get<{ info: ComickSeriesInfo | null }>(key);
+    if (cached) {
+        return cached.info;
+    }
+    const info = toInfo((await searchRows(title, signal)).find((media) => slugOf(media) === slug));
+    TsujiCache.set(key, { info }, info ? INFO_TTL_MS : SLUG_MISS_TTL_MS);
+    return info;
+};
+
+/**
+ * When an AniList series' latest chapter came out, for the freshness tag on AniList cards (brief #21): Comick's search
+ * row whose AniList id is this one (English title first, then a synonym). One lookup per series a day.
+ */
+export const loadComickFreshness = async (
+    anilistId: number,
+    titles: string[],
+    signal: AbortSignal,
+): Promise<ComickSeriesInfo | null> => {
+    const key = `comick:fresh:v1:${anilistId}`;
+    const cached = TsujiCache.get<{ info: ComickSeriesInfo | null }>(key);
+    if (cached) {
+        return cached.info;
+    }
+    let info: ComickSeriesInfo | null = null;
+    for (const title of [...new Set(titles.filter(Boolean))].slice(0, MAX_TITLES)) {
+        if (info) {
+            break;
+        }
+        // oxlint-disable-next-line no-await-in-loop
+        info = toInfo((await searchRows(title, signal)).find(({ id }) => id === anilistId));
+    }
+    TsujiCache.set(key, { info }, FRESHNESS_TTL_MS);
+    return info;
 };

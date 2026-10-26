@@ -49,6 +49,51 @@ Obtained (7.1 %, median 107, ongoing), pending map arriving without a reload, "N
 index request, chips, none under 200 starters, the sort), Discover (no per-card request) and a preview (one AniList
 request), relay down (AniList's rate, no map), no app errors.
 
+# Brief #21: Similar / Discover fixes (branch `fix/similar-freshness`)
+
+**Shipped** as r3447-649a407c (2026-10-26; Cowork: acceptance 1-7 pass live). Off `custom` (r3446).
+
+**Hide rule, one for every card source.** A Comick card gets its AniList id (search rows carry
+`external_ids.anilist`; `links.al` on comic pages) and goes through the same `passesFilters` as AniList's: in the
+library (an AniList / MAL track record **or the `tsuji_anilistId` meta**, new) or on the list as Reading, Rereading,
+Completed, Paused or Dropped. Planned unchanged. Comick's recommendations (`relates`) carry no AniList id, so each of the
+top 20 is looked up once by its title (`comick:slug:v1:<slug>`, a week; a miss a day) and keyed by the row with its
+slug. A Comick card for a series AniList already shows is dropped; its chapter date goes to the AniList card.
+
+**Top rated, one list.** Comick cards with an AniList id take AniList's `averageScore` (else `meanScore`) and
+popularity from one `TsujiScores` request per rail (`Page(perPage: 50) { media(id_in) }`, `al:score:v1:<id>` a day,
+misses too). Comick-only cards keep bayesian x 10 with a "CK" on the score badge. Sort: score, then popularity,
+unknown scores last (`sortByMergedScore`). The scores land before the filters, so min score and Hidden gems use them.
+
+**Freshness tag** above the status on ongoing / hiatus cards: "> 6 MO" (6-12 months, `stale6Months` amber) and
+"> 1 YR" (12+, `stale1Year`). Date: the Comick card's `uploaded_at`, else for an AniList card near the screen one Comick
+title search a day (`comick:fresh:v1:<id>`, the row with its AniList id). Nothing for finished series.
+
+**Pivot from the brief:** MangaBaka has no Comick link and no last-chapter date (`published.end_date` /
+`last_updated_at` only), so the lazy date is a Comick search by title instead of MangaBaka -> Comick page; Comick
+recommendations need one cached search each. MangaBaka was already `api.mangabaka.org` everywhere (the `.dev` host
+only serves images); a 5xx is silent. The library latest-chapter source is skipped: library cards are hidden by default.
+
+**Files:** `recs/mergedScore.ts`, `recs/aniListScores.ts`, `recs/useCardFreshness.ts` (new);
+`comick/comickCatalog.ts` (`getComickAniListId`, `uploaded_at`), `comick/ComickService.ts` (`loadComickRecInfo`,
+`loadComickFreshness`), `similar/useComickRecs.ts`, `similar/SimilarSection.tsx`, `recs/components/RecCard.tsx`,
+`recs/filters.ts` + `TSUJI_LIBRARY_INDEX` (meta), `Tsuji.palette.ts`. No upstream file.
+
+**Tests:** unit (merged score, CK, freshness bands, `external_ids` / `uploaded_at`, library meta id); e2e
+`similar-freshness.e2e.mjs` (hide by meta and list, dedupe, Top rated order, CK, both tags, lazy lookup, one score
+request and none on reload, no `.dev`, MangaBaka 503, Discover hides the same). `discover-tags` preview check now
+ignores other cards' freshness searches.
+
+## Acceptance for brief #21 (Cowork, on the server)
+
+1. /manga/438: 133070 and 163824 not in Similar.
+2. Top rated: scores never increase down the row, Comick cards mixed in.
+3. A Comick-only card shows "CK" after its score.
+4. Ongoing cards: "> 6 MO" / "> 1 YR" where the latest chapter is that old; none on finished series.
+5. One `TsujiScores` request per Similar rail (DevTools, `id_in`).
+6. No request to `api.mangabaka.dev` from the app.
+7. Discover / For You hide the same titles.
+
 # Fix: MTL read-ahead in the reader (branch `feat/mtl-readahead`)
 
 **Shipped as r3446** (2026-10-26). Off `custom` (r3444).

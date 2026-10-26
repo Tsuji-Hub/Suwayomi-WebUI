@@ -39,6 +39,7 @@ export type TsujiLibraryIndexQuery = {
             title: string;
             unreadCount: number;
             chapters: { __typename: 'ChapterNodeList'; totalCount: number };
+            meta: Array<{ __typename: 'MangaMetaType'; mangaId: number; key: string; value: string }>;
             trackRecords: {
                 __typename: 'TrackRecordNodeList';
                 nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
