@@ -418,6 +418,14 @@ msgstr "{userName}'s AniList list has no manga being read or finished. For You b
 msgid "*: Active setting"
 msgstr "*: Active setting"
 
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "> 1 YR"
+msgstr "> 1 YR"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "> 6 MO"
+msgstr "> 6 MO"
+
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "18+ raw"
 msgstr "18+ raw"
@@ -1245,6 +1253,10 @@ msgstr "Comick: {0}"
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Comick: {0} (linked to this AniList entry)"
 msgstr "Comick: {0} (linked to this AniList entry)"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "Comick's score (no AniList score)"
+msgstr "Comick's score (no AniList score)"
 
 #. placeholder {0}: comment.author
 #: src/features/tsuji/comments/components/CommentItem.tsx
@@ -3322,6 +3334,14 @@ msgstr "No match found"
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "No matching tags."
 msgstr "No matching tags."
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "No new chapter in over 6 months"
+msgstr "No new chapter in over 6 months"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "No new chapter in over a year"
+msgstr "No new chapter in over a year"
 
 #: src/features/reader/viewer/ReaderChapterViewer.tsx
 msgid "No pages found"

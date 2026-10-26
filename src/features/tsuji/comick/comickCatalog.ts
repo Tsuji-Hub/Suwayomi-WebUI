@@ -167,6 +167,19 @@ const hashSlug = (slug: string): number => {
     return hash % COMICK_ID_OFFSET;
 };
 
+/**
+ * A Comick row's AniList id: `links.al` (comic pages) or `external_ids.anilist` (search results, brief #21); null for
+ * recommendations, which carry neither.
+ */
+export const getComickAniListId = (row: Record<string, unknown>): number | null =>
+    getAniListLink(row.links) ?? getAniListLink({ al: asRecord(row.external_ids).anilist });
+
+/** `uploaded_at` (the latest chapter, search results only) in ms, or null. */
+const parseUploadedAt = (value: unknown): number | null => {
+    const time = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+    return Number.isFinite(time) ? time : null;
+};
+
 /** A Comick comic (search hit, comic page or recommendation) as a card. */
 export const toComickMedia = (raw: unknown, genres: ComickGenres = {}): RecMedia | null => {
     const row = asRecord(raw);
@@ -176,7 +189,7 @@ export const toComickMedia = (raw: unknown, genres: ComickGenres = {}): RecMedia
     if ((comickId === null && !slug) || !title) {
         return null;
     }
-    const anilistId = getAniListLink(row.links);
+    const anilistId = getComickAniListId(row);
     const rating = asNumber(row.bayesian_rating);
     const country = asString(row.country)?.toUpperCase() ?? null;
     const lastChapter = asNumber(row.last_chapter);
@@ -207,6 +220,9 @@ export const toComickMedia = (raw: unknown, genres: ComickGenres = {}): RecMedia
         startDate: year ? { year, month: null, day: null } : null,
         tags: parseTags(row, genres),
         via: 'comick',
+        lastChapterAt: parseUploadedAt(row.uploaded_at),
+        // Comick's own score until AniList's replaces it (cards with an AniList id, brief #21).
+        scoreSource: 'comick',
     };
 };
 

@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { TRACKER_ID } from '@/features/tsuji/Tsuji.constants.ts';
+import { TRACKER_ID, TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
 import type { ComicType, RecMedia, RecMediaStatus } from '@/features/tsuji/recs/Recs.types.ts';
 import { getAllTitles, getComicType, getVisibleTags } from '@/features/tsuji/recs/media.ts';
 import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
@@ -139,14 +139,20 @@ const createIndex = (): LibraryIndex => ({ anilistIds: new Set(), malIds: new Se
 export type LibraryIndexManga = {
     title: string;
     trackRecords: { nodes: { trackerId: number; remoteId: string }[] };
+    /** `tsuji_anilistId` counts too (brief #21: a library series without an AniList track record). */
+    meta?: { key: string; value: string }[] | null;
 };
 
 export const EMPTY_LIBRARY_INDEX: LibraryIndex = createIndex();
 
-const addManga = (keys: LibraryIndex, { title, trackRecords }: LibraryIndexManga) => {
+const addManga = (keys: LibraryIndex, { title, trackRecords, meta }: LibraryIndexManga) => {
     const titleKey = normalizeTitle(title);
     if (titleKey) {
         keys.titles.add(titleKey);
+    }
+    const metaId = Number(meta?.find(({ key }) => key === TSUJI_META_KEYS.anilistId)?.value);
+    if (Number.isInteger(metaId) && metaId > 0) {
+        keys.anilistIds.add(metaId);
     }
     trackRecords.nodes.forEach(({ trackerId, remoteId }) => {
         const id = Number(remoteId);

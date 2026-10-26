@@ -9,7 +9,44 @@
 import { useEffect, useState } from 'react';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import type { ComickRecommendation } from '@/features/tsuji/comick/comickCatalog.ts';
-import { loadComickRecommendations } from '@/features/tsuji/comick/ComickService.ts';
+import { loadComickRecInfo, loadComickRecommendations } from '@/features/tsuji/comick/ComickService.ts';
+
+/** Recommendations looked up (by votes): the ones Similar can show. */
+const MAX_RESOLVED = 20;
+
+/**
+ * A recommendation as Similar shows it (brief #21): Comick's entry carries no AniList id, status or chapter date, so
+ * each is looked up once (a search by its title, cached a week); the card then has the AniList id (the hide rules and
+ * the dedupe work on it), the status and the latest chapter date. Unresolved ones stay Comick-only cards.
+ */
+const resolveRecommendations = async (
+    recommendations: ComickRecommendation[],
+    signal: AbortSignal,
+): Promise<ComickRecommendation[]> => {
+    const top = [...recommendations].sort((a, b) => b.votes - a.votes).slice(0, MAX_RESOLVED);
+    const infos = await Promise.all(
+        top.map(({ media }) => {
+            const slug = media.siteUrl?.split('/comic/')[1];
+            const title = media.title?.romaji ?? media.title?.english ?? media.title?.userPreferred;
+            return slug && title ? loadComickRecInfo(slug, title, signal).catch(() => null) : null;
+        }),
+    );
+    return top.map((recommendation, index) => {
+        const info = infos[index];
+        if (!info) {
+            return recommendation;
+        }
+        return {
+            ...recommendation,
+            media: {
+                ...recommendation.media,
+                id: info.anilistId ?? recommendation.media.id,
+                status: info.status ?? recommendation.media.status,
+                lastChapterAt: info.lastChapterAt,
+            },
+        };
+    });
+};
 
 /**
  * Comick's recommendations for the series (brief #15, always on), loaded once its AniList id and titles are known;
@@ -25,6 +62,7 @@ export const useComickRecs = (anilistId: number | null, titles: string[]): Comic
         }
         const controller = new AbortController();
         loadComickRecommendations(anilistId, titlesKey.split('\n'), controller.signal)
+            .then((recommendations) => resolveRecommendations(recommendations, controller.signal))
             .then((recommendations) => !controller.signal.aborted && setResult({ anilistId, recommendations }))
             .catch((error) => {
                 if (controller.signal.aborted) {

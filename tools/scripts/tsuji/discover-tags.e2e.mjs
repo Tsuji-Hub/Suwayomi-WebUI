@@ -635,9 +635,13 @@ const runBrowser = async (browserName) => {
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
     await page.waitForTimeout(800);
+    // Other cards' freshness lookups (a Comick search by their title, brief #21) may go out meanwhile.
+    const previewCalls = relayRequests
+        .slice(commentsBefore)
+        .filter((request) => !request.includes('/comick/v1.0/search?') || request.includes('Revival'));
     check(
         label('opening a preview makes no comments or reviews calls'),
-        relayRequests.length === commentsBefore && (aniList.counts.TsujiReviews ?? 0) === reviewsBefore,
+        previewCalls.length === 0 && (aniList.counts.TsujiReviews ?? 0) === reviewsBefore,
         relayRequests.slice(commentsBefore),
     );
     await dialog.getByRole('tab', { name: 'Comments' }).click();

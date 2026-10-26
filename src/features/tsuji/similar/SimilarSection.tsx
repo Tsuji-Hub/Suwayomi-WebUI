@@ -44,6 +44,8 @@ import { getComickExtras } from '@/features/tsuji/comick/comickExtras.ts';
 import { getAllTitles } from '@/features/tsuji/recs/media.ts';
 import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
 import { AniListFallbackNote } from '@/features/tsuji/recs/components/AniListFallbackNote.tsx';
+import { useAniListScores } from '@/features/tsuji/recs/aniListScores.ts';
+import { applyAniListScores, sortByMergedScore } from '@/features/tsuji/recs/mergedScore.ts';
 
 const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `skeleton-${index}`);
 
@@ -107,23 +109,41 @@ export const SimilarSection = ({ manga }: { manga: SimilarManga }) => {
     const titleIndex = useListTitleIndex();
     const comickTitles = useMemo(() => (data ? [...data.titles, manga.title] : []), [data, manga.title]);
     const comickRecs = useComickRecs(data?.seedId ?? null, comickTitles);
+    const comickCards = useMemo(
+        () =>
+            comickRecs && data
+                ? getComickExtras(comickRecs, { shown: data.candidates, seedId: data.seedId, index: titleIndex })
+                : [],
+        [comickRecs, data, titleIndex],
+    );
+    // Brief #21: Comick cards with an AniList id take AniList's score (one batched request) before the filters see them
+    // (min score, hidden gems), AniList cards are dated by Comick's matching card, and "Top rated" is one list.
+    const comickScoreIds = useMemo(() => comickCards.filter(({ id }) => id > 0).map(({ id }) => id), [comickCards]);
+    const comickScores = useAniListScores(comickScoreIds);
     const comickExtras = useMemo(
         () =>
-            comickRecs && data && libraryIndex
-                ? getComickExtras(comickRecs, {
-                      shown: data.candidates,
-                      seedId: data.seedId,
-                      index: titleIndex,
-                  }).filter((item) =>
+            libraryIndex
+                ? applyAniListScores(comickCards, comickScores).filter((item) =>
                       passesFilters(item, filters, libraryIndex, {
                           applyTagFilters: false,
                           getSeenState: seen.getSeenState,
                       }),
                   )
                 : [],
-        [comickRecs, data, libraryIndex, titleIndex, filters, seen.getSeenState],
+        [comickCards, comickScores, libraryIndex, filters, seen.getSeenState],
     );
-    const shown = useMemo(() => [...visible, ...comickExtras], [visible, comickExtras]);
+    const shown = useMemo(() => {
+        const dates = new Map(
+            (comickRecs ?? []).flatMap(({ media }) =>
+                media.id > 0 && media.lastChapterAt ? [[media.id, media.lastChapterAt] as const] : [],
+            ),
+        );
+        const dated = visible.map((item) =>
+            item.lastChapterAt == null && dates.has(item.id) ? { ...item, lastChapterAt: dates.get(item.id) } : item,
+        );
+        const all = [...dated, ...comickExtras];
+        return filters.sort === 'SCORE' ? sortByMergedScore(all) : all;
+    }, [visible, comickExtras, comickRecs, filters.sort]);
     const comickTitleKeys = useMemo(
         () => new Set(comickExtras.flatMap((item) => getAllTitles(item).map(normalizeTitle))),
         [comickExtras],

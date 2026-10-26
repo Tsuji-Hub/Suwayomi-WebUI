@@ -68,6 +68,18 @@ describe('library index', () => {
         expect(isInLibrary(media({ id: 105398, title: null }), index)).toBe(true));
     it('matches by MAL tracker id', () =>
         expect(isInLibrary(media({ id: 9, idMal: 121496, title: null }), index)).toBe(true));
+    it('matches a library series by its tsuji_anilistId meta (no track record, brief #21)', () =>
+        expect(
+            isInLibrary(
+                media({ id: 163_824, idMal: null, title: { userPreferred: 'x', english: null, romaji: null } }),
+                buildLibraryIndex([
+                    {
+                        ...libraryManga('Unrelated Name', []),
+                        meta: [{ key: 'tsuji_anilistId', value: '163824' }],
+                    },
+                ]),
+            ),
+        ).toBe(true));
     it('matches by any normalized title', () => expect(isInLibrary(media({ id: 9, idMal: null }), index)).toBe(true));
     it('does not match unrelated titles', () =>
         expect(
