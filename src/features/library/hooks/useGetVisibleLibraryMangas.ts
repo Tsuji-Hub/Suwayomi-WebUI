@@ -30,6 +30,8 @@ import type {
     MangaUnreadInfo,
 } from '@/features/manga/Manga.types.ts';
 import { SearchParam } from '@/base/Base.types.ts';
+import { tsujiSortLibrary } from '@/features/tsuji/drops/librarySort.ts';
+import { useDropIndex } from '@/features/tsuji/drops/dropService.ts';
 
 const triStateFilter = (
     triState: NullAndUndefined<boolean>,
@@ -259,10 +261,11 @@ export const useGetVisibleLibraryMangas = <Manga extends MangaIdInfo & TMangasFi
         hasSource,
     } = options;
     const { settings } = useMetadataServerSettings();
+    const tsujiDropIndex = useDropIndex(options.sortBy === 'tsujiDropRate');
 
     const sortedMangas = useMemo(
-        () => sortManga(mangas, options.sortBy, options.sortDesc),
-        [mangas, options.sortBy, options.sortDesc],
+        () => tsujiSortLibrary(sortManga(mangas, options.sortBy, options.sortDesc), options, tsujiDropIndex),
+        [mangas, options.sortBy, options.sortDesc, tsujiDropIndex],
     );
 
     const filteredMangas = useMemo(

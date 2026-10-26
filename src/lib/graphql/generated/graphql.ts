@@ -4,12 +4,27 @@ type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 import type * as Types from './graphql-base.types';
 
+export type TsujiMangaDropFieldsFragment = {
+    __typename: 'MangaType';
+    id: number;
+    meta: Array<{ __typename: 'MangaMetaType'; mangaId: number; key: string; value: string }>;
+    trackRecords: {
+        __typename: 'TrackRecordNodeList';
+        nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
+    };
+};
+
 export type TsujiMangaProgressFieldsFragment = {
     __typename: 'MangaType';
     id: number;
     latestReadChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
     highestNumberedChapter: { __typename: 'ChapterType'; id: number; chapterNumber: number } | null;
     chapters: { __typename: 'ChapterNodeList'; totalCount: number };
+    meta: Array<{ __typename: 'MangaMetaType'; mangaId: number; key: string; value: string }>;
+    trackRecords: {
+        __typename: 'TrackRecordNodeList';
+        nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
+    };
 };
 
 export type TsujiLibraryIndexQueryVariables = Exact<{ [key: string]: never }>;
@@ -479,7 +494,7 @@ export type GetCategoryMangasQuery = {
                 trackRecords: {
                     __typename: 'TrackRecordNodeList';
                     totalCount: number;
-                    nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number }>;
+                    nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
                 };
                 chapters: { __typename: 'ChapterNodeList'; totalCount: number };
                 firstUnreadChapter: {
@@ -1856,7 +1871,7 @@ export type MangaLibraryFieldsFragment = {
     trackRecords: {
         __typename: 'TrackRecordNodeList';
         totalCount: number;
-        nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number }>;
+        nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
     };
     chapters: { __typename: 'ChapterNodeList'; totalCount: number };
     firstUnreadChapter: {
@@ -1944,7 +1959,7 @@ export type MangaScreenFieldsFragment = {
     trackRecords: {
         __typename: 'TrackRecordNodeList';
         totalCount: number;
-        nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number }>;
+        nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
     };
     firstUnreadChapter: {
         __typename: 'ChapterType';
@@ -2030,7 +2045,7 @@ export type RefreshMangaMutation = {
             trackRecords: {
                 __typename: 'TrackRecordNodeList';
                 totalCount: number;
-                nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number }>;
+                nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
             };
             firstUnreadChapter: {
                 __typename: 'ChapterType';
@@ -2313,7 +2328,7 @@ export type GetMangaScreenQuery = {
         trackRecords: {
             __typename: 'TrackRecordNodeList';
             totalCount: number;
-            nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number }>;
+            nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
         };
         firstUnreadChapter: {
             __typename: 'ChapterType';
@@ -2547,7 +2562,7 @@ export type GetMangasLibraryQuery = {
             trackRecords: {
                 __typename: 'TrackRecordNodeList';
                 totalCount: number;
-                nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number }>;
+                nodes: Array<{ __typename: 'TrackRecordType'; id: number; trackerId: number; remoteId: string }>;
             };
             chapters: { __typename: 'ChapterNodeList'; totalCount: number };
             firstUnreadChapter: {

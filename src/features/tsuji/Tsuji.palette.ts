@@ -21,6 +21,12 @@ export const TSUJI_PALETTE = {
     badgeScrim: 'rgba(0, 0, 0, 0.6)',
     badgeText: '#FFFFFF',
     progressBadge: '#424242',
+    /** Drop rate vs the library median (brief #20). */
+    dropLow: '#66BB6A',
+    dropTypical: '#BDBDBD',
+    dropHigh: '#EF5350',
+    /** Drop map: where drops pile up. */
+    dropCliff: '#FFA726',
 } as const;
 
 /** Motion tokens: strong ease-out for press feedback and small UI transitions. */

@@ -14,6 +14,41 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Brief #20: Drop rate + drop map (branch `feat/drop-rate`)
+
+**Built** (2026-10-26). Off `custom` (r3446). Not shipped.
+
+**Backend (Cowork, al-drops on CT100):** `<relay>/drops/<anilistId>` (AniList's status distribution, a map of where
+the latest 400 public DROPPED lists stopped, up to 15 reader notes; `map.state` ready / pending / refreshing; 404 /
+503 = no data) and `<relay>/drops/index.json` (drop % and starters of every cached series, the library median). The
+relay base is `tsuji_commentsRelay` (as comments and the MTL feed). drop % = DROPPED / (CURRENT + COMPLETED + DROPPED +
+PAUSED), recomputed from `dist`.
+
+**Done:**
+
+1. **Series page "Readers" block** (`drops/components/ReadersBlock.tsx`, under the buttons, lazy, hidden without
+   data): "3.2 % dropped" (tooltip "7,736 of 243,525 readers who started it (AniList)") with low / typical / high vs
+   the index median (< 0.75x, > 1.5x), "58 % finished · 4 % on hold"; the drop map (a bar per bucket, cliffs in orange,
+   a marker at the last read chapter, `data-marker`); "Most drops: ch 106-120 (12 %) · 17 % quit in ch 1-15 · half of
+   droppers quit by ch 80" (the biggest cliff; the early bounce only at 10 %+ of mapped droppers; the median floored);
+   the sample footer and "Droppers rated it 50/100". Reader notes collapsed; past the last read chapter blurred
+   behind "Show notes past ch X". Pending: the rate at once and "Mapping where readers drop… ~30 s", polled every 5 s
+   for 2 minutes (AniList's rate meanwhile when the relay has no numbers yet); refreshing: the old map. Under 5 mapped
+   drops: "Not enough drops to map". Relay down (no answer): AniList's statusDistribution, one request, no map.
+2. **Cards:** "▼3%" (200+ starters only, band colours) on library cards (AniList id from `tsuji_anilistId` or the
+   AniList track record: `TSUJI_MANGA_DROP_FIELDS` in the library fragment) and recommendation cards, all from one
+   `index.json` request per 10 minutes; the preview shows "3.2 % dropped" from the index, else one AniList request when
+   it opens.
+3. **Library sort "Drop rate"** (`tsujiDropRate`): lowest first (highest first descending), unknowns last.
+4. Nothing in the reader; everything lazy, nothing blocks a render.
+
+**Tests:** unit (`drops.test.ts`: Solo Leveling's live answer, the summary, few drops / pending, the marker on an
+ongoing series, notes split, AniList fallback, bands, index, AniList id, the sort). Browser `drop-rate.e2e.mjs`:
+Solo Leveling (rate, low, 14 bars with the 106-120 cliff, marker at 110, summary + footer, notes), Mythic Item
+Obtained (7.1 %, median 107, ongoing), pending map arriving without a reload, "Not enough drops to map", library (one
+index request, chips, none under 200 starters, the sort), Discover (no per-card request) and a preview (one AniList
+request), relay down (AniList's rate, no map), no app errors.
+
 # Fix: MTL read-ahead in the reader (branch `feat/mtl-readahead`)
 
 **Shipped as r3446** (2026-10-26). Off `custom` (r3444).

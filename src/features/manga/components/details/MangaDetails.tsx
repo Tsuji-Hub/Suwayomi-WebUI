@@ -53,6 +53,7 @@ import { DescriptionGenre } from '@/features/manga/components/details/Descriptio
 import { SearchLink } from '@/features/manga/components/details/SearchLink.tsx';
 import { TsujiSeriesProgressLine } from '@/features/tsuji/progress/components/TsujiSeriesProgressLine.tsx';
 import { TsujiSimilarSection } from '@/features/tsuji/similar/TsujiSimilarSection.tsx';
+import { TsujiReadersSection } from '@/features/tsuji/drops/components/TsujiReadersSection.tsx';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { IconBrowser } from '@/assets/icons/IconBrowser.tsx';
 import { IconWebView } from '@/assets/icons/IconWebView.tsx';
@@ -293,6 +294,7 @@ export const MangaDetails = ({
                     <OpenSourceButton url={manga.realUrl} />
                 </MangaButtonsContainer>
             </TopContentWrapper>
+            <TsujiReadersSection manga={manga} />
             <DescriptionGenre manga={manga} mode={mode} />
             <TsujiSimilarSection manga={manga} />
         </DetailsWrapper>

@@ -29,7 +29,8 @@ export type LibrarySortMode =
     | 'lastRead'
     | 'latestFetchedChapter'
     | 'latestUploadedChapter'
-    | 'random';
+    | 'random'
+    | 'tsujiDropRate';
 
 export interface LibraryOptions {
     // sort options

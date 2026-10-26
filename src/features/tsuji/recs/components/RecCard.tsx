@@ -36,6 +36,7 @@ import {
     getDisplayTitle,
     htmlToPlainText,
 } from '@/features/tsuji/recs/media.ts';
+import { RecDropChip } from '@/features/tsuji/drops/components/DropChips.tsx';
 
 const MAX_TOOLTIP_SYNOPSIS = 500;
 
@@ -192,6 +193,7 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
                         <Typography variant="caption">{abbreviateCount(popularity)}</Typography>
                     </Stack>
                 )}
+                <RecDropChip anilistId={media.id} />
                 {onMark && <RecCardMenu media={media} seenState={seenState} onMark={onMark} onPreview={onPreview} />}
             </Stack>
             {!!tags.length && (

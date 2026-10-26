@@ -156,6 +156,13 @@ msgstr "{0} / {1}"
 msgid "{0} / {1}{2}"
 msgstr "{0} / {1}{2}"
 
+#. placeholder {0}: early.share
+#. placeholder {1}: early.from
+#. placeholder {2}: early.to
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "{0} % quit in ch {1}-{2}"
+msgstr "{0} % quit in ch {1}-{2}"
+
 #. placeholder {0}: variant.name
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "{0} also uses \"{otherWord}\" in ch {list}"
@@ -352,6 +359,10 @@ msgstr "{currentAutoUpdateIntervalHours}h"
 msgid "{currentDownloadAheadLimit, plural, one {# Chapter} other {# Chapters}}"
 msgstr "{currentDownloadAheadLimit, plural, one {# Chapter} other {# Chapters}}"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "{dropped} of {started} readers who started it (AniList)"
+msgstr "{dropped} of {started} readers who started it (AniList)"
+
 #: src/features/extension/store/screens/ExtensionStores.tsx
 msgid "{extensionCount, plural, one {# extension} other {# extensions}}"
 msgstr "{extensionCount, plural, one {# extension} other {# extensions}}"
@@ -359,6 +370,10 @@ msgstr "{extensionCount, plural, one {# extension} other {# extensions}}"
 #: src/features/browse/screens/BrowseSettings.tsx
 msgid "{extensionStoreCount, plural, one {# extension store} other {# extension stores}}"
 msgstr "{extensionStoreCount, plural, one {# extension store} other {# extension stores}}"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "{finished} % finished · {onHold} % on hold"
+msgstr "{finished} % finished · {onHold} % on hold"
 
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "{firstOut} came out first on most of them, which pulls votes its way"
@@ -385,6 +400,15 @@ msgstr "{name} (not available while AniList is down)"
 #: src/features/migration/components/migration-entry/MigrationEntrySearchExcludeActions.tsx
 msgid "{otherResultsCount, plural, one {# more match} other {# more matches}}"
 msgstr "{otherResultsCount, plural, one {# more match} other {# more matches}}"
+
+#: src/features/tsuji/drops/components/DropChips.tsx
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "{pct} % dropped"
+msgstr "{pct} % dropped"
+
+#: src/features/tsuji/drops/components/DropChips.tsx
+msgid "{pct} % of readers dropped it (AniList)"
+msgstr "{pct} % of readers dropped it (AniList)"
 
 #: src/features/app-updates/components/VersionInfo.tsx
 msgid "{progress}% | Updating…"
@@ -777,6 +801,10 @@ msgstr "Backup validation"
 msgid "Badges"
 msgstr "Badges"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Based on the latest {n} public AniList drops ({nProgress} with progress)"
+msgstr "Based on the latest {n} public AniList drops ({nProgress} with progress)"
+
 #: src/features/settings/Settings.constants.ts
 msgid "Basic Authentication"
 msgstr "Basic Authentication"
@@ -992,10 +1020,26 @@ msgstr "CBZ MIME-Type"
 msgid "Center"
 msgstr "Center"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "ch ?"
+msgstr "ch ?"
+
 #. placeholder {0}: compared.skipped.join(', ')
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "ch {0} skipped (pages failing)"
 msgstr "ch {0} skipped (pages failing)"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "ch {ch}"
+msgstr "ch {ch}"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "ch {first}"
+msgstr "ch {first}"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Ch {from}-{to}: {count} drops"
+msgstr "Ch {from}-{to}: {count} drops"
 
 #: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
 msgid "Ch {label}"
@@ -1012,6 +1056,10 @@ msgstr "Ch {label} isn't in English yet. Raw is out ({rawSource})."
 #: src/features/tsuji/raws/components/EnglishRanOutPanel.tsx
 msgid "Ch {label}: raw is out"
 msgstr "Ch {label}: raw is out"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "ch {last}"
+msgstr "ch {last}"
 
 #: src/features/tsuji/bell/components/TsujiChapterBell.tsx
 msgid "Ch {range}"
@@ -2005,9 +2053,17 @@ msgstr "Downloads"
 msgid "Drag to prioritize"
 msgstr "Drag to prioritize"
 
+#: src/features/library/components/LibraryOptionsPanel.tsx
+msgid "Drop rate"
+msgstr "Drop rate"
+
 #: src/features/tsuji/seen/components/SeenControls.tsx
 msgid "Dropped"
 msgstr "Dropped"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Droppers rated it {score}/100"
+msgstr "Droppers rated it {score}/100"
 
 #: src/features/theme/Themes.ts
 msgid "Dune"
@@ -2410,6 +2466,10 @@ msgstr "h"
 msgid "H2"
 msgstr "H2"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "half of droppers quit by ch {median}"
+msgstr "half of droppers quit by ch {median}"
+
 #: src/features/global-search/screens/SearchAll.tsx
 msgid "Has results"
 msgstr "Has results"
@@ -2449,6 +2509,10 @@ msgstr "Hide history"
 msgid "Hide novels and one-shots"
 msgstr "Hide novels and one-shots"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Hide reader notes"
+msgstr "Hide reader notes"
+
 #: src/features/tsuji/comments/components/CommentItem.tsx
 msgid "Hide replies"
 msgstr "Hide replies"
@@ -2460,6 +2524,10 @@ msgstr "Hide what's in my library"
 #: src/features/tsuji/recs/components/RecFilterBar.tsx
 msgid "Hide what's on my AniList"
 msgstr "Hide what's on my AniList"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "high"
+msgstr "high"
 
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Hikari connection pool"
@@ -2919,6 +2987,10 @@ msgstr "Logging in to {trackerName}…"
 msgid "entry-type-detection-long-strip"
 msgstr "Long strip"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "low"
+msgstr "low"
+
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Made by"
 msgstr "Made by"
@@ -2989,6 +3061,10 @@ msgstr "Manual migration search for \"{title}\""
 #: src/features/migration/components/migration-entry/MigrationEntrySearchExcludeActions.tsx
 msgid "Manual search"
 msgstr "Manual search"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Mapping where readers drop… ~{eta} s"
+msgstr "Mapping where readers drop… ~{eta} s"
 
 #: src/features/chapter/components/ChaptersToolbarMenu.tsx
 msgid "Mark all as read"
@@ -3190,6 +3266,13 @@ msgstr "More {familyLabel}"
 msgid "More actions"
 msgstr "More actions"
 
+#. placeholder {0}: cliff.from
+#. placeholder {1}: cliff.to
+#. placeholder {2}: Math.round(cliff.share)
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Most drops: ch {0}-{1} ({2} %)"
+msgstr "Most drops: ch {0}-{1} ({2} %)"
+
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Most popular"
 msgstr "Most popular"
@@ -3371,6 +3454,10 @@ msgstr "none"
 #: src/features/settings/Settings.constants.ts
 msgid "None"
 msgstr "None"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Not enough drops to map"
+msgstr "Not enough drops to map"
 
 #: src/features/tsuji/forYou/components/ForYouTab.tsx
 msgid "Not enough to go on yet: {userName}'s AniList list has no titles liked enough to build picks from. Rate or finish a few, then refresh."
@@ -3826,9 +3913,17 @@ msgstr "Reader"
 msgid "Reader — Manga {mangaId} Chapter {chapterSourceOrder}"
 msgstr "Reader — Manga {mangaId} Chapter {chapterSourceOrder}"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Reader notes ({count}, may spoil)"
+msgstr "Reader notes ({count}, may spoil)"
+
 #: src/features/reader/settings/layout/components/ReaderSettingWidth.tsx
 msgid "Reader width"
 msgstr "Reader width"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Readers"
+msgstr "Readers"
 
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Readers' pick"
@@ -4382,6 +4477,14 @@ msgstr "Show more"
 #: src/features/tsuji/comments/components/CommentsPanel.tsx
 msgid "Show more ({0})"
 msgstr "Show more ({0})"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Show notes (may spoil)"
+msgstr "Show notes (may spoil)"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Show notes past ch {read}"
+msgstr "Show notes past ch {read}"
 
 #: src/features/library/components/LibraryOptionsPanel.tsx
 msgid "Show number of items"
@@ -5047,6 +5150,10 @@ msgstr "Two English versions on {0}"
 msgid "Type"
 msgstr "Type"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "typical"
+msgstr "typical"
+
 #: src/features/settings/Settings.constants.ts
 msgid "UI Login"
 msgstr "UI Login"
@@ -5369,6 +5476,10 @@ msgstr "When enabled, download and streaming links are provided directly in the 
 msgid "When you enable this, you may need to refresh this tab for the login page to appear."
 msgstr "When you enable this, you may need to refresh this tab for the login page to appear."
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Where readers dropped it, ch {first} to {last}"
+msgstr "Where readers dropped it, ch {first} to {last}"
+
 #: src/features/tsuji/reader/position/components/PagePositionSettings.tsx
 msgid "Where the pages sit in the window. Their size doesn't change. Shift+L cycles it."
 msgstr "Where the pages sit in the window. Their size doesn't change. Shift+L cycles it."
@@ -5442,6 +5553,10 @@ msgstr "You have not read any series yet."
 #: src/features/browse/extensions/Extensions.tsx
 msgid "You have to add a extension store to be able to install extensions"
 msgstr "You have to add a extension store to be able to install extensions"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "You: ch {readLabel}"
+msgstr "You: ch {readLabel}"
 
 #: src/features/settings/Settings.constants.ts
 msgid "Your browser will prompt you to enter credentials with a dialog."

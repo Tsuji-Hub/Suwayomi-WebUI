@@ -56,6 +56,7 @@ const SORT_OPTIONS: [LibrarySortMode, MessageDescriptor][] = [
     ['latestFetchedChapter', msg`Latest fetched chapter`],
     ['latestUploadedChapter', msg`Latest uploaded chapter`],
     ['random', msg`Random`],
+    ['tsujiDropRate', msg`Drop rate`],
 ];
 
 const CollapsableFilter = ({ title, items, isActive }: { title: string; items: ReactNode[]; isActive: boolean }) => (
