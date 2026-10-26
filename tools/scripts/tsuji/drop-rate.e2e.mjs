@@ -12,7 +12,7 @@
 // Checks the series page block (rate, band, map, cliff, marker, summary, footer, notes behind the spoiler guard), the
 // pending map arriving without a reload, "Not enough drops to map", the AniList fallback with the relay down, the
 // library chips from one index request and the Drop rate sort, and that Discover asks nothing per card while a
-// preview asks AniList at most once.
+// preview / hover line asks the relay at most once per title.
 //
 // Usage: pnpm build && node tools/scripts/tsuji/drop-rate.e2e.mjs   (E2E_BROWSERS=chrome,firefox for both)
 
@@ -125,7 +125,10 @@ const createRelay = () => {
                 median: 107,
                 buckets: buckets(15, [20, 18, 15, 14, 12, 13, 16, 40, 12, 10]),
                 early_share: 9,
-                cliffs: [{ from: 106, to: 120, count: 40, share: 14.0 }],
+                cliffs: [
+                    { from: 106, to: 120, count: 40, share: 14.0 },
+                    { from: 16, to: 30, count: 18, share: 9.0 },
+                ],
                 max: 150,
                 n_prog: 170,
             }),
@@ -158,6 +161,16 @@ const createRelay = () => {
             notes: [],
         }),
         [TINY.anilistId]: () => ({ id: TINY.anilistId, chapters: 10, dist: dist(150, 12.0), map: null, notes: [] }),
+        [OUTSIDE_ID]: () => ({
+            id: OUTSIDE_ID,
+            chapters: 90,
+            dist: dist(8000, 6.0),
+            map: map({
+                buckets: buckets(20, [10, 12, 40, 9, 5]),
+                cliffs: [{ from: 41, to: 60, count: 40, share: 30 }],
+            }),
+            notes: [],
+        }),
     };
     const answer = (url) => {
         state.requests.push(url.pathname);
@@ -173,7 +186,7 @@ const createRelay = () => {
                         [MYTHIC.anilistId]: { drop_pct: 7.1, started: 30210, median: 107 },
                         [FEW.anilistId]: { drop_pct: 5.0, started: 5000 },
                         [TINY.anilistId]: { drop_pct: 12.0, started: 150 },
-                        [INDEXED_PICK_ID]: { drop_pct: 3.4, started: 9000 },
+                        [INDEXED_PICK_ID]: { drop_pct: 3.4, started: 9000, cliffs: [[21, 40]] },
                     },
                 },
             };
@@ -496,10 +509,12 @@ const runBrowser = async (browserName) => {
         .catch(() => {});
     text = await blockText();
     check(
-        label('Mythic Item Obtained: 7.1 % (typical), cliff 106-120, half quit by ch 107; marker on an ongoing series'),
+        label(
+            'Mythic Item Obtained: 7.1 % (typical), both cliffs named, half quit by ch 107; marker on an ongoing series',
+        ),
         text.includes('7.1 % dropped') &&
             text.includes('typical') &&
-            text.includes('Most drops: ch 106-120 (14 %)') &&
+            text.includes('Most drops: ch 16-30 (9 %) and ch 106-120 (14 %)') &&
             text.includes('half of droppers quit by ch 107') &&
             (await block.first().locator('[data-marker]').count()) === 1,
         { text },
@@ -548,6 +563,19 @@ const runBrowser = async (browserName) => {
         { text },
     );
 
+    // 4b. Under 200 starters: the rate, no low / typical / high.
+    await openSeries(TINY.id);
+    await page
+        .getByText('12.0 % dropped')
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+    text = await blockText();
+    check(
+        label('150 starters: "12.0 % dropped" without a low / typical / high label'),
+        text.includes('12.0 % dropped') && !/\b(low|typical|high)\b/.test(text),
+        { text },
+    );
+
     // 5. Library: one index request, chips (none under 200 starters), the Drop rate sort.
     const indexBefore = relay.state.requests.filter((path) => path === '/drops/index.json').length;
     await page.goto(`${ORIGIN}/library`);
@@ -588,7 +616,7 @@ const runBrowser = async (browserName) => {
         order,
     );
 
-    // 6. Discover: no per-card drop request; the preview asks AniList at most once.
+    // 6. Discover: no per-card drop request; a preview asks the relay at most once.
     const relayBefore = relay.state.requests.length;
     const statsBefore = aniList.counts.TsujiDropStats ?? 0;
     await page.goto(`${ORIGIN}/discover`);
@@ -606,21 +634,46 @@ const runBrowser = async (browserName) => {
             (await page.getByText('▼3%').count()) > 0,
         { discoverRelay, stats: aniList.counts.TsujiDropStats ?? 0 },
     );
+    // The hover tooltip is a preview: the drop line from the index (its cliff), no request.
+    const relayBeforeHover = relay.state.requests.length;
+    await page
+        .getByRole('button', { name: `Pick ${INDEXED_PICK_ID}` })
+        .first()
+        .hover();
+    const hoverLine = page.getByRole('tooltip').getByText('▼ 3.4 % dropped · most quit ch 21-40');
+    await hoverLine.waitFor({ timeout: 10_000 }).catch(() => {});
+    check(
+        label('hover tooltip: "▼ 3.4 % dropped · most quit ch 21-40" from the index, no request'),
+        (await hoverLine.isVisible().catch(() => false)) &&
+            relay.state.requests.slice(relayBeforeHover).every((path) => !path.startsWith('/drops/')),
+        relay.state.requests.slice(relayBeforeHover),
+    );
+    await page.mouse.move(0, 0);
+
+    const dropsBeforePreview = relay.state.requests.filter((path) => path === `/drops/${OUTSIDE_ID}`).length;
     await outsideCard.click({ button: 'right' }).catch(() => {});
     const preview = page.getByRole('dialog');
-    await preview
-        .getByText('6.0 % dropped')
-        .waitFor({ timeout: 10_000 })
-        .catch(() => {});
+    const previewLine = preview.getByText('▼ 6.0 % dropped · most quit ch 41-60');
+    await previewLine.waitFor({ timeout: 10_000 }).catch(() => {});
     await page.waitForTimeout(1000);
+    const outsideRequests =
+        relay.state.requests.filter((path) => path === `/drops/${OUTSIDE_ID}`).length - dropsBeforePreview;
     check(
-        label('preview of a title outside the index: "6.0 % dropped" from one AniList request'),
-        (await preview
-            .getByText('6.0 % dropped')
-            .isVisible()
-            .catch(() => false)) && (aniList.counts.TsujiDropStats ?? 0) - statsBefore === 1,
-        { stats: aniList.counts.TsujiDropStats ?? 0 },
+        label('preview outside the index: "▼ 6.0 % dropped · most quit ch 41-60" from one /drops request'),
+        (await previewLine.isVisible().catch(() => false)) &&
+            outsideRequests === 1 &&
+            (aniList.counts.TsujiDropStats ?? 0) === statsBefore,
+        { outsideRequests, stats: aniList.counts.TsujiDropStats ?? 0 },
     );
+    await page.keyboard.press('Escape');
+    await outsideCard.click({ button: 'right' }).catch(() => {});
+    await previewLine.waitFor({ timeout: 10_000 }).catch(() => {});
+    check(
+        label('preview again: cached for the session (no second request)'),
+        relay.state.requests.filter((path) => path === `/drops/${OUTSIDE_ID}`).length - dropsBeforePreview === 1,
+        relay.state.requests.slice(-5),
+    );
+    await page.keyboard.press('Escape');
 
     // 7. Relay down: the series page falls back to AniList's rate, no map, no app error.
     relay.state.isDown = true;

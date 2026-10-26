@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useEffect, useState } from 'react';
+import type { TypographyProps } from '@mui/material/Typography';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
 import { useFragment } from '@apollo/client/react';
@@ -18,13 +18,13 @@ import { TSUJI_MANGA_DROP_FIELDS } from '@/features/tsuji/graphql/TsujiFragments
 import { TSUJI_PALETTE } from '@/features/tsuji/Tsuji.palette.ts';
 import type { DropIndex, DropIndexItem } from '@/features/tsuji/drops/drops.ts';
 import { formatDropPct, getDropBand, hasEnoughStarters } from '@/features/tsuji/drops/drops.ts';
-import { loadTier1, useDropIndex, useDropIndexState } from '@/features/tsuji/drops/dropService.ts';
+import { useDropIndex, useDropLine } from '@/features/tsuji/drops/dropService.ts';
 import { getMangaAniListId } from '@/features/tsuji/drops/useMangaAniListId.ts';
 import { DROP_BAND_COLOR } from '@/features/tsuji/drops/components/dropColors.ts';
 
 /*
  * Small "▼3%" chips (brief #20): library cards and recommendation cards from the relay's index (one request for every
- * card, never one per card), only with 200+ readers who started it; the preview dialog asks AniList once when the
+ * card, never one per card), only with 200+ readers who started it; the preview line asks the relay once when the
  * title isn't in the index.
  */
 
@@ -87,32 +87,19 @@ export const RecDropChip = ({ anilistId }: { anilistId: number }) => {
     );
 };
 
-/** The preview's "3.2 % dropped": from the index, else one AniList request when the preview opens. */
-export const useDropFact = (anilistId: number | null): string | null => {
+/** "▼ 3.2 % dropped · most quit ch 106-120" for the preview dialog and the card's hover tooltip (brief #20). */
+export const DropPreviewLine = ({ anilistId, sx }: { anilistId: number; sx?: TypographyProps['sx'] }) => {
     const { t } = useLingui();
-    const { index, isSettled: isIndexSettled } = useDropIndexState(!!anilistId);
-    const item = anilistId ? index?.items.get(anilistId) : undefined;
-    const [tier1, setTier1] = useState<{ id: number; dropPct: number; started: number } | null>(null);
+    const line = useDropLine(anilistId > 0 ? anilistId : null);
 
-    useEffect(() => {
-        if (!anilistId || item || !isIndexSettled) {
-            return undefined;
-        }
-        let isCurrent = true;
-        loadTier1(anilistId).then((data) => {
-            if (isCurrent && data) {
-                setTier1({ id: anilistId, dropPct: data.dropPct, started: data.started });
-            }
-        });
-        return () => {
-            isCurrent = false;
-        };
-    }, [anilistId, !!item, isIndexSettled]);
-
-    const source = item ?? (tier1 && tier1.id === anilistId ? tier1 : null);
-    if (!source || !hasEnoughStarters(source.started)) {
+    if (!line) {
         return null;
     }
-    const pct = formatDropPct(source.dropPct);
-    return t`${pct} % dropped`;
+    const pct = formatDropPct(line.dropPct);
+    const { quit } = line;
+    return (
+        <Typography variant="body2" sx={sx}>
+            {quit ? t`▼ ${pct} % dropped · most quit ch ${quit.from}-${quit.to}` : t`▼ ${pct} % dropped`}
+        </Typography>
+    );
 };

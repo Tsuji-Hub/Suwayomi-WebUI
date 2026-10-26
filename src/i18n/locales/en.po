@@ -14,6 +14,10 @@ msgstr ""
 "Plural-Forms: \n"
 "X-Message-Format: ICU\n"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid " and "
+msgstr " and "
+
 #. placeholder {0}: t(SYNC_STATE_TRANSLATION[syncState])
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "- State: {0}"
@@ -401,7 +405,6 @@ msgstr "{name} (not available while AniList is down)"
 msgid "{otherResultsCount, plural, one {# more match} other {# more matches}}"
 msgstr "{otherResultsCount, plural, one {# more match} other {# more matches}}"
 
-#: src/features/tsuji/drops/components/DropChips.tsx
 #: src/features/tsuji/drops/components/ReadersBlock.tsx
 msgid "{pct} % dropped"
 msgstr "{pct} % dropped"
@@ -449,6 +452,16 @@ msgstr "> 1 YR"
 #: src/features/tsuji/recs/components/RecCard.tsx
 msgid "> 6 MO"
 msgstr "> 6 MO"
+
+#: src/features/tsuji/drops/components/DropChips.tsx
+msgid "▼ {pct} % dropped"
+msgstr "▼ {pct} % dropped"
+
+#. placeholder {0}: quit.from
+#. placeholder {1}: quit.to
+#: src/features/tsuji/drops/components/DropChips.tsx
+msgid "▼ {pct} % dropped · most quit ch {0}-{1}"
+msgstr "▼ {pct} % dropped · most quit ch {0}-{1}"
 
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "18+ raw"
@@ -1044,6 +1057,10 @@ msgstr "ch {ch}"
 #: src/features/tsuji/drops/components/ReadersBlock.tsx
 msgid "ch {first}"
 msgstr "ch {first}"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "ch {from}-{to} ({pct} %)"
+msgstr "ch {from}-{to} ({pct} %)"
 
 #: src/features/tsuji/drops/components/ReadersBlock.tsx
 msgid "Ch {from}-{to}: {count} drops"
@@ -3278,12 +3295,9 @@ msgstr "More {familyLabel}"
 msgid "More actions"
 msgstr "More actions"
 
-#. placeholder {0}: cliff.from
-#. placeholder {1}: cliff.to
-#. placeholder {2}: Math.round(cliff.share)
 #: src/features/tsuji/drops/components/ReadersBlock.tsx
-msgid "Most drops: ch {0}-{1} ({2} %)"
-msgstr "Most drops: ch {0}-{1} ({2} %)"
+msgid "Most drops: {cliffText}"
+msgstr "Most drops: {cliffText}"
 
 #: src/features/tsuji/recs/Recs.constants.ts
 msgid "Most popular"

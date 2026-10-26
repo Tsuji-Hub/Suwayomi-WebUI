@@ -11,8 +11,14 @@ import { aniList, ANILIST_TIMEOUT_MS } from '@/features/tsuji/services/AniListCl
 import { TSUJI_META_KEYS } from '@/features/tsuji/Tsuji.constants.ts';
 import { useTsujiGlobalMeta } from '@/features/tsuji/services/TsujiMetadata.ts';
 import { resolveRelayUrl } from '@/features/tsuji/comments/relayUrl.ts';
-import type { DropData, DropIndex } from '@/features/tsuji/drops/drops.ts';
-import { fromStatusDistribution, parseDropData, parseDropIndex } from '@/features/tsuji/drops/drops.ts';
+import type { DropData, DropIndex, DropLine } from '@/features/tsuji/drops/drops.ts';
+import {
+    fromStatusDistribution,
+    getDataDropLine,
+    getIndexDropLine,
+    parseDropData,
+    parseDropIndex,
+} from '@/features/tsuji/drops/drops.ts';
 
 /*
  * Drop data (brief #20): the relay's `/drops` (al-drops on CT100) first, AniList's statusDistribution when the relay
@@ -248,9 +254,61 @@ export const useSeriesDrops = (anilistId: number | null): SeriesDrops => {
     return result.key === key && key ? result.state : { status: anilistId ? 'loading' : 'none' };
 };
 
+const lineCache = new Map<string, Promise<DropLine | null>>();
+
+/**
+ * A preview's drop line for a title outside the index: one `/drops/<id>` per title and session (AniList's rate only
+ * when the relay doesn't answer); none when the relay knows nothing of it.
+ */
+const loadDropLine = (base: string, anilistId: number): Promise<DropLine | null> => {
+    const key = `${base}|${anilistId}`;
+    const cached = lineCache.get(key);
+    if (cached) {
+        return cached;
+    }
+    const line = fetchDropData(base, anilistId).then(async (answer) => {
+        if (answer.kind === 'data') {
+            return getDataDropLine(answer.data);
+        }
+        if (answer.kind === 'none') {
+            return null;
+        }
+        const data = await loadTier1(anilistId);
+        return data ? getDataDropLine(data) : null;
+    });
+    lineCache.set(key, line);
+    return line;
+};
+
+/** The preview / hover drop line: from the index, else one lazy request once the index has answered without it. */
+export const useDropLine = (anilistId: number | null): DropLine | null => {
+    const base = useDropsBase();
+    const { index, isSettled } = useDropIndexState(!!anilistId);
+    const item = anilistId ? index?.items.get(anilistId) : undefined;
+    const key = anilistId ? `${base}|${anilistId}` : '';
+    const [fetched, setFetched] = useState<{ key: string; line: DropLine | null } | null>(null);
+
+    useEffect(() => {
+        if (!anilistId || item || !isSettled) {
+            return undefined;
+        }
+        let isCurrent = true;
+        loadDropLine(base, anilistId).then((line) => isCurrent && setFetched({ key, line }));
+        return () => {
+            isCurrent = false;
+        };
+    }, [key, !!item, isSettled]);
+
+    if (item) {
+        return getIndexDropLine(item);
+    }
+    return fetched?.key === key ? fetched.line : null;
+};
+
 /** Tests only. */
 export const resetDropCaches = () => {
     tier1.clear();
     seriesCache.clear();
+    lineCache.clear();
     Object.assign(indexCache, { base: '', at: 0, index: null, pending: null });
 };

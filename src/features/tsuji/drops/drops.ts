@@ -67,8 +67,11 @@ export const getMangaAniListId = ({ meta, trackRecords }: AniListIdSource): numb
     toId(meta?.find(({ key }) => key === TSUJI_META_KEYS.anilistId)?.value) ??
     toId(trackRecords?.nodes.find(({ trackerId }) => trackerId === TRACKER_ID.ANILIST)?.remoteId);
 
-/** Index entry for cards and the library sort. */
-export type DropIndexItem = { dropPct: number; started: number };
+/** A chapter range (a cliff in the index: no counts). */
+export type DropRange = { from: number; to: number };
+
+/** Index entry for cards, previews and the library sort. */
+export type DropIndexItem = { dropPct: number; started: number; cliffs: DropRange[] };
 export type DropIndex = { medianDropPct: number | null; items: Map<number, DropIndexItem> };
 
 /** Fewer mapped drops than this: no map ("Not enough drops to map"). */
@@ -182,6 +185,15 @@ export const fromStatusDistribution = (
     return rates.started ? { id, chapters, ...rates, map: null, notes: [], source: 'anilist' } : null;
 };
 
+/** The index's cliffs: `[[106, 120]]` (or `{from, to}` objects). */
+const parseIndexCliffs = (value: unknown): DropRange[] =>
+    (Array.isArray(value) ? value : []).flatMap((cliff) => {
+        const [from, to] = Array.isArray(cliff)
+            ? cliff.map(toNumber)
+            : [toNumber(isRecord(cliff) ? cliff.from : null), toNumber(isRecord(cliff) ? cliff.to : null)];
+        return from !== null && from !== undefined && to !== null && to !== undefined ? [{ from, to }] : [];
+    });
+
 /** `/drops/index.json`: drop rate by AniList id, and the library-wide median. */
 export const parseDropIndex = (json: unknown): DropIndex => {
     const body = isRecord(json) ? json : {};
@@ -189,8 +201,8 @@ export const parseDropIndex = (json: unknown): DropIndex => {
     Object.entries(isRecord(body.items) ? body.items : {}).forEach(([key, value]) => {
         const id = Number(key);
         const dropPct = isRecord(value) ? toNumber(value.drop_pct) : null;
-        if (Number.isInteger(id) && id > 0 && dropPct !== null) {
-            items.set(id, { dropPct, started: isRecord(value) ? toCount(value.started) : 0 });
+        if (Number.isInteger(id) && id > 0 && dropPct !== null && isRecord(value)) {
+            items.set(id, { dropPct, started: toCount(value.started), cliffs: parseIndexCliffs(value.cliffs) });
         }
     });
     return { medianDropPct: toNumber(body.median_drop_pct), items };
@@ -220,6 +232,8 @@ export const isMapUsable = (map: DropMap | null): map is DropMap =>
 export type DropSummary = {
     /** The biggest cliff. */
     cliff: DropCliff | null;
+    /** Every highlighted cliff, by chapter. */
+    cliffs: DropCliff[];
     /** The first bucket when it holds an early bounce. */
     early: { from: number; to: number; share: number } | null;
     /** Half of the droppers quit by this chapter. */
@@ -236,6 +250,7 @@ export const getDropSummary = (map: DropMap): DropSummary => {
             : null;
     return {
         cliff: cliff ?? null,
+        cliffs: [...map.cliffs].sort((a, b) => a.from - b.from),
         early,
         median: map.median !== null && map.median > 0 ? Math.floor(map.median) : null,
     };
@@ -286,4 +301,17 @@ export const sortByDropRate = <T extends AniListIdSource>(
             return (isDesc ? b.rate - a.rate : a.rate - b.rate) || a.position - b.position;
         })
         .map(({ manga }) => manga);
+};
+
+/** The preview's one line (brief #20): the drop rate and where most quit (the biggest cliff), when known. */
+export type DropLine = { dropPct: number; quit: DropRange | null };
+
+export const getIndexDropLine = ({ dropPct, cliffs }: DropIndexItem): DropLine => ({
+    dropPct,
+    quit: cliffs[0] ?? null,
+});
+
+export const getDataDropLine = ({ dropPct, map }: DropData): DropLine => {
+    const cliff = isMapUsable(map) ? getDropSummary(map).cliff : null;
+    return { dropPct, quit: cliff ? { from: cliff.from, to: cliff.to } : null };
 };

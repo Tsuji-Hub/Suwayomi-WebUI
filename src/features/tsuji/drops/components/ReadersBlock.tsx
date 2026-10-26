@@ -27,6 +27,7 @@ import {
     getDropBand,
     getDropSummary,
     getMarkerFraction,
+    hasEnoughStarters,
     isCliffBucket,
     isMapUsable,
     splitNotes,
@@ -149,9 +150,15 @@ const DropStrip = ({ map, readChapter }: { map: DropMap; readChapter: number | n
 
 const MapSummary = ({ map }: { map: DropMap }) => {
     const { t } = useLingui();
-    const { cliff, early, median } = getDropSummary(map);
+    const { cliffs, early, median } = getDropSummary(map);
+    const cliffText = cliffs
+        .map(({ from, to, share }) => {
+            const pct = Math.round(share);
+            return t`ch ${from}-${to} (${pct} %)`;
+        })
+        .join(t` and `);
     const parts = [
-        cliff && t`Most drops: ch ${cliff.from}-${cliff.to} (${Math.round(cliff.share)} %)`,
+        cliffText && t`Most drops: ${cliffText}`,
         early && t`${early.share} % quit in ch ${early.from}-${early.to}`,
         median !== null && t`half of droppers quit by ch ${median}`,
     ].filter(Boolean);
@@ -257,7 +264,8 @@ export const ReadersBlock = ({ manga }: { manga: { id: number } & GqlMetaHolder 
         return null;
     }
     const { data, isMapping } = drops;
-    const band = getDropBand(data.dropPct, index?.medianDropPct);
+    // Under 200 starters: the rate alone, no low / typical / high (the card chips' threshold).
+    const band = hasEnoughStarters(data.started) ? getDropBand(data.dropPct, index?.medianDropPct) : null;
     const readChapter = progress && progress.read > 0 ? progress.read : null;
     const { map } = data;
     const eta = Math.max(5, Math.round(map?.etaS ?? 30));

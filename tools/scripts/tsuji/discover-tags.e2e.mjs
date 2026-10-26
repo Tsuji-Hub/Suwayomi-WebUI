@@ -635,10 +635,12 @@ const runBrowser = async (browserName) => {
         .waitFor({ timeout: 10_000 })
         .catch(() => {});
     await page.waitForTimeout(800);
-    // Other cards' freshness lookups (a Comick search by their title, brief #21) may go out meanwhile.
+    // Other cards' freshness lookups (a Comick search by their title, brief #21) may go out meanwhile, and the
+    // preview's one drop line request (brief #20).
     const previewCalls = relayRequests
         .slice(commentsBefore)
-        .filter((request) => !request.includes('/comick/v1.0/search?') || request.includes('Revival'));
+        .filter((request) => !request.includes('/comick/v1.0/search?') || request.includes('Revival'))
+        .filter((request) => !request.includes(' /drops/'));
     check(
         label('opening a preview makes no comments or reviews calls'),
         previewCalls.length === 0 && (aniList.counts.TsujiReviews ?? 0) === reviewsBefore,

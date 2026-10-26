@@ -10,7 +10,9 @@ import { describe, expect, it } from 'vitest';
 import {
     fromStatusDistribution,
     getDropBand,
+    getDataDropLine,
     getDropSummary,
+    getIndexDropLine,
     getMangaAniListId,
     getMarkerFraction,
     isMapUsable,
@@ -90,6 +92,7 @@ describe('drop data', () => {
         expect(data.map!.buckets[7]).toEqual({ from: 106, to: 120, count: 34 });
         expect(getDropSummary(data.map!)).toEqual({
             cliff: { from: 106, to: 120, count: 34, share: 12 },
+            cliffs: [{ from: 106, to: 120, count: 34, share: 12 }],
             early: { from: 1, to: 15, share: 17 },
             median: 80,
         });
@@ -98,7 +101,26 @@ describe('drop data', () => {
 
     it("omits the parts that don't exist", () => {
         const flat = { ...data.map!, cliffs: [], earlyShare: 4, median: null };
-        expect(getDropSummary(flat)).toEqual({ cliff: null, early: null, median: null });
+        expect(getDropSummary(flat)).toEqual({ cliff: null, cliffs: [], early: null, median: null });
+    });
+
+    it('two cliffs: the biggest is "the" cliff, both listed by chapter', () => {
+        const twoCliffs = {
+            ...data.map!,
+            cliffs: [
+                { from: 121, to: 160, count: 40, share: 9 },
+                { from: 21, to: 60, count: 60, share: 14 },
+            ],
+        };
+        const summary = getDropSummary(twoCliffs);
+        expect(summary.cliff).toMatchObject({ from: 21, to: 60 });
+        expect(summary.cliffs.map(({ from }) => from)).toEqual([21, 121]);
+        expect(getDataDropLine({ ...data, map: twoCliffs })).toEqual({ dropPct: 3.2, quit: { from: 21, to: 60 } });
+    });
+
+    it('the preview line: no "most quit" without a usable map', () => {
+        expect(getDataDropLine({ ...data, map: null })).toEqual({ dropPct: 3.2, quit: null });
+        expect(getDataDropLine({ ...data, map: { ...data.map!, nProgress: 2 } }).quit).toBeNull();
     });
 
     it('a map of under 5 mapped drops is not drawn; a pending one neither', () => {
@@ -165,14 +187,16 @@ describe('index and library sort', () => {
         median_drop_pct: 5.1,
         n: 3,
         items: {
-            105398: { drop_pct: 3.2, started: 243525, median: 80.5 },
+            105398: { drop_pct: 3.2, started: 243525, median: 80.5, cliffs: [[106, 120]] },
             151025: { drop_pct: 7.1, started: 30210 },
             999: { drop_pct: 'x' },
         },
     });
     it('drop rate by AniList id, the median', () => {
         expect(index.medianDropPct).toBe(5.1);
-        expect(index.items.get(151025)).toEqual({ dropPct: 7.1, started: 30210 });
+        expect(index.items.get(151025)).toEqual({ dropPct: 7.1, started: 30210, cliffs: [] });
+        expect(getIndexDropLine(index.items.get(105398)!)).toEqual({ dropPct: 3.2, quit: { from: 106, to: 120 } });
+        expect(getIndexDropLine(index.items.get(151025)!)).toEqual({ dropPct: 7.1, quit: null });
         expect(index.items.has(999)).toBe(false);
     });
 

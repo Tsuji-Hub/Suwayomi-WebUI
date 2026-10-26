@@ -38,7 +38,7 @@ import {
     getDisplayTitle,
     htmlToPlainText,
 } from '@/features/tsuji/recs/media.ts';
-import { RecDropChip } from '@/features/tsuji/drops/components/DropChips.tsx';
+import { DropPreviewLine, RecDropChip } from '@/features/tsuji/drops/components/DropChips.tsx';
 
 const MAX_TOOLTIP_SYNOPSIS = 500;
 
@@ -113,14 +113,30 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
     const cardRef = useRef<HTMLDivElement | null>(null);
     const freshness = useCardFreshness(media, cardRef);
     const isComickScore = isComickScored(media);
+    // The hover tooltip is a preview too: its drop line loads when it opens (brief #20).
+    const hasDropLine = media.id > 0;
 
     const bindPress = usePress({ onLongPress: () => onPreview(media), onPress: () => onOpen(media) });
 
     return (
         <Stack ref={cardRef} sx={{ minWidth: 0, gap: 0.5, containerType: 'inline-size' }}>
             <CustomTooltip
-                title={synopsis ? <Box sx={{ whiteSpace: 'pre-line' }}>{synopsis}</Box> : ''}
-                disabled={!synopsis}
+                title={
+                    synopsis || hasDropLine ? (
+                        <Box sx={{ whiteSpace: 'pre-line' }}>
+                            {hasDropLine && (
+                                <DropPreviewLine
+                                    anilistId={media.id}
+                                    sx={{ fontWeight: 600, mb: synopsis ? 0.5 : 0 }}
+                                />
+                            )}
+                            {synopsis}
+                        </Box>
+                    ) : (
+                        ''
+                    )
+                }
+                disabled={!synopsis && !hasDropLine}
                 placement="right"
                 enterDelay={500}
                 enterNextDelay={150}

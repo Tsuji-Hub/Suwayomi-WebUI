@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Brief #20: Drop rate + drop map (branch `feat/drop-rate`)
 
-**Built** (2026-10-26). Off `custom` (r3446). Not shipped.
+**Built** (2026-10-26). Off `custom` (r3446), `custom` r3447 merged in (r3451). Not shipped.
 
 **Backend (Cowork, al-drops on CT100):** `<relay>/drops/<anilistId>` (AniList's status distribution, a map of where
 the latest 400 public DROPPED lists stopped, up to 15 reader notes; `map.state` ready / pending / refreshing; 404 /
@@ -37,17 +37,28 @@ PAUSED), recomputed from `dist`.
    drops: "Not enough drops to map". Relay down (no answer): AniList's statusDistribution, one request, no map.
 2. **Cards:** "▼3%" (200+ starters only, band colours) on library cards (AniList id from `tsuji_anilistId` or the
    AniList track record: `TSUJI_MANGA_DROP_FIELDS` in the library fragment) and recommendation cards, all from one
-   `index.json` request per 10 minutes; the preview shows "3.2 % dropped" from the index, else one AniList request when
-   it opens.
+   `index.json` request per 10 minutes.
 3. **Library sort "Drop rate"** (`tsujiDropRate`): lowest first (highest first descending), unknowns last.
 4. Nothing in the reader; everything lazy, nothing blocks a render.
+
+**After the r3449 check (Cowork):**
+
+1. **Preview line** on every preview surface (the long-press / right-click dialog and the card's hover tooltip):
+   "▼ 3.2 % dropped · most quit ch 106-120" ("most quit" only with a cliff). From `index.json` (its `cliffs`, the first
+   one), else one `GET /drops/<id>` when the preview opens (the biggest cliff of a usable map), cached for the session;
+   AniList's rate only when the relay doesn't answer; nothing on a relay 404. Shown whatever the starter count (no band
+   on it).
+2. **Under 200 starters** the Readers block shows "x % dropped" without low / typical / high (the chips' threshold).
+3. **Two cliffs** are both named, by chapter: "Most drops: ch 21-60 (12 %) and ch 121-160 (9 %)".
+4. `tsuji_anilistId` on a non-library series: written by Similar since brief #1 (the resolved id, saves the title
+   search next time), not new in #20; #21's library index reads `inLibrary: true` mangas only, so it never hides them.
 
 **Tests:** unit (`drops.test.ts`: Solo Leveling's live answer, the summary, few drops / pending, the marker on an
 ongoing series, notes split, AniList fallback, bands, index, AniList id, the sort). Browser `drop-rate.e2e.mjs`:
 Solo Leveling (rate, low, 14 bars with the 106-120 cliff, marker at 110, summary + footer, notes), Mythic Item
 Obtained (7.1 %, median 107, ongoing), pending map arriving without a reload, "Not enough drops to map", library (one
-index request, chips, none under 200 starters, the sort), Discover (no per-card request) and a preview (one AniList
-request), relay down (AniList's rate, no map), no app errors.
+index request, chips, none under 200 starters, the sort), Discover (no per-card request) a hover tooltip (the index line, no request), a preview outside the index (one `/drops` request, cached), 150
+starters (no band), two cliffs named, relay down (AniList's rate, no map), no app errors.
 
 # Brief #21: Similar / Discover fixes (branch `fix/similar-freshness`)
 

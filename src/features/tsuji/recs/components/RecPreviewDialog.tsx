@@ -36,7 +36,7 @@ import {
     isAniListUrl,
 } from '@/features/tsuji/recs/media.ts';
 import { isUnmatchedMedia } from '@/features/tsuji/tags/baka.ts';
-import { useDropFact } from '@/features/tsuji/drops/components/DropChips.tsx';
+import { DropPreviewLine } from '@/features/tsuji/drops/components/DropChips.tsx';
 
 // Comments and reviews load with their tab (code and requests): opening a preview costs nothing extra.
 const { PreviewComments } = loadable(() => import('@/features/tsuji/recs/preview/PreviewComments.tsx'));
@@ -80,7 +80,6 @@ export const RecPreviewDialog = ({
     const seenBadge = useSeenBadge(seenState, media?.chapters ?? null);
     const [tab, setTab] = useState<PreviewTab>('overview');
     // Brief #20: the drop rate, from the index or one AniList request when the preview opens.
-    const dropFact = useDropFact(isOpen && media && media.id > 0 ? media.id : null);
 
     useEffect(() => setTab('overview'), [media?.id]);
 
@@ -97,7 +96,6 @@ export const RecPreviewDialog = ({
         status ? t(status.label) : null,
         media.chapters ? t`${media.chapters} chapters` : null,
         media.averageScore !== null ? `${media.averageScore}%` : null,
-        dropFact,
     ].filter(Boolean);
 
     return (
@@ -131,6 +129,7 @@ export const RecPreviewDialog = ({
                                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                                     {facts.join(' · ')}
                                 </Typography>
+                                {!isUnmatchedMedia(media) && <DropPreviewLine anilistId={media.id} />}
                                 <Typography
                                     variant="body2"
                                     sx={{ whiteSpace: 'pre-line', maxHeight: 240, overflowY: 'auto' }}
