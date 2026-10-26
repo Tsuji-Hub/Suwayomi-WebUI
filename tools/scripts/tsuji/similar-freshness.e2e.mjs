@@ -42,6 +42,9 @@ const LIBRARY_META_ID = 133_070;
 /** Completed on the AniList list. */
 const LIST_ID = 163_824;
 const SCORED_ID = 700;
+/** Comick has this series twice: an unlinked entry ("...!404", more votes) and one linked to AniList. */
+const TWIN_ID = 202_246;
+const PETS = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
 
@@ -79,12 +82,26 @@ const AL_RECS = [
 
 /** Comick's recommendations (relates carry no AniList id or date) and what a search by their title says. */
 const COMICK_RECS = [
+    {
+        slug: 'starting-as-the-god-of-wealth-taming-billions-of-divine-pets-404',
+        title: `${PETS}404`,
+        rating: '4.9',
+        anilist: null,
+        uploaded: 10,
+    },
     { slug: 'library-one', title: 'Library One', rating: '9.9', anilist: LIBRARY_META_ID, uploaded: 10 },
     { slug: 'list-one', title: 'List One', rating: '9.8', anilist: LIST_ID, uploaded: 10 },
     { slug: 'comick-only', title: 'Comick Only', rating: '9.5', anilist: null, uploaded: 400 },
     { slug: 'comick-scored', title: 'Comick Scored', rating: '6.0', anilist: SCORED_ID, uploaded: 200 },
     // The same series as AniList's card 100: dropped, its date kept for that card.
     { slug: 'rec-100', title: 'Rec 100', rating: '7.0', anilist: 100, uploaded: 250 },
+    {
+        slug: 'starting-as-the-god-of-wealth-taming-billions-of-divine-pets',
+        title: PETS,
+        rating: '6.9',
+        anilist: TWIN_ID,
+        uploaded: 10,
+    },
 ];
 /** Search rows for AniList-only cards (the lazy freshness lookup); 104 has none. */
 const LOOKUPS = { 'Rec 102': { slug: 'rec-102', anilist: 102, uploaded: 500 } };
@@ -180,8 +197,13 @@ const createAniList = () => {
                 return {
                     Page: {
                         media: (variables.ids ?? [])
-                            .filter((id) => id === SCORED_ID)
-                            .map((id) => ({ id, averageScore: 90, meanScore: 90, popularity: 20_000 })),
+                            .filter((id) => id === SCORED_ID || id === TWIN_ID)
+                            .map((id) => ({
+                                id,
+                                averageScore: id === SCORED_ID ? 90 : 69,
+                                meanScore: null,
+                                popularity: 20_000,
+                            })),
                     },
                 };
             case 'TsujiMyList':
@@ -397,11 +419,19 @@ const runBrowser = async (browserName) => {
         !titles.includes('Rec 103') && titles.includes('Rec 104') && titles.filter((t) => t === 'Rec 100').length === 1,
         titles,
     );
+    check(
+        label('Comick twin: the AniList-linked entry shown (AniList score, no CK), the unlinked "...!404" gone'),
+        !titles.includes(`${PETS}404`) &&
+            titles.filter((title) => title === PETS).length === 1 &&
+            textOf(PETS).includes('69%') &&
+            !/CK/.test(textOf(PETS)),
+        { titles, pets: textOf(PETS) },
+    );
     const scores = cards.map(({ text }) => scoreOf(text));
     check(
         label('Top rated: one list across sources, scores never increase'),
         JSON.stringify(titles) ===
-            JSON.stringify(['Comick Only', 'Comick Scored', 'Rec 100', 'Rec 104', 'Rec 101', 'Rec 102']) &&
+            JSON.stringify(['Comick Only', 'Comick Scored', 'Rec 100', 'Rec 104', 'Rec 101', PETS, 'Rec 102']) &&
             scores.every((score, index) => index === 0 || score <= scores[index - 1]),
         { titles, scores },
     );

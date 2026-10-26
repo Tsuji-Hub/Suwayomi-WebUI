@@ -14,6 +14,23 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# #21 follow-up: Comick twins (branch `feat/comick-dedupe`, on `feat/drop-notes-translated`)
+
+**Built** (2026-10-26). Not shipped.
+
+Comick sometimes lists one series twice (r3447 check, /manga/438: "Starting As The God Of Wealth, Taming Billions Of
+Divine Pets!404", unlinked, 79 follows, CK 4.9, beside the entry linked to AniList 202246). `getComickExtras` kept
+whichever had more votes and only matched exact Latin title keys. Now two Comick cards are the same series when they
+share an AniList id, a normalized title, a Unicode-wide title key (Chinese / Korean alternative titles), or one title
+is the other plus a 3+ digit junk number ("Title 2" stays a sequel); the AniList-linked entry wins, at the better-voted
+place, so the hide rules and AniList's score apply to it. Tests: unit (the "!404" twin, a shared Chinese title, a
+sequel kept), `similar-freshness.e2e.mjs` (one linked card with AniList's 69, no CK, Top rated still non-increasing;
+fails on r3453).
+
+## Acceptance (Cowork, live)
+
+/manga/438 Similar: the "...Divine Pets!404" CK card gone; Top rated still non-increasing.
+
 # Brief: translated drop notes (branch `feat/drop-notes-translated`)
 
 **Built** (2026-10-26). Off `custom` (r3453). Not shipped.

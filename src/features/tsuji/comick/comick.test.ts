@@ -255,6 +255,51 @@ describe('Similar extras from Comick', () => {
         });
         expect(extras.map(({ id }) => id)).toEqual([-1_000_000_005, -1_000_000_001]);
     });
+
+    it('the same series twice on Comick: the AniList-linked entry wins, at the better-voted place', () => {
+        const pets = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
+        const extras = getComickExtras(
+            [
+                { media: toComickMedia(hit(10, { title: `${pets}404`, md_titles: [] }))!, votes: 9 },
+                { media: toComickMedia(hit(11))!, votes: 6 },
+                { media: toComickMedia(hit(12, { title: pets, links: { al: 202246 } }))!, votes: 3 },
+            ],
+            { shown: [], seedId: 900, index: null },
+        );
+        expect(extras.map(({ id }) => id)).toEqual([202_246, -1_000_000_011]);
+    });
+
+    it('twins by a shared non-Latin title; a sequel number ("Title 2") is not a twin', () => {
+        const extras = getComickExtras(
+            [
+                {
+                    media: toComickMedia(
+                        hit(20, {
+                            slug: 'pinyin-name',
+                            title: 'Pinyin Name',
+                            md_titles: [{ title: '开局神豪驯养亿万神宠' }],
+                        }),
+                    )!,
+                    votes: 5,
+                },
+                {
+                    media: toComickMedia(
+                        hit(21, {
+                            slug: 'english-name',
+                            title: 'English Name',
+                            md_titles: [{ title: '开局神豪驯养亿万神宠' }],
+                            links: { al: 7 },
+                        }),
+                    )!,
+                    votes: 2,
+                },
+                { media: toComickMedia(hit(22, { title: 'Solo Leveling', md_titles: [] }))!, votes: 4 },
+                { media: toComickMedia(hit(23, { title: 'Solo Leveling 2', md_titles: [] }))!, votes: 1 },
+            ],
+            { shown: [], seedId: 900, index: null },
+        );
+        expect(extras.map(({ id }) => id)).toEqual([7, -1_000_000_022, -1_000_000_023]);
+    });
 });
 
 describe('For You from Comick', () => {
