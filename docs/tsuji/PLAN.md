@@ -16,7 +16,11 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Drop rate v6 + freshness tags (branch `feat/drop-v6`)
 
-**Shipped** as r3461-15c0f8b8 (2026-10-29). Off `custom` (r3459).
+**Shipped** as r3461-15c0f8b8 (2026-10-29). Off `custom` (r3459). **Cowork live check: all pass** (170400 label,
+exact tooltip, "26 % quit before ch 1", "7 % stopped when caught up", no cliff; Sasin no label; Necromancer on-hold
+range; "> 3 MO" on A Knight Who Eternally Regresses, "> 1 YR" unchanged, weekly and completed untagged; 1 index + 1
+`/drops/<id>` per page). LATE not seen live (the LATE-shaped titles are on the list, so hidden); covered by the e2e.
+al-drops now sends `zero_share` / `z` null under 20 drops; the 10 % rule already skips null.
 
 al-drops v6 (live since 2026-10-29) labels a title against real peers ("ongoing manhwa") instead of one library-wide
 median (8.5 %; ongoing titles read "low" just for being ongoing). New fields: index items `lab`, `pc`, `peer`, `hi`,
