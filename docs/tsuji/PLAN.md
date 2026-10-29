@@ -16,7 +16,8 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # #21 follow-up: unlinked Comick entries (branch `feat/comick-dedupe`)
 
-**Built** (2026-10-29). Not shipped. On `custom` r3455.
+**Shipped** as r3459-ea23c812 (2026-10-29; Cowork: /manga/438 pass live with the trace on; "Wang You" is 58 %, the
+earlier 49 was the CK card). On `custom` r3455.
 
 /manga/438 Similar showed "Starting As The God Of Wealth, Taming Billions Of Divine Pets!404" as a CK card (r3447,
 r3456, r3457 checks). That Comick entry has no AniList link, and Comick's other entry for the series
