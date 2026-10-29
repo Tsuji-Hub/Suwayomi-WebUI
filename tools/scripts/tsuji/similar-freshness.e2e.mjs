@@ -43,14 +43,15 @@ const LIBRARY_META_ID = 133_070;
 const LIST_ID = 163_824;
 const SCORED_ID = 700;
 /**
- * Comick has this series twice, as live on /manga/438 (r3456 check): an unlinked English entry ("...!404", more votes)
- * and one linked to AniList under its pinyin title; they share only the Chinese title, and a search by the English one
- * doesn't return the linked entry.
+ * As live on /manga/438 (r3456 / r3457 checks): Comick's "...Divine Pets!404" entry has no AniList link and no linked
+ * twin on Comick (its other entry is unlinked too); AniList has it as 202246 (the English title is a synonym, the
+ * Chinese one native). "Wang You: ..." is a different series, linked on Comick, sharing no title with it.
  */
-const TWIN_ID = 202_246;
+const PETS_ID = 202_246;
 const PETS = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
+const PETS_NATIVE = '开局转职财神，驯化亿万神宠!';
+const WANG_YOU_ID = 300_300;
 const WANG_YOU = 'Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen';
-const PETS_CN = '开局神豪：驯养亿万神宠';
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
 
@@ -94,7 +95,7 @@ const COMICK_RECS = [
         rating: '4.9',
         anilist: null,
         uploaded: 10,
-        alt: [PETS_CN],
+        alt: [PETS_NATIVE],
     },
     { slug: 'library-one', title: 'Library One', rating: '9.9', anilist: LIBRARY_META_ID, uploaded: 10 },
     { slug: 'list-one', title: 'List One', rating: '9.8', anilist: LIST_ID, uploaded: 10 },
@@ -106,9 +107,9 @@ const COMICK_RECS = [
         slug: 'wang-you-gua-ji-baiwan-nian-wo-xinglai-cheng-shen',
         title: WANG_YOU,
         rating: '6.9',
-        anilist: TWIN_ID,
+        anilist: WANG_YOU_ID,
         uploaded: 10,
-        alt: [PETS_CN],
+        alt: ['网游：挂机百万年，我醒来成神'],
     },
 ];
 /** Search rows for AniList-only cards (the lazy freshness lookup); 104 has none. */
@@ -141,8 +142,18 @@ const createRelay = () => {
             if (q === SEED_TITLE) {
                 return [searchRow({ slug: 'fresh-test', title: SEED_TITLE, anilist: SEED_ID, uploaded: 3 })];
             }
-            if (q === PETS_CN) {
-                return COMICK_RECS.filter(({ alt }) => alt?.includes(PETS_CN)).map(searchRow);
+            if (q === PETS_NATIVE) {
+                // Comick's other entry for it: unlinked too.
+                return [
+                    searchRow(COMICK_RECS[0]),
+                    searchRow({
+                        slug: 'kaiju-zhuanzhi-caishen-xunhua-yiwan-shenchong',
+                        title: 'Kaiju Zhuanzhi Caishen, Xunhua Yiwan Shenchong',
+                        anilist: null,
+                        uploaded: 5,
+                        alt: [PETS_NATIVE],
+                    }),
+                ];
             }
             const rec = COMICK_RECS.find(({ title }) => title === q);
             if (rec) {
@@ -178,6 +189,24 @@ const createAniList = () => {
         calls.push({ operation, variables });
         switch (operation) {
             case 'TsujiSearch':
+                if (variables.search === PETS || variables.search === PETS_NATIVE) {
+                    return {
+                        Page: {
+                            media: [
+                                {
+                                    id: PETS_ID,
+                                    title: {
+                                        romaji: 'Kaiju Zhuanzhi Caishen, Xunhua Yiwan Shen Chong!',
+                                        english: null,
+                                        native: PETS_NATIVE,
+                                        userPreferred: 'Kaiju Zhuanzhi Caishen, Xunhua Yiwan Shen Chong!',
+                                    },
+                                    synonyms: [PETS],
+                                },
+                            ],
+                        },
+                    };
+                }
                 return {
                     Page: {
                         media: [
@@ -209,10 +238,10 @@ const createAniList = () => {
                 return {
                     Page: {
                         media: (variables.ids ?? [])
-                            .filter((id) => id === SCORED_ID || id === TWIN_ID)
+                            .filter((id) => [SCORED_ID, PETS_ID, WANG_YOU_ID].includes(id))
                             .map((id) => ({
                                 id,
-                                averageScore: id === SCORED_ID ? 90 : 49,
+                                averageScore: { [SCORED_ID]: 90, [PETS_ID]: 54, [WANG_YOU_ID]: 49 }[id],
                                 meanScore: null,
                                 popularity: 20_000,
                             })),
@@ -432,20 +461,32 @@ const runBrowser = async (browserName) => {
         titles,
     );
     check(
-        label('Comick twin: one card, the linked entry ("Wang You", AniList 49 %, no CK), the unlinked "...!404" gone'),
+        label(
+            '"...!404" found on AniList by title (202246, 54 %, no CK, no "404"); "Wang You" stays its own card (49 %)',
+        ),
         !titles.includes(`${PETS}404`) &&
+            titles.filter((title) => title === PETS).length === 1 &&
+            textOf(PETS).includes('54%') &&
+            !/CK/.test(textOf(PETS)) &&
             titles.filter((title) => title === WANG_YOU).length === 1 &&
             textOf(WANG_YOU).includes('49%') &&
-            !/CK/.test(textOf(WANG_YOU)) &&
-            relay.searches.includes(PETS_CN),
-        { titles, twin: textOf(WANG_YOU), searches: relay.searches },
+            aniList.calls.some(({ operation, variables }) => operation === 'TsujiSearch' && variables.search === PETS),
+        { titles, pets: textOf(PETS), wangYou: textOf(WANG_YOU) },
     );
     const scores = cards.map(({ text }) => scoreOf(text));
     check(
         label('Top rated: one list across sources, scores never increase'),
         JSON.stringify(titles) ===
-            JSON.stringify(['Comick Only', 'Comick Scored', 'Rec 100', 'Rec 104', 'Rec 101', 'Rec 102', WANG_YOU]) &&
-            scores.every((score, index) => index === 0 || score <= scores[index - 1]),
+            JSON.stringify([
+                'Comick Only',
+                'Comick Scored',
+                'Rec 100',
+                'Rec 104',
+                'Rec 101',
+                'Rec 102',
+                PETS,
+                WANG_YOU,
+            ]) && scores.every((score, index) => index === 0 || score <= scores[index - 1]),
         { titles, scores },
     );
     check(
@@ -486,8 +527,9 @@ const runBrowser = async (browserName) => {
     await row.waitFor({ timeout: 20_000 }).catch(() => {});
     await page.waitForTimeout(2000);
     check(
-        label('reload: scores from the cache (no second score request)'),
-        aniList.calls.filter(({ operation }) => operation === 'TsujiScores').length === 1,
+        label('reload: scores and the "...!404" lookup from the cache (no second request)'),
+        aniList.calls.filter(({ operation }) => operation === 'TsujiScores').length === 1 &&
+            aniList.calls.filter(({ variables }) => variables.search === PETS).length === 1,
         aniList.calls.map(({ operation }) => operation),
     );
 

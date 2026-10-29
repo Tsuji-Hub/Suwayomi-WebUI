@@ -15,8 +15,11 @@ const {
     buildComickSearch,
     findComickRow,
     findLinkedTwin,
+    getAniListSearchTitles,
     getComickAniListId,
     getOtherSearchTitle,
+    matchAniListEntry,
+    stripJunkNumber,
     parseComickComic,
     parseComickGenres,
     parseComickSearch,
@@ -341,6 +344,59 @@ describe('Comick twins in search results (r3456 check)', () => {
         expect(getOtherSearchTitle(unlinked)).toBe('开局神豪：驯养亿万神宠');
         expect(getOtherSearchTitle({ title: 'A', md_titles: [{ title: 'A' }, { title: 'B title' }] })).toBe('B title');
         expect(getOtherSearchTitle({ title: 'A' })).toBeNull();
+    });
+});
+
+describe('an unlinked Comick entry on AniList (r3457 check)', () => {
+    const pets = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
+    const native = '开局转职财神，驯化亿万神宠!';
+    const unlinked = {
+        slug: 'starting-as-the-god-of-wealth-taming-billions-of-divine-pets-404',
+        title: `${pets}404`,
+        md_titles: [{ title: native, lang: 'zh' }],
+    };
+    const kaiju = {
+        id: 202_246,
+        title: {
+            romaji: 'Kaiju Zhuanzhi Caishen, Xunhua Yiwan Shen Chong!',
+            english: null,
+            native,
+            userPreferred: null,
+        },
+        synonyms: [pets],
+    };
+    const wangYou = {
+        slug: 'wang-you-gua-ji-baiwan-nian-wo-xinglai-cheng-shen',
+        title: 'Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen',
+        md_titles: [{ title: '网游：挂机百万年，我醒来成神', lang: 'zh' }],
+        external_ids: { anilist: '300300' },
+    };
+
+    it('the junk number glued to punctuation goes; a real number stays', () => {
+        expect(stripJunkNumber(`${pets}404`)).toBe(pets);
+        expect(stripJunkNumber('Room 1408')).toBe('Room 1408');
+        expect(stripJunkNumber('Solo Leveling 2')).toBe('Solo Leveling 2');
+    });
+
+    it('searched by its title without the junk, then its original title; matched by synonym or native', () => {
+        expect(getAniListSearchTitles(unlinked)).toEqual([pets, native]);
+        expect(matchAniListEntry([pets, native], [{ id: 1, title: null, synonyms: ['Other'] }, kaiju])?.id).toBe(
+            202_246,
+        );
+        expect(matchAniListEntry([native], [kaiju])?.id).toBe(202_246);
+        expect(matchAniListEntry(['Starting As The God Of Wealth'], [kaiju])).toBeNull();
+    });
+
+    it('two different series sharing no title stay separate', () => {
+        expect(findLinkedTwin(unlinked, [wangYou])).toBeNull();
+        const extras = getComickExtras(
+            [
+                { media: toComickMedia(unlinked)!, votes: 9 },
+                { media: toComickMedia(wangYou)!, votes: 3 },
+            ],
+            { shown: [], seedId: 900, index: null },
+        );
+        expect(extras.map(({ title }) => title?.english)).toEqual([`${pets}404`, wangYou.title]);
     });
 });
 

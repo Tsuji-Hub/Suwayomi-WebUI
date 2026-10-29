@@ -14,32 +14,40 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
-# #21 follow-up: Comick twins (branch `feat/comick-dedupe`, on `feat/drop-notes-translated`)
+# #21 follow-up: unlinked Comick entries (branch `feat/comick-dedupe`)
 
-**Built** (2026-10-29). Not shipped.
+**Built** (2026-10-29). Not shipped. On `custom` r3455.
 
-Comick sometimes lists one series twice. On /manga/438 (r3447 and r3456 checks): an unlinked English entry
-"Starting As The God Of Wealth, Taming Billions Of Divine Pets!404" (CK 4.9, more votes) and an entry linked to
-AniList 202246 under its pinyin title "Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen" (AniList 49 %). They share
-only titles in `md_titles` (the Chinese one), which cards don't keep, so r3456's card-level twin rule (shared Latin
-title, or a 3+ digit junk number) never fired; its e2e fixture had given the twins a shared Latin title.
+/manga/438 Similar showed "Starting As The God Of Wealth, Taming Billions Of Divine Pets!404" as a CK card (r3447,
+r3456, r3457 checks). That Comick entry has no AniList link, and Comick's other entry for the series
+(`kaiju-zhuanzhi-caishen-xunhua-yiwan-shenchong`) has none either; AniList has it as 202246 (romaji "Kaiju Zhuanzhi
+Caishen, Xunhua Yiwan Shen Chong!", native 开局转职财神，驯化亿万神宠!, the English title a synonym, score 54).
+"Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen" is a different series. r3456 / r3457 assumed a linked Comick twin
+(the r3457 fixture even made "Wang You" that twin); live there is none.
 
-Fix where the AniList id is found (`loadComickRecInfo`, cache `comick:slug:v2`): when the recommendation's search row
-has no AniList id, a linked row in the same results that shares any title with it (title or `md_titles`, any language,
-junk numbers dropped) lends its AniList id, title, page and cover; when the first search has none, one more search by
-the entry's original-language title. Both Comick cards then carry 202246 and collapse to one (AniList's score, no CK,
-hidden like any AniList id). The card-level rule stays. Tests: unit (twin by a shared Chinese title, junk number, a
-sequel kept, the second search title), `similar-freshness.e2e.mjs` with the live shape (fails on r3456 exactly as live:
-"Wang You" 49 then "...!404" CK; passes now).
+`loadComickRecInfo` (cache `comick:slug:v3`), for a recommendation whose search row has no AniList id:
+
+1. A linked row in the same Comick results sharing any title (title or `md_titles`, any script) lends its id, title,
+   page and cover; one more Comick search by the original-language title when the first has none.
+2. Else AniList by title: Comick's title with a junk number glued to punctuation stripped ("Pets!404" -> "Pets!";
+   "Room 1408" stays), then the original-language title; only an exact title / synonym / native match counts (any
+   script). The card then carries the AniList id and the clean title. At most two AniList searches, only for unlinked
+   entries, skipped while AniList is down; a miss or a failure is retried after a day, a hit kept a week.
+
+Cards then collapse by AniList id as before. Two series sharing no title stay separate. Tests: unit (junk number,
+search titles, synonym and native matches, a partial title rejected, different series kept apart),
+`similar-freshness.e2e.mjs` with the live shape (fails on r3457 exactly as live; passes: one "...Divine Pets!" card,
+AniList 54, no CK, "Wang You" its own 49 % card, Top rated non-increasing, the lookup cached on reload).
 
 ## Acceptance (Cowork, live)
 
-/manga/438 Similar: the "...Divine Pets!404" CK card gone, one card for the series (AniList's score, no CK); Top rated
-still non-increasing. The old `comick:slug:v1` cache is ignored, so the first visit makes the lookups again.
+/manga/438 Similar: no "...!404" CK card; "Starting As The God Of Wealth, Taming Billions Of Divine Pets!" at AniList
+54, no CK; "Wang You" still its own card; Top rated non-increasing. The v1 / v2 lookups are ignored, so the first visit
+redoes them.
 
 # Brief: translated drop notes (branch `feat/drop-notes-translated`)
 
-**Built** (2026-10-26). Off `custom` (r3453). Not shipped.
+**Shipped** as r3455-2668b4e1 (2026-10-29; Cowork: KoMA ch 67 pass live on r3456). Off `custom` (r3453).
 
 al-drops translates non-English reader notes on the server: a note may carry `tr: true` (`text` is the English) and
 `orig` (the reader's words). The Readers notes show a muted "· translated" after the chapter tag; tapping it switches

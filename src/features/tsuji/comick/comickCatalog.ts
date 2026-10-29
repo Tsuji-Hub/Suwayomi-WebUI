@@ -283,6 +283,41 @@ export const getOtherSearchTitle = (row: Record<string, unknown>): string | null
     return others.find((title) => /[^\u0000-\u007F]/.test(title)) ?? others[0] ?? null;
 };
 
+/** "...Divine Pets!404" -> "...Divine Pets!": a 3+ digit number glued to closing punctuation ("Room 1408" stays). */
+export const stripJunkNumber = (title: string): string => title.replace(/(?<=[^\p{L}\p{N}\s])\d{3,}$/u, '');
+
+/** The titles to search AniList by for an unlinked Comick row: its own (junk number stripped), then its original one. */
+export const getAniListSearchTitles = (row: Record<string, unknown>): string[] => {
+    const own = asString(row.title);
+    return [...new Set([own ? stripJunkNumber(own) : null, getOtherSearchTitle(row)].filter((title) => !!title))].slice(
+        0,
+        2,
+    ) as string[];
+};
+
+export type AniListTitleEntry = {
+    id: number;
+    title: {
+        romaji: string | null;
+        english: string | null;
+        native: string | null;
+        userPreferred: string | null;
+    } | null;
+    synonyms: (string | null)[] | null;
+};
+
+/** The AniList entry whose title, synonym or native title is exactly one of these (any script), or null. */
+export const matchAniListEntry = (titles: string[], entries: AniListTitleEntry[]): AniListTitleEntry | null => {
+    const wanted = new Set(titles.map(looseTitleKey).filter((key) => key.length >= MIN_LOOSE_KEY));
+    return (
+        entries.find(({ title, synonyms }) =>
+            [title?.english, title?.romaji, title?.userPreferred, title?.native, ...(synonyms ?? [])].some(
+                (candidate) => wanted.has(looseTitleKey(candidate)),
+            ),
+        ) ?? null
+    );
+};
+
 /** One page of `/v1.0/search` as cards (each comic once). */
 export const parseComickSearch = (json: unknown, genres: ComickGenres): RecMedia[] => {
     const seen = new Set<number>();
