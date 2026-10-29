@@ -27,8 +27,12 @@ const resolveRecommendations = async (
     const infos = await Promise.all(
         top.map(({ media }) => {
             const slug = media.siteUrl?.split('/comic/')[1];
-            const title = media.title?.romaji ?? media.title?.english ?? media.title?.userPreferred;
-            return slug && title ? loadComickRecInfo(slug, title, signal).catch(() => null) : null;
+            // The shown title first: `romaji` holds Comick's alternative one (often Chinese), which Comick's search
+            // may not find (r3458 check).
+            const titles = [media.title?.english, media.title?.userPreferred, media.title?.romaji].filter(
+                (title): title is string => !!title,
+            );
+            return slug && titles.length ? loadComickRecInfo(slug, titles, signal).catch(() => null) : null;
         }),
     );
     return top.map((recommendation, index) => {

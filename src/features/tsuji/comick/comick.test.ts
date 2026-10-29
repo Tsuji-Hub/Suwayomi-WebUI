@@ -16,6 +16,7 @@ const {
     findComickRow,
     findLinkedTwin,
     getAniListSearchTitles,
+    getAniListTitlesFrom,
     getComickAniListId,
     getOtherSearchTitle,
     matchAniListEntry,
@@ -385,6 +386,12 @@ describe('an unlinked Comick entry on AniList (r3457 check)', () => {
         );
         expect(matchAniListEntry([native], [kaiju])?.id).toBe(202_246);
         expect(matchAniListEntry(['Starting As The God Of Wealth'], [kaiju])).toBeNull();
+    });
+
+    it("the card's own titles when Comick's search never returns the entry: Latin first, junk stripped", () => {
+        const traditional = '開局轉職財神，馴化億萬神寵!';
+        expect(getAniListTitlesFrom([traditional, `${pets}404`, `${pets}404`])).toEqual([pets, traditional]);
+        expect(getAniListTitlesFrom([null, 'ab', 'Wang You: Gua Ji'])).toEqual(['Wang You: Gua Ji']);
     });
 
     it('two different series sharing no title stay separate', () => {

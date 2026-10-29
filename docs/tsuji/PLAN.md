@@ -25,19 +25,29 @@ Caishen, Xunhua Yiwan Shen Chong!", native 开局转职财神，驯化亿万神�
 "Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen" is a different series. r3456 / r3457 assumed a linked Comick twin
 (the r3457 fixture even made "Wang You" that twin); live there is none.
 
-`loadComickRecInfo` (cache `comick:slug:v3`), for a recommendation whose search row has no AniList id:
+**r3458 check:** still a CK card; no AniList title search fired. Cause: the lookup searched Comick by the card's
+`romaji`, which for a Comick recommendation is its first alternative title (here the Traditional Chinese
+開局轉職財神，馴化…); Comick returned nothing, the entry's row was never found, and the lookup stopped before AniList. The
+fixtures had recommendations without `md_titles`, so they never hit it. Now Comick is searched by the shown title, then
+the next one, and AniList is asked even when Comick's search never returns the entry (by the card's own titles).
+
+`loadComickRecInfo` (cache `comick:slug:v4`), for a recommendation whose search row has no AniList id, or no row:
 
 1. A linked row in the same Comick results sharing any title (title or `md_titles`, any script) lends its id, title,
    page and cover; one more Comick search by the original-language title when the first has none.
-2. Else AniList by title: Comick's title with a junk number glued to punctuation stripped ("Pets!404" -> "Pets!";
-   "Room 1408" stays), then the original-language title; only an exact title / synonym / native match counts (any
-   script). The card then carries the AniList id and the clean title. At most two AniList searches, only for unlinked
+2. Else AniList by title: the row's titles (or the card's, without a row) with a junk number glued to punctuation
+   stripped ("Pets!404" -> "Pets!"; "Room 1408" stays), Latin ones first (AniList's native titles are often Simplified
+   where Comick's are Traditional); only an exact title / synonym / native match counts (any script). The card then carries the AniList id and the clean title. At most two AniList searches, only for unlinked
    entries, skipped while AniList is down; a miss or a failure is retried after a day, a hit kept a week.
 
 Cards then collapse by AniList id as before. Two series sharing no title stay separate. Tests: unit (junk number,
 search titles, synonym and native matches, a partial title rejected, different series kept apart),
-`similar-freshness.e2e.mjs` with the live shape (fails on r3457 exactly as live; passes: one "...Divine Pets!" card,
-AniList 54, no CK, "Wang You" its own 49 % card, Top rated non-increasing, the lookup cached on reload).
+`similar-freshness.e2e.mjs` with the live shape (recommendations with Traditional `md_titles`, Comick's search
+returning nothing for the entry; fails on r3458 exactly as live; passes: one "...Divine Pets!" card, AniList 54, no CK,
+"Wang You" its own 49 % card, Top rated non-increasing, the lookup cached on reload, the trace).
+
+**Live trace:** `localStorage.setItem('tsuji:debug', 'comick')`, reload: the console shows each lookup's steps
+(`[tsuji comick-rec] <slug>: Comick search "...": no row`, `AniList search [...]`, the result).
 
 ## Acceptance (Cowork, live)
 

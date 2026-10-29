@@ -50,6 +50,8 @@ const SCORED_ID = 700;
 const PETS_ID = 202_246;
 const PETS = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
 const PETS_NATIVE = '开局转职财神，驯化亿万神宠!';
+/** Comick's alternative title for it is the Traditional form (r3458 check); Comick's search finds nothing by it. */
+const PETS_TRAD = '開局轉職財神，馴化億萬神寵!';
 const WANG_YOU_ID = 300_300;
 const WANG_YOU = 'Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen';
 const DAY = 24 * 60 * 60 * 1000;
@@ -95,7 +97,7 @@ const COMICK_RECS = [
         rating: '4.9',
         anilist: null,
         uploaded: 10,
-        alt: [PETS_NATIVE],
+        alt: [PETS_TRAD],
     },
     { slug: 'library-one', title: 'Library One', rating: '9.9', anilist: LIBRARY_META_ID, uploaded: 10 },
     { slug: 'list-one', title: 'List One', rating: '9.8', anilist: LIST_ID, uploaded: 10 },
@@ -142,6 +144,10 @@ const createRelay = () => {
             if (q === SEED_TITLE) {
                 return [searchRow({ slug: 'fresh-test', title: SEED_TITLE, anilist: SEED_ID, uploaded: 3 })];
             }
+            // Live (r3458 check): Comick's search returns nothing for this entry, by either title.
+            if (q === `${PETS}404` || q === PETS_TRAD) {
+                return [];
+            }
             if (q === PETS_NATIVE) {
                 // Comick's other entry for it: unlinked too.
                 return [
@@ -167,9 +173,17 @@ const createRelay = () => {
                 comic: {
                     hid: 'h-fresh',
                     links: { al: String(SEED_ID) },
-                    recommendations: COMICK_RECS.map(({ slug, title, rating }, index) => ({
+                    recommendations: COMICK_RECS.map(({ slug, title, rating, alt = [] }, index) => ({
                         total: 50 - index,
-                        relates: { slug, title, hid: `h-${slug}`, bayesian_rating: rating, user_follow_count: 900 },
+                        // Live recommendations carry md_titles: the card's "romaji" is then the Chinese one.
+                        relates: {
+                            slug,
+                            title,
+                            hid: `h-${slug}`,
+                            bayesian_rating: rating,
+                            user_follow_count: 900,
+                            md_titles: alt.map((alternative) => ({ title: alternative, lang: 'zh' })),
+                        },
                     })),
                 },
             };
@@ -189,6 +203,9 @@ const createAniList = () => {
         calls.push({ operation, variables });
         switch (operation) {
             case 'TsujiSearch':
+                if (variables.search === PETS_TRAD) {
+                    return { Page: { media: [] } };
+                }
                 if (variables.search === PETS || variables.search === PETS_NATIVE) {
                     return {
                         Page: {
@@ -418,6 +435,10 @@ const runBrowser = async (browserName) => {
     const page = await context.newPage();
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
+    // The opt-in decision trace Cowork uses live.
+    const trace = [];
+    page.on('console', (message) => message.text().startsWith('[tsuji comick-rec]') && trace.push(message.text()));
+    await page.addInitScript(() => localStorage.setItem('tsuji:debug', 'comick'));
     await page.goto(`${ORIGIN}/manga/${MANGA_ID}`);
 
     const row = page.getByRole('group', { name: 'Similar titles' });
@@ -548,6 +569,13 @@ const runBrowser = async (browserName) => {
         },
     );
 
+    const petsTrace = trace.filter((line) => line.includes('divine-pets-404'));
+    check(
+        label('tsuji:debug=comick traces the "...!404" lookup: Comick searches, then AniList, the result'),
+        petsTrace.some((line) => line.includes('Comick search') && line.includes('no row')) &&
+            petsTrace.some((line) => line.includes('AniList search') && line.includes(String(PETS_ID))),
+        petsTrace,
+    );
     check(label('no page errors'), pageErrors.length === 0, pageErrors);
     await browser.close();
 };

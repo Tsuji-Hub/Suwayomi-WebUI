@@ -286,14 +286,33 @@ export const getOtherSearchTitle = (row: Record<string, unknown>): string | null
 /** "...Divine Pets!404" -> "...Divine Pets!": a 3+ digit number glued to closing punctuation ("Room 1408" stays). */
 export const stripJunkNumber = (title: string): string => title.replace(/(?<=[^\p{L}\p{N}\s])\d{3,}$/u, '');
 
-/** The titles to search AniList by for an unlinked Comick row: its own (junk number stripped), then its original one. */
-export const getAniListSearchTitles = (row: Record<string, unknown>): string[] => {
-    const own = asString(row.title);
-    return [...new Set([own ? stripJunkNumber(own) : null, getOtherSearchTitle(row)].filter((title) => !!title))].slice(
-        0,
-        2,
-    ) as string[];
+// oxlint-disable-next-line no-control-regex
+const isLatin = (title: string) => !/[^\u0000-\u024F\u2000-\u206F]/.test(title);
+
+/**
+ * The titles to search AniList by for an unlinked Comick entry (two at most): junk numbers stripped, each once, Latin
+ * ones first (AniList's native titles are often Simplified Chinese where Comick's are Traditional: the English title,
+ * a synonym on AniList, matches more often).
+ */
+export const getAniListTitlesFrom = (titles: (string | null | undefined)[]): string[] => {
+    const seen = new Set<string>();
+    return titles
+        .flatMap((title) => (title ? [stripJunkNumber(title).trim()] : []))
+        .filter((title) => {
+            const key = looseTitleKey(title);
+            if (key.length < MIN_LOOSE_KEY || seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        })
+        .sort((a, b) => Number(isLatin(b)) - Number(isLatin(a)))
+        .slice(0, 2);
 };
+
+/** The same for a Comick search row: its own title, then its alternatives. */
+export const getAniListSearchTitles = (row: Record<string, unknown>): string[] =>
+    getAniListTitlesFrom([asString(row.title), ...parseTitles(row)]);
 
 export type AniListTitleEntry = {
     id: number;

@@ -26,6 +26,7 @@ import {
     findComickRow,
     findLinkedTwin,
     getAniListSearchTitles,
+    getAniListTitlesFrom,
     getComickAniListId,
     getOtherSearchTitle,
     matchAniListEntry,
@@ -277,55 +278,81 @@ const findOnAniList = async (
     }
 };
 
+/** `localStorage['tsuji:debug']` containing "comick": the rec lookup logs each decision (for a live trace). */
+const traceRec = (slug: string, step: string, detail?: unknown) => {
+    try {
+        if (localStorage.getItem('tsuji:debug')?.includes('comick')) {
+            // oxlint-disable-next-line no-console
+            console.info(`[tsuji comick-rec] ${slug}: ${step}`, detail ?? '');
+        }
+    } catch {
+        // No storage: no trace.
+    }
+};
+
 /**
- * A Comick recommendation's series (its entry carries only a slug, a title and Comick's numbers): the search row with
- * that slug, by its title. Comick lists some series twice, one entry unlinked ("...Divine Pets!404"); for an unlinked
- * entry, a linked one in the results sharing any title lends its AniList id (one more Comick search by the original
- * title when needed), else AniList itself by title (junk number stripped, then the original title; an exact title,
- * synonym or native match only). Cached a week (a miss, or AniList not answering, a day). Similar hides by the AniList
- * id and dates the card by it.
+ * A Comick recommendation's series (its entry carries only a slug, titles and Comick's numbers): the search row with
+ * that slug, by its shown title, then its next one. Comick lists some series twice, one entry unlinked ("...Divine
+ * Pets!404"); for an unlinked entry, a linked one in the results sharing any title lends its AniList id (one more
+ * Comick search by the original title when needed), else AniList itself by title (junk number stripped, Latin titles
+ * first; an exact title, synonym or native match only), also when Comick's search never returns the entry. Cached a
+ * week (a miss, or AniList not answering, a day). Similar hides by the AniList id and dates the card by it.
  */
 export const loadComickRecInfo = async (
     slug: string,
-    title: string,
+    titles: string[],
     signal: AbortSignal,
 ): Promise<ComickSeriesInfo | null> => {
-    // v3: v1 / v2 kept "...Divine Pets!404" unlinked (r3456 and r3457 checks).
-    const key = `comick:slug:v3:${slug}`;
+    // v4: v1-v3 searched Comick by the card's alternative (Traditional Chinese) title first, found no row for
+    // "...Divine Pets!404" and stopped before AniList (r3458 check).
+    const key = `comick:slug:v4:${slug}`;
     const cached = TsujiCache.get<{ info: ComickSeriesInfo | null }>(key);
     if (cached) {
+        traceRec(slug, 'cached', cached.info);
         return cached.info;
     }
-    const json = await searchJson(title, signal);
-    const row = findComickRow(json, slug);
+    let json: unknown = null;
+    let row: Record<string, unknown> | null = null;
+    for (const title of [...new Set(titles.filter(Boolean))].slice(0, MAX_TITLES)) {
+        if (row) {
+            break;
+        }
+        // oxlint-disable-next-line no-await-in-loop
+        json = await searchJson(title, signal);
+        row = findComickRow(json, slug);
+        traceRec(slug, `Comick search "${title}"`, row ? 'row found' : 'no row');
+    }
     const media = row ? toComickMedia(row) : null;
-    const info = media ? toInfo(media) : null;
-    let isShortLived = !info;
-    if (row && info && info.anilistId === null) {
-        let twin = findLinkedTwin(row, json);
-        const otherTitle = twin ? null : getOtherSearchTitle(row);
-        if (otherTitle) {
+    let info = media ? toInfo(media) : null;
+    let isShortLived = false;
+    if (!info || info.anilistId === null) {
+        let twin = row ? findLinkedTwin(row, json) : null;
+        const otherTitle = row && !twin ? getOtherSearchTitle(row) : null;
+        if (row && otherTitle) {
             twin = findLinkedTwin(row, await searchJson(otherTitle, signal));
+            traceRec(slug, `Comick search "${otherTitle}" (original title)`, twin ? 'linked twin' : 'no linked twin');
         }
         const twinMedia = twin ? toComickMedia(twin) : null;
-        if (twinMedia) {
+        if (info && twinMedia) {
+            traceRec(slug, 'AniList id from the linked twin', twinMedia.id);
             info.anilistId = twinMedia.id;
             info.status = twinMedia.status ?? info.status;
             info.lastChapterAt = Math.max(info.lastChapterAt ?? 0, twinMedia.lastChapterAt ?? 0) || null;
             info.card = { title: twinMedia.title, siteUrl: twinMedia.siteUrl, coverImage: twinMedia.coverImage };
         } else {
-            const titles = getAniListSearchTitles(row);
-            const { entry, failed } = await findOnAniList(titles, signal);
+            const aniListTitles = row ? getAniListSearchTitles(row) : getAniListTitlesFrom(titles);
+            const { entry, failed } = await findOnAniList(aniListTitles, signal);
+            traceRec(slug, `AniList search ${JSON.stringify(aniListTitles)}`, failed ? 'failed / down' : entry?.id);
             isShortLived = failed;
             if (entry) {
-                const shown = titles[0] ?? media!.title?.english ?? null;
+                const shown = aniListTitles[0] ?? null;
+                info ??= { anilistId: null, status: null, lastChapterAt: null };
                 info.anilistId = entry.id;
-                info.card = {
-                    title: { userPreferred: shown, english: shown, romaji: entry.title?.romaji ?? null },
-                };
+                info.card = { title: { userPreferred: shown, english: shown, romaji: entry.title?.romaji ?? null } };
             }
         }
     }
+    traceRec(slug, 'result', info);
     TsujiCache.set(key, { info }, isShortLived ? SLUG_MISS_TTL_MS : INFO_TTL_MS);
     return info;
 };
