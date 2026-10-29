@@ -16,7 +16,7 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Drop rate v6 + freshness tags (branch `feat/drop-v6`)
 
-**Built** (2026-10-29). Off `custom` (r3459). Not shipped.
+**Shipped** as r3461-15c0f8b8 (2026-10-29). Off `custom` (r3459).
 
 al-drops v6 (live since 2026-10-29) labels a title against real peers ("ongoing manhwa") instead of one library-wide
 median (8.5 %; ongoing titles read "low" just for being ongoing). New fields: index items `lab`, `pc`, `peer`, `hi`,
