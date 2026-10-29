@@ -16,20 +16,26 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # #21 follow-up: Comick twins (branch `feat/comick-dedupe`, on `feat/drop-notes-translated`)
 
-**Built** (2026-10-26). Not shipped.
+**Built** (2026-10-29). Not shipped.
 
-Comick sometimes lists one series twice (r3447 check, /manga/438: "Starting As The God Of Wealth, Taming Billions Of
-Divine Pets!404", unlinked, 79 follows, CK 4.9, beside the entry linked to AniList 202246). `getComickExtras` kept
-whichever had more votes and only matched exact Latin title keys. Now two Comick cards are the same series when they
-share an AniList id, a normalized title, a Unicode-wide title key (Chinese / Korean alternative titles), or one title
-is the other plus a 3+ digit junk number ("Title 2" stays a sequel); the AniList-linked entry wins, at the better-voted
-place, so the hide rules and AniList's score apply to it. Tests: unit (the "!404" twin, a shared Chinese title, a
-sequel kept), `similar-freshness.e2e.mjs` (one linked card with AniList's 69, no CK, Top rated still non-increasing;
-fails on r3453).
+Comick sometimes lists one series twice. On /manga/438 (r3447 and r3456 checks): an unlinked English entry
+"Starting As The God Of Wealth, Taming Billions Of Divine Pets!404" (CK 4.9, more votes) and an entry linked to
+AniList 202246 under its pinyin title "Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen" (AniList 49 %). They share
+only titles in `md_titles` (the Chinese one), which cards don't keep, so r3456's card-level twin rule (shared Latin
+title, or a 3+ digit junk number) never fired; its e2e fixture had given the twins a shared Latin title.
+
+Fix where the AniList id is found (`loadComickRecInfo`, cache `comick:slug:v2`): when the recommendation's search row
+has no AniList id, a linked row in the same results that shares any title with it (title or `md_titles`, any language,
+junk numbers dropped) lends its AniList id, title, page and cover; when the first search has none, one more search by
+the entry's original-language title. Both Comick cards then carry 202246 and collapse to one (AniList's score, no CK,
+hidden like any AniList id). The card-level rule stays. Tests: unit (twin by a shared Chinese title, junk number, a
+sequel kept, the second search title), `similar-freshness.e2e.mjs` with the live shape (fails on r3456 exactly as live:
+"Wang You" 49 then "...!404" CK; passes now).
 
 ## Acceptance (Cowork, live)
 
-/manga/438 Similar: the "...Divine Pets!404" CK card gone; Top rated still non-increasing.
+/manga/438 Similar: the "...Divine Pets!404" CK card gone, one card for the series (AniList's score, no CK); Top rated
+still non-increasing. The old `comick:slug:v1` cache is ignored, so the first visit makes the lookups again.
 
 # Brief: translated drop notes (branch `feat/drop-notes-translated`)
 

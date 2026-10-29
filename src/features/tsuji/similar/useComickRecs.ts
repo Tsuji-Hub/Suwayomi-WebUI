@@ -40,6 +40,8 @@ const resolveRecommendations = async (
             ...recommendation,
             media: {
                 ...recommendation.media,
+                // Comick's linked entry for the same series: its title, page and cover (the AniList id is its).
+                ...(info.twin ?? {}),
                 id: info.anilistId ?? recommendation.media.id,
                 status: info.status ?? recommendation.media.status,
                 lastChapterAt: info.lastChapterAt,

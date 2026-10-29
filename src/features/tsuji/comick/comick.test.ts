@@ -13,7 +13,10 @@ vi.mock('@/features/tsuji/services/TsujiCache.ts', () => ({
 
 const {
     buildComickSearch,
+    findComickRow,
+    findLinkedTwin,
     getComickAniListId,
+    getOtherSearchTitle,
     parseComickComic,
     parseComickGenres,
     parseComickSearch,
@@ -299,6 +302,45 @@ describe('Similar extras from Comick', () => {
             { shown: [], seedId: 900, index: null },
         );
         expect(extras.map(({ id }) => id)).toEqual([7, -1_000_000_022, -1_000_000_023]);
+    });
+});
+
+describe('Comick twins in search results (r3456 check)', () => {
+    const pets = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
+    const unlinked = {
+        slug: 'starting-as-the-god-of-wealth-taming-billions-of-divine-pets-404',
+        title: `${pets}404`,
+        md_titles: [{ title: '开局神豪：驯养亿万神宠', lang: 'zh' }],
+    };
+    const linked = {
+        slug: 'wang-you-gua-ji-baiwan-nian-wo-xinglai-cheng-shen',
+        title: 'Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen',
+        md_titles: [{ title: '开局神豪：驯养亿万神宠', lang: 'zh' }],
+        external_ids: { anilist: '202246' },
+    };
+    const other = { slug: 'other', title: 'Another Series', external_ids: { anilist: '5' } };
+
+    it('an unlinked entry finds the linked one by a shared title in any language', () => {
+        const json = [other, unlinked, linked];
+        const row = findComickRow(json, unlinked.slug)!;
+        expect(findLinkedTwin(row, json)?.slug).toBe(linked.slug);
+        expect(findLinkedTwin(findComickRow(json, linked.slug)!, json)).toBeNull();
+        expect(findLinkedTwin({ ...unlinked, md_titles: [] }, json)).toBeNull();
+    });
+
+    it('a junk number on the title still matches the linked English title; a sequel number does not', () => {
+        const english = { ...linked, md_titles: [{ title: pets, lang: 'en' }] };
+        expect(findLinkedTwin({ ...unlinked, md_titles: [] }, [english])?.slug).toBe(linked.slug);
+        const sequel = { slug: 's2', title: 'Solo Leveling 2', md_titles: [] };
+        expect(
+            findLinkedTwin(sequel, [{ slug: 's1', title: 'Solo Leveling', external_ids: { anilist: '1' } }]),
+        ).toBeNull();
+    });
+
+    it('the second search title: the original-language one first', () => {
+        expect(getOtherSearchTitle(unlinked)).toBe('开局神豪：驯养亿万神宠');
+        expect(getOtherSearchTitle({ title: 'A', md_titles: [{ title: 'A' }, { title: 'B title' }] })).toBe('B title');
+        expect(getOtherSearchTitle({ title: 'A' })).toBeNull();
     });
 });
 

@@ -42,9 +42,15 @@ const LIBRARY_META_ID = 133_070;
 /** Completed on the AniList list. */
 const LIST_ID = 163_824;
 const SCORED_ID = 700;
-/** Comick has this series twice: an unlinked entry ("...!404", more votes) and one linked to AniList. */
+/**
+ * Comick has this series twice, as live on /manga/438 (r3456 check): an unlinked English entry ("...!404", more votes)
+ * and one linked to AniList under its pinyin title; they share only the Chinese title, and a search by the English one
+ * doesn't return the linked entry.
+ */
 const TWIN_ID = 202_246;
 const PETS = 'Starting As The God Of Wealth, Taming Billions Of Divine Pets!';
+const WANG_YOU = 'Wang You: Gua Ji Baiwan Nian, Wo Xinglai Cheng Shen';
+const PETS_CN = '开局神豪：驯养亿万神宠';
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
 
@@ -88,6 +94,7 @@ const COMICK_RECS = [
         rating: '4.9',
         anilist: null,
         uploaded: 10,
+        alt: [PETS_CN],
     },
     { slug: 'library-one', title: 'Library One', rating: '9.9', anilist: LIBRARY_META_ID, uploaded: 10 },
     { slug: 'list-one', title: 'List One', rating: '9.8', anilist: LIST_ID, uploaded: 10 },
@@ -96,17 +103,18 @@ const COMICK_RECS = [
     // The same series as AniList's card 100: dropped, its date kept for that card.
     { slug: 'rec-100', title: 'Rec 100', rating: '7.0', anilist: 100, uploaded: 250 },
     {
-        slug: 'starting-as-the-god-of-wealth-taming-billions-of-divine-pets',
-        title: PETS,
+        slug: 'wang-you-gua-ji-baiwan-nian-wo-xinglai-cheng-shen',
+        title: WANG_YOU,
         rating: '6.9',
         anilist: TWIN_ID,
         uploaded: 10,
+        alt: [PETS_CN],
     },
 ];
 /** Search rows for AniList-only cards (the lazy freshness lookup); 104 has none. */
 const LOOKUPS = { 'Rec 102': { slug: 'rec-102', anilist: 102, uploaded: 500 } };
 
-const searchRow = ({ slug, title, rating = '7.0', anilist, uploaded }) => ({
+const searchRow = ({ slug, title, rating = '7.0', anilist, uploaded, alt = [] }) => ({
     id: slug.length,
     hid: `h-${slug}`,
     slug,
@@ -119,6 +127,7 @@ const searchRow = ({ slug, title, rating = '7.0', anilist, uploaded }) => ({
     uploaded_at: daysAgo(uploaded),
     external_ids: anilist ? { anilist: String(anilist) } : {},
     md_covers: [],
+    md_titles: alt.map((alternative) => ({ title: alternative, lang: 'zh' })),
     genres: [],
 });
 
@@ -131,6 +140,9 @@ const createRelay = () => {
             searches.push(q);
             if (q === SEED_TITLE) {
                 return [searchRow({ slug: 'fresh-test', title: SEED_TITLE, anilist: SEED_ID, uploaded: 3 })];
+            }
+            if (q === PETS_CN) {
+                return COMICK_RECS.filter(({ alt }) => alt?.includes(PETS_CN)).map(searchRow);
             }
             const rec = COMICK_RECS.find(({ title }) => title === q);
             if (rec) {
@@ -200,7 +212,7 @@ const createAniList = () => {
                             .filter((id) => id === SCORED_ID || id === TWIN_ID)
                             .map((id) => ({
                                 id,
-                                averageScore: id === SCORED_ID ? 90 : 69,
+                                averageScore: id === SCORED_ID ? 90 : 49,
                                 meanScore: null,
                                 popularity: 20_000,
                             })),
@@ -420,18 +432,19 @@ const runBrowser = async (browserName) => {
         titles,
     );
     check(
-        label('Comick twin: the AniList-linked entry shown (AniList score, no CK), the unlinked "...!404" gone'),
+        label('Comick twin: one card, the linked entry ("Wang You", AniList 49 %, no CK), the unlinked "...!404" gone'),
         !titles.includes(`${PETS}404`) &&
-            titles.filter((title) => title === PETS).length === 1 &&
-            textOf(PETS).includes('69%') &&
-            !/CK/.test(textOf(PETS)),
-        { titles, pets: textOf(PETS) },
+            titles.filter((title) => title === WANG_YOU).length === 1 &&
+            textOf(WANG_YOU).includes('49%') &&
+            !/CK/.test(textOf(WANG_YOU)) &&
+            relay.searches.includes(PETS_CN),
+        { titles, twin: textOf(WANG_YOU), searches: relay.searches },
     );
     const scores = cards.map(({ text }) => scoreOf(text));
     check(
         label('Top rated: one list across sources, scores never increase'),
         JSON.stringify(titles) ===
-            JSON.stringify(['Comick Only', 'Comick Scored', 'Rec 100', 'Rec 104', 'Rec 101', PETS, 'Rec 102']) &&
+            JSON.stringify(['Comick Only', 'Comick Scored', 'Rec 100', 'Rec 104', 'Rec 101', 'Rec 102', WANG_YOU]) &&
             scores.every((score, index) => index === 0 || score <= scores[index - 1]),
         { titles, scores },
     );

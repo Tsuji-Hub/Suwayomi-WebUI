@@ -19,10 +19,14 @@ import { normalizeTitle } from '@/features/tsuji/recs/normalize.ts';
 import { compactMedia } from '@/features/tsuji/forYou/weekStore.ts';
 import type { ComickGenres, ComickRecommendation } from '@/features/tsuji/comick/comickCatalog.ts';
 import {
+    findComickRow,
+    findLinkedTwin,
     getComickAniListId,
+    getOtherSearchTitle,
     parseComickComic,
     parseComickGenres,
     parseComickSearch,
+    toComickMedia,
 } from '@/features/tsuji/comick/comickCatalog.ts';
 
 /*
@@ -210,19 +214,25 @@ export const loadComickRecommendationsByTitle = async (
     return slug ? ((await loadComickComic(slug, signal))?.recommendations ?? []) : [];
 };
 
-/** What a Comick search row says about a series (brief #21): its AniList id, status and latest chapter date. */
-export type ComickSeriesInfo = { anilistId: number | null; status: string | null; lastChapterAt: number | null };
+/**
+ * What a Comick search row says about a series (brief #21): its AniList id, status and latest chapter date; `twin`: the
+ * linked entry's title, page and cover when the series' AniList id came from Comick's other entry for it.
+ */
+export type ComickSeriesInfo = {
+    anilistId: number | null;
+    status: string | null;
+    lastChapterAt: number | null;
+    twin?: Pick<RecMedia, 'title' | 'siteUrl' | 'coverImage'> | null;
+};
 
 const INFO_TTL_MS = 7 * DAY_MS;
 const FRESHNESS_TTL_MS = DAY_MS;
 
-const searchRows = async (title: string, signal: AbortSignal): Promise<RecMedia[]> =>
-    parseComickSearch(
-        await client.get<unknown>(`/v1.0/search?q=${encodeURIComponent(title)}&limit=10&t=false`, signal),
-        {},
-    );
+const searchJson = (title: string, signal: AbortSignal): Promise<unknown> =>
+    client.get<unknown>(`/v1.0/search?q=${encodeURIComponent(title)}&limit=10&t=false`, signal);
 
-const slugOf = (media: Pick<RecMedia, 'siteUrl'>) => media.siteUrl?.split('/comic/')[1] ?? null;
+const searchRows = async (title: string, signal: AbortSignal): Promise<RecMedia[]> =>
+    parseComickSearch(await searchJson(title, signal), {});
 
 const toInfo = (media: RecMedia | undefined): ComickSeriesInfo | null =>
     media
@@ -235,20 +245,37 @@ const toInfo = (media: RecMedia | undefined): ComickSeriesInfo | null =>
 
 /**
  * A Comick recommendation's series (its entry carries only a slug, a title and Comick's numbers): the search row with
- * that slug, by its title. One search per recommendation, cached a week (a miss a day). Similar hides by the AniList
- * id and dates the card by it.
+ * that slug, by its title. When that entry isn't linked to AniList, a linked entry of the same series in the results
+ * lends its AniList id (one more search, by the entry's original-language title, when the first has none). Cached a week
+ * (a miss a day). Similar hides by the AniList id and dates the card by it.
  */
 export const loadComickRecInfo = async (
     slug: string,
     title: string,
     signal: AbortSignal,
 ): Promise<ComickSeriesInfo | null> => {
-    const key = `comick:slug:v1:${slug}`;
+    // v2: v1 kept an unlinked entry unlinked even when Comick also lists the series linked (r3456 check).
+    const key = `comick:slug:v2:${slug}`;
     const cached = TsujiCache.get<{ info: ComickSeriesInfo | null }>(key);
     if (cached) {
         return cached.info;
     }
-    const info = toInfo((await searchRows(title, signal)).find((media) => slugOf(media) === slug));
+    const json = await searchJson(title, signal);
+    const row = findComickRow(json, slug);
+    let twin = row ? findLinkedTwin(row, json) : null;
+    const otherTitle = row && !twin && getComickAniListId(row) === null ? getOtherSearchTitle(row) : null;
+    if (row && otherTitle) {
+        twin = findLinkedTwin(row, await searchJson(otherTitle, signal));
+    }
+    const media = row ? toComickMedia(row) : null;
+    const twinMedia = twin ? toComickMedia(twin) : null;
+    const info = media ? toInfo(media) : null;
+    if (info && twinMedia) {
+        info.anilistId = twinMedia.id;
+        info.status = twinMedia.status ?? info.status;
+        info.lastChapterAt = Math.max(info.lastChapterAt ?? 0, twinMedia.lastChapterAt ?? 0) || null;
+        info.twin = { title: twinMedia.title, siteUrl: twinMedia.siteUrl, coverImage: twinMedia.coverImage };
+    }
     TsujiCache.set(key, { info }, info ? INFO_TTL_MS : SLUG_MISS_TTL_MS);
     return info;
 };

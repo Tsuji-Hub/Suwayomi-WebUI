@@ -226,6 +226,63 @@ export const toComickMedia = (raw: unknown, genres: ComickGenres = {}): RecMedia
     };
 };
 
+/** A title as letters and digits of any script ("...Divine Pets!" and a Chinese title compare as written). */
+export const looseTitleKey = (title: string | null | undefined): string =>
+    (title ?? '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replaceAll(/[^\p{L}\p{N}]/gu, '');
+
+/** Shorter keys (a CJK word, an initialism) say too little. */
+const MIN_LOOSE_KEY = 4;
+/** A junk number Comick tacks onto a duplicate entry's title ("...Divine Pets!404"): 3+ digits ("Title 2" stays). */
+const JUNK_NUMBER = /\d{3,}$/;
+
+/** Every title of a search row (its title and `md_titles`, any language), as loose keys, junk numbers dropped too. */
+const rowTitleKeys = (row: Record<string, unknown>): Set<string> =>
+    new Set(
+        [asString(row.title), ...parseTitles(row)]
+            .map(looseTitleKey)
+            .flatMap((key) => [key, key.replace(JUNK_NUMBER, '')])
+            .filter((key) => key.length >= MIN_LOOSE_KEY),
+    );
+
+/** The `/v1.0/search` row of this slug, if the results have it. */
+export const findComickRow = (json: unknown, slug: string): Record<string, unknown> | null =>
+    asList(json)
+        .map(asRecord)
+        .find((row) => asString(row.slug) === slug) ?? null;
+
+/**
+ * Comick lists some series twice, one entry linked to AniList and one not (r3456 check, /manga/438: "...Divine
+ * Pets!404" beside "Wang You: ...", AniList 202246). For an unlinked row: a linked row in the results that shares any
+ * title with it, in any language.
+ */
+export const findLinkedTwin = (row: Record<string, unknown>, json: unknown): Record<string, unknown> | null => {
+    if (getComickAniListId(row) !== null) {
+        return null;
+    }
+    const keys = rowTitleKeys(row);
+    return (
+        asList(json)
+            .map(asRecord)
+            .find(
+                (other) =>
+                    asString(other.slug) !== asString(row.slug) &&
+                    getComickAniListId(other) !== null &&
+                    [...rowTitleKeys(other)].some((key) => keys.has(key)),
+            ) ?? null
+    );
+};
+
+/** A second title to search an unlinked row by: its original-language one first, else another alternative. */
+export const getOtherSearchTitle = (row: Record<string, unknown>): string | null => {
+    const own = looseTitleKey(asString(row.title));
+    const others = parseTitles(row).filter((title) => looseTitleKey(title) !== own);
+    // oxlint-disable-next-line no-control-regex
+    return others.find((title) => /[^\u0000-\u007F]/.test(title)) ?? others[0] ?? null;
+};
+
 /** One page of `/v1.0/search` as cards (each comic once). */
 export const parseComickSearch = (json: unknown, genres: ComickGenres): RecMedia[] => {
     const seen = new Set<number>();
