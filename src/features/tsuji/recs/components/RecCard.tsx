@@ -29,6 +29,7 @@ import { MANGA_COVER_ASPECT_RATIO } from '@/features/manga/Manga.constants.ts';
 import { getScoreColor, TSUJI_MOTION, TSUJI_PALETTE } from '@/features/tsuji/Tsuji.palette.ts';
 import { COMIC_TYPE_LABELS, getStatusBadge } from '@/features/tsuji/recs/Recs.constants.ts';
 import type { RecMedia } from '@/features/tsuji/recs/Recs.types.ts';
+import type { Freshness, FreshnessKind } from '@/features/tsuji/recs/mergedScore.ts';
 import { isComickScored } from '@/features/tsuji/recs/mergedScore.ts';
 import { useCardFreshness } from '@/features/tsuji/recs/useCardFreshness.ts';
 import {
@@ -81,6 +82,35 @@ const BottomBadges = styled('div')(({ theme }) => ({
     gap: theme.spacing(0.5),
     pointerEvents: 'none',
 }));
+
+const FRESHNESS_COLOR: Record<FreshnessKind, string> = {
+    late: TSUJI_PALETTE.releaseLate,
+    '3mo': TSUJI_PALETTE.stale3Months,
+    '6mo': TSUJI_PALETTE.stale6Months,
+    '1yr': TSUJI_PALETTE.stale1Year,
+};
+
+/** "> 1 YR" / "> 6 MO" / "> 3 MO" since the latest chapter, "LATE" past the series' usual release rhythm (v6). */
+const FreshnessBadge = ({ freshness }: { freshness: NonNullable<Freshness> }) => {
+    const { t } = useLingui();
+    const { kind, sinceDays, gapDays } = freshness;
+    const gap = gapDays !== null ? Math.round(gapDays) : null;
+    const text = { late: t`LATE`, '3mo': t`> 3 MO`, '6mo': t`> 6 MO`, '1yr': t`> 1 YR` }[kind];
+    const tooltip = {
+        late:
+            gap !== null
+                ? t`No English chapter for ${sinceDays} days (usually every ${gap} days)`
+                : t`No English chapter for ${sinceDays} days`,
+        '3mo': t`No new chapter in over 3 months`,
+        '6mo': t`No new chapter in over 6 months`,
+        '1yr': t`No new chapter in over a year`,
+    }[kind];
+    return (
+        <CoverBadge sx={{ position: 'static', color: FRESHNESS_COLOR[kind] }} title={tooltip}>
+            {text}
+        </CoverBadge>
+    );
+};
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
 
@@ -199,24 +229,7 @@ export const RecCard = memo(({ media, agreement = false, onOpen, onPreview, seen
                                         {seenBadge.text}
                                     </CoverBadge>
                                 )}
-                                {freshness && (
-                                    <CoverBadge
-                                        sx={{
-                                            position: 'static',
-                                            color:
-                                                freshness === '1yr'
-                                                    ? TSUJI_PALETTE.stale1Year
-                                                    : TSUJI_PALETTE.stale6Months,
-                                        }}
-                                        title={
-                                            freshness === '1yr'
-                                                ? t`No new chapter in over a year`
-                                                : t`No new chapter in over 6 months`
-                                        }
-                                    >
-                                        {freshness === '1yr' ? t`> 1 YR` : t`> 6 MO`}
-                                    </CoverBadge>
-                                )}
+                                {freshness && <FreshnessBadge freshness={freshness} />}
                                 {status && (
                                     <CoverBadge sx={{ position: 'static' }}>
                                         <Box component="span" sx={{ color: status.color }}>

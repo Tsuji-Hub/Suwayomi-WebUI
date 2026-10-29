@@ -23,6 +23,20 @@ msgstr " and "
 msgid "- State: {0}"
 msgstr "- State: {0}"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "· {bandWord} for {peer}"
+msgstr "· {bandWord} for {peer}"
+
+#. placeholder {0}: formatDropPct(peerMedian)
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "(median {0} %)"
+msgstr "(median {0} %)"
+
+#. placeholder {0}: formatDropPct(dropHi)
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "(up to {0} % counting on-hold untouched 6+ months)"
+msgstr "(up to {0} % counting on-hold untouched 6+ months)"
+
 #. placeholder {0}: selectedChapters.length
 #. placeholder {0}: visibleChapters.length
 #: src/features/chapter/components/ChapterList.tsx
@@ -160,6 +174,11 @@ msgstr "{0} / {1}"
 msgid "{0} / {1}{2}"
 msgstr "{0} / {1}{2}"
 
+#. placeholder {0}: Math.round(share)
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "{0} % quit before ch 1"
+msgstr "{0} % quit before ch 1"
+
 #. placeholder {0}: early.share
 #. placeholder {1}: early.from
 #. placeholder {2}: early.to
@@ -210,6 +229,10 @@ msgstr "{availableUpdates, plural, one {# update available} other {# updates ava
 #: src/features/library/screens/LibrarySettings.tsx
 msgid "{categoryCount, plural, one {# category} other {# categories}}"
 msgstr "{categoryCount, plural, one {# category} other {# categories}}"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "{caughtUpPct} % stopped when caught up · {onHold} % on hold"
+msgstr "{caughtUpPct} % stopped when caught up · {onHold} % on hold"
 
 #: src/features/manga/Manga.constants.ts
 msgid "{count, plural, one {Changed categories of manga} other {Changed categories of # manga}}"
@@ -450,6 +473,10 @@ msgid "> 1 YR"
 msgstr "> 1 YR"
 
 #: src/features/tsuji/recs/components/RecCard.tsx
+msgid "> 3 MO"
+msgstr "> 3 MO"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
 msgid "> 6 MO"
 msgstr "> 6 MO"
 
@@ -466,6 +493,12 @@ msgstr "▼ {pct} % dropped · most quit ch {0}-{1}"
 #: src/features/tsuji/raws/components/RawChips.tsx
 msgid "18+ raw"
 msgstr "18+ raw"
+
+#. placeholder {0}: formatDropPct(ci[0])
+#. placeholder {1}: formatDropPct(ci[1])
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "95 % range {0}-{1} %."
+msgstr "95 % range {0}-{1} %."
 
 #: src/features/manga/services/Mangas.ts
 msgid "A migration is already in progress"
@@ -2558,6 +2591,14 @@ msgstr "Hide what's on my AniList"
 msgid "high"
 msgstr "high"
 
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Higher than {share} % of {peer} in your library"
+msgstr "Higher than {share} % of {peer} in your library"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Higher than {share} % of {peerN} {peer} in your library"
+msgstr "Higher than {share} % of {peerN} {peer} in your library"
+
 #: src/features/settings/screens/ServerSettings.tsx
 msgid "Hikari connection pool"
 msgstr "Hikari connection pool"
@@ -2844,6 +2885,10 @@ msgstr "Last update: {date}"
 msgid "Last used"
 msgstr "Last used"
 
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "LATE"
+msgstr "LATE"
+
 #: src/features/browse/sources/components/SourceCard.tsx
 #: src/features/source/browse/screens/SourceMangas.tsx
 msgid "Latest"
@@ -3019,6 +3064,14 @@ msgstr "Long strip"
 #: src/features/tsuji/drops/components/ReadersBlock.tsx
 msgid "low"
 msgstr "low"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Lower than {share} % of {peer} in your library"
+msgstr "Lower than {share} % of {peer} in your library"
+
+#: src/features/tsuji/drops/components/ReadersBlock.tsx
+msgid "Lower than {share} % of {peerN} {peer} in your library"
+msgstr "Lower than {share} % of {peerN} {peer} in your library"
 
 #: src/features/tsuji/tlCompare/components/TlCompareCard.tsx
 msgid "Made by"
@@ -3412,6 +3465,14 @@ msgstr "No comments yet."
 msgid "No downloads"
 msgstr "No downloads"
 
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "No English chapter for {sinceDays} days"
+msgstr "No English chapter for {sinceDays} days"
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "No English chapter for {sinceDays} days (usually every {gap} days)"
+msgstr "No English chapter for {sinceDays} days (usually every {gap} days)"
+
 #: src/features/global-search/screens/SearchAll.tsx
 #: src/features/manga/components/MangaGrid.tsx
 #: src/features/source/browse/screens/SourceMangas.tsx
@@ -3431,6 +3492,10 @@ msgstr "No match found"
 #: src/features/tsuji/discover/components/TagPicker.tsx
 msgid "No matching tags."
 msgstr "No matching tags."
+
+#: src/features/tsuji/recs/components/RecCard.tsx
+msgid "No new chapter in over 3 months"
+msgstr "No new chapter in over 3 months"
 
 #: src/features/tsuji/recs/components/RecCard.tsx
 msgid "No new chapter in over 6 months"

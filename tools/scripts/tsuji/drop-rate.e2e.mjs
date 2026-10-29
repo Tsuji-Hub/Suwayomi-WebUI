@@ -31,6 +31,8 @@ const MYTHIC = { id: 2, anilistId: 151025, title: 'Mythic Item Obtained' };
 const PENDING = { id: 3, anilistId: 777, title: 'Fresh Series' };
 const FEW = { id: 4, anilistId: 888, title: 'Niche Series' };
 const TINY = { id: 5, anilistId: 999, title: 'Tiny Series' };
+/** v6 (al-drops since 2026-10-29), shaped like AniList 170400 live: low for ongoing manhwa, no cliff. */
+const V6 = { id: 6, anilistId: 170_400, title: 'Ongoing Six' };
 /** Discover / preview only: not in the relay's index. */
 const OUTSIDE_ID = 4242;
 /** Discover only: in the relay's index, not in the library (library titles are hidden there, brief #21). */
@@ -167,7 +169,30 @@ const createRelay = () => {
             map: map({ n: 4, n_prog: 3, buckets: buckets(10, [1, 1, 1, 0]), cliffs: [], median: 12, max: 40 }),
             notes: [],
         }),
-        [TINY.anilistId]: () => ({ id: TINY.anilistId, chapters: 10, dist: dist(150, 12.0), map: null, notes: [] }),
+        // v6: too few readers for a label (the server sends null).
+        [TINY.anilistId]: () => ({
+            id: TINY.anilistId,
+            chapters: 10,
+            dist: dist(150, 12.0),
+            label: null,
+            map: null,
+            notes: [],
+        }),
+        [V6.anilistId]: () => ({
+            id: V6.anilistId,
+            status: 'RELEASING',
+            chapters: null,
+            dist: dist(5000, 2.3),
+            label: 'low',
+            pctile: 5,
+            peer: 'ongoing manhwa',
+            peer_n: 115,
+            peer_med: 6.2,
+            ci: [2.2, 2.5],
+            drop_hi: 4.8,
+            map: map({ cliffs: [], early_share: 4, zero_share: 26, caught_up_share: 41 }),
+            notes: [],
+        }),
         [SLOW_ID]: () => ({
             id: SLOW_ID,
             chapters: 50,
@@ -201,6 +226,7 @@ const createRelay = () => {
                         [MYTHIC.anilistId]: { drop_pct: 7.1, started: 30210, median: 107 },
                         [FEW.anilistId]: { drop_pct: 5.0, started: 5000 },
                         [TINY.anilistId]: { drop_pct: 12.0, started: 150 },
+                        [V6.anilistId]: { drop_pct: 2.3, started: 5000, lab: 'low', pc: 5, peer: 'ongoing manhwa' },
                         // The live shape: [from, to, share %]; the biggest share is "most quit".
                         [INDEXED_PICK_ID]: {
                             drop_pct: 3.4,
@@ -335,7 +361,7 @@ const runBrowser = async (browserName) => {
         highestNumberedChapter: { id: 1200, chapterNumber: 200 },
         chapters: { totalCount: 200 },
     };
-    const others = [MYTHIC, PENDING, FEW, TINY].map((entry) => libraryEntry(entry, entry === PENDING));
+    const others = [MYTHIC, PENDING, FEW, TINY, V6].map((entry) => libraryEntry(entry, entry === PENDING));
     const library = [sl, ...others];
     const server = createMockSuwayomi({
         manga: sl,
@@ -638,6 +664,40 @@ const runBrowser = async (browserName) => {
         text.includes('12.0 % dropped') && !/\b(low|typical|high)\b/.test(text),
         { text },
     );
+
+    // 4c. v6: the server's label against the title's peers, the ranking tooltip, the on-hold range, the shares.
+    await openSeries(V6.id);
+    await page
+        .getByText('quit before ch 1', { exact: false })
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {});
+    text = await blockText();
+    check(
+        label(
+            'v6: "2.3 % dropped · low for ongoing manhwa", "26 % quit before ch 1", caught up, on-hold range, no cliff',
+        ),
+        text.includes('2.3 % dropped') &&
+            text.includes('· low for ongoing manhwa') &&
+            text.includes('26 % quit before ch 1') &&
+            text.includes('41 % stopped when caught up · ') &&
+            !text.includes('finished') &&
+            text.includes('(up to 4.8 % counting on-hold untouched 6+ months)') &&
+            !text.includes('Most drops') &&
+            (await block.first().locator('[data-cliff]').count()) === 0,
+        { text },
+    );
+    await block.first().getByText('· low for ongoing manhwa').hover();
+    const peerTooltip = page.getByRole('tooltip');
+    await peerTooltip.waitFor({ timeout: 5000 }).catch(() => {});
+    const peerText = await peerTooltip.innerText().catch(() => '');
+    check(
+        label(
+            'v6 tooltip: "Lower than 95 % of 115 ongoing manhwa in your library (median 6.2 %). 95 % range 2.2-2.5 %."',
+        ),
+        peerText === 'Lower than 95 % of 115 ongoing manhwa in your library (median 6.2 %). 95 % range 2.2-2.5 %.',
+        { peerText },
+    );
+    await page.mouse.move(0, 0);
 
     // 5. Library: one index request, chips (none under 200 starters), the Drop rate sort.
     const indexBefore = relay.state.requests.filter((path) => path === '/drops/index.json').length;

@@ -87,7 +87,27 @@ const AL_RECS = [
     media(102, { averageScore: 60 }),
     media(103, { averageScore: 99 }),
     media(104, { averageScore: 74 }),
+    media(105, { averageScore: 65 }),
+    media(106, { averageScore: 64 }),
 ];
+
+/**
+ * The relay's index (v6): the last English release (s) and the usual gap (days) for library series. 104: weekly, 40
+ * days quiet (LATE); 105: 120 days quiet ("> 3 MO"); 106: weekly, 3 days ago (no tag); 101: finished (no tag).
+ */
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+const dropIndex = () => ({
+    v: 6,
+    median_drop_pct: 8.5,
+    items: Object.fromEntries(
+        [
+            [101, 200, 7],
+            [104, 40, 7],
+            [105, 120, 7],
+            [106, 3, 7],
+        ].map(([id, days, gm]) => [id, { drop_pct: 5, started: 50, lab: null, lr: nowSeconds() - days * 86_400, gm }]),
+    ),
+});
 
 /** Comick's recommendations (relates carry no AniList id or date) and what a search by their title says. */
 const COMICK_RECS = [
@@ -407,7 +427,10 @@ const runBrowser = async (browserName) => {
             if (request.method() === 'OPTIONS') {
                 return route.fulfill({ status: 204, headers: { ...CORS, 'access-control-allow-methods': 'GET' } });
             }
-            const result = url.pathname.startsWith('/comick/') ? relay.answer(url) : null;
+            let result = url.pathname.startsWith('/comick/') ? relay.answer(url) : null;
+            if (url.pathname === '/drops/index.json') {
+                result = dropIndex();
+            }
             return route.fulfill(
                 result === null
                     ? { status: 404, headers: CORS, body: '' }
@@ -504,6 +527,8 @@ const runBrowser = async (browserName) => {
                 'Rec 100',
                 'Rec 104',
                 'Rec 101',
+                'Rec 105',
+                'Rec 106',
                 'Rec 102',
                 PETS,
                 WANG_YOU,
@@ -528,6 +553,14 @@ const runBrowser = async (browserName) => {
             !/> (1 YR|6 MO)/.test(textOf('Rec 101')) &&
             !/> (1 YR|6 MO)/.test(textOf('Rec 104')),
         Object.fromEntries(cards.map(({ title, text }) => [title, text])),
+    );
+    check(
+        label('v6 index timing: LATE (weekly, 40 d), "> 3 MO" (120 d), none for a fresh weekly or a finished series'),
+        /\bLATE\b/.test(textOf('Rec 104')) &&
+            textOf('Rec 105').includes('> 3 MO') &&
+            !/LATE|> \d/.test(textOf('Rec 106')) &&
+            !/LATE|> \d/.test(textOf('Rec 101')),
+        { 104: textOf('Rec 104'), 105: textOf('Rec 105'), 106: textOf('Rec 106'), 101: textOf('Rec 101') },
     );
     check(label('no lookup for the finished series'), !relay.searches.includes('Rec 101'), relay.searches);
     const scoreCalls = aniList.calls.filter(({ operation }) => operation === 'TsujiScores');

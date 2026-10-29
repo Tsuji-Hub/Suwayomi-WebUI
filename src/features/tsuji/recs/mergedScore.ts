@@ -51,21 +51,51 @@ export const sortByMergedScore = <T extends Pick<RecMedia, 'averageScore' | 'pop
         )
         .map(({ item }) => item);
 
-const MONTH_MS = 30.44 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MONTH_MS = 30.44 * DAY_MS;
+/** LATE: past 3x the usual gap between releases, and at least this long. */
+const LATE_MIN_DAYS = 21;
 
-export type Freshness = '6mo' | '1yr' | null;
+/** `late`: an ongoing series past its usual release rhythm, under 3 months quiet (brief v6). */
+export type FreshnessKind = 'late' | '3mo' | '6mo' | '1yr';
+export type Freshness = { kind: FreshnessKind; sinceDays: number; gapDays: number | null } | null;
 
 /** Statuses the freshness tag is for: still coming out (or paused). */
 export const isOngoingStatus = (status: string | null | undefined) => status === 'RELEASING' || status === 'HIATUS';
 
-/** "> 6 MO" for a latest chapter 6-12 months old, "> 1 YR" from 12 months; nothing when fresher or unknown. */
-export const getFreshness = (lastChapterAt: number | null | undefined, now: number = Date.now()): Freshness => {
-    if (!lastChapterAt) {
-        return null;
+/** The relay's release timing for a library series (v6 index: `lr`, `gm`). */
+export type ReleaseTiming = { lastRelease: number | null; gapDays: number | null };
+
+/**
+ * "> 1 YR" from 12 months since the latest chapter, "> 6 MO" from 6, "> 3 MO" from 3 (Comick's date, else the relay's
+ * last English release); under 3 months, "LATE" when the relay's last English release is past max(3x the usual gap,
+ * 21 days). Nothing when fresher or unknown.
+ */
+export const getFreshness = (
+    lastChapterAt: number | null | undefined,
+    now: number = Date.now(),
+    release: ReleaseTiming | null = null,
+): Freshness => {
+    const date = lastChapterAt || release?.lastRelease || null;
+    const gapDays = release?.gapDays ?? null;
+    if (date) {
+        const months = (now - date) / MONTH_MS;
+        const sinceDays = Math.floor((now - date) / DAY_MS);
+        if (months >= 12) {
+            return { kind: '1yr', sinceDays, gapDays };
+        }
+        if (months >= 6) {
+            return { kind: '6mo', sinceDays, gapDays };
+        }
+        if (months >= 3) {
+            return { kind: '3mo', sinceDays, gapDays };
+        }
     }
-    const months = (now - lastChapterAt) / MONTH_MS;
-    if (months >= 12) {
-        return '1yr';
+    if (release?.lastRelease && gapDays) {
+        const since = now - release.lastRelease;
+        if (since < 3 * MONTH_MS && since > Math.max(3 * gapDays, LATE_MIN_DAYS) * DAY_MS) {
+            return { kind: 'late', sinceDays: Math.floor(since / DAY_MS), gapDays };
+        }
     }
-    return months >= 6 ? '6mo' : null;
+    return null;
 };

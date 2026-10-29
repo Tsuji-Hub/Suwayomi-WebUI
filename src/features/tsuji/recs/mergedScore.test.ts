@@ -79,8 +79,24 @@ describe('merged score (brief #21)', () => {
     it('freshness: nothing under 6 months, "> 6 MO" from 6, "> 1 YR" from 12', () => {
         expect(getFreshness(null, NOW)).toBeNull();
         expect(getFreshness(NOW - 30 * DAY, NOW)).toBeNull();
-        expect(getFreshness(NOW - 200 * DAY, NOW)).toBe('6mo');
-        expect(getFreshness(NOW - 400 * DAY, NOW)).toBe('1yr');
+        expect(getFreshness(NOW - 100 * DAY, NOW)?.kind).toBe('3mo');
+        expect(getFreshness(NOW - 200 * DAY, NOW)?.kind).toBe('6mo');
+        expect(getFreshness(NOW - 400 * DAY, NOW)).toEqual({ kind: '1yr', sinceDays: 400, gapDays: null });
+    });
+
+    it('v6 release timing: LATE past max(3x the usual gap, 21 days) under 3 months; the relay date as a fallback', () => {
+        const timing = (days: number, gapDays: number | null) => ({ lastRelease: NOW - days * DAY, gapDays });
+        // Weekly: 3x 7 = 21 days.
+        expect(getFreshness(null, NOW, timing(3, 7))).toBeNull();
+        expect(getFreshness(null, NOW, timing(20, 7))).toBeNull();
+        expect(getFreshness(null, NOW, timing(40, 7))).toEqual({ kind: 'late', sinceDays: 40, gapDays: 7 });
+        // Monthly: 3x 30 = 90 days, past 3 months: not late, "> 3 MO" from the relay's date.
+        expect(getFreshness(null, NOW, timing(60, 30))).toBeNull();
+        expect(getFreshness(null, NOW, timing(120, 30))?.kind).toBe('3mo');
+        // No usual gap: no LATE.
+        expect(getFreshness(null, NOW, timing(40, null))).toBeNull();
+        // Comick's own date first for the month tags.
+        expect(getFreshness(NOW - 400 * DAY, NOW, timing(5, 7))?.kind).toBe('1yr');
     });
 
     it('freshness is for ongoing and hiatus only', () => {

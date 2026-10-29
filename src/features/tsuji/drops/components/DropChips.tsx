@@ -17,7 +17,7 @@ import type { TsujiMangaDropFieldsFragment } from '@/lib/graphql/generated/graph
 import { TSUJI_MANGA_DROP_FIELDS } from '@/features/tsuji/graphql/TsujiFragments.ts';
 import { TSUJI_PALETTE } from '@/features/tsuji/Tsuji.palette.ts';
 import type { DropIndex, DropIndexItem } from '@/features/tsuji/drops/drops.ts';
-import { formatDropPct, getDropBand, hasEnoughStarters } from '@/features/tsuji/drops/drops.ts';
+import { formatDropPct, hasEnoughStarters, resolveDropBand } from '@/features/tsuji/drops/drops.ts';
 import { useDropIndex, useDropLine } from '@/features/tsuji/drops/dropService.ts';
 import { getMangaAniListId } from '@/features/tsuji/drops/useMangaAniListId.ts';
 import { DROP_BAND_COLOR } from '@/features/tsuji/drops/components/dropColors.ts';
@@ -28,11 +28,14 @@ import { DROP_BAND_COLOR } from '@/features/tsuji/drops/components/dropColors.ts
  * title isn't in the index.
  */
 
+// The band colour: the server's label against the title's peers (v6), else the library-median rule.
 const getChip = (item: DropIndexItem | undefined, index: DropIndex | null) =>
     item && hasEnoughStarters(item.started)
         ? {
               text: `▼${Math.round(item.dropPct)}%`,
-              color: DROP_BAND_COLOR[getDropBand(item.dropPct, index?.medianDropPct) ?? 'typical'],
+              color: DROP_BAND_COLOR[
+                  resolveDropBand(item.label, item.dropPct, item.started, index?.medianDropPct) ?? 'typical'
+              ],
           }
         : null;
 

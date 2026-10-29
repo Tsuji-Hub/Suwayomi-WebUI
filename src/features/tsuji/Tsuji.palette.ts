@@ -21,7 +21,9 @@ export const TSUJI_PALETTE = {
     badgeScrim: 'rgba(0, 0, 0, 0.6)',
     badgeText: '#FFFFFF',
     /** Freshness tag (brief #21): latest chapter 6-12 months old (muted amber), 12+ months (warning). */
+    stale3Months: '#9E9E9E',
     stale6Months: '#E0B354',
+    releaseLate: '#D9A54A',
     stale1Year: '#FF7043',
     progressBadge: '#424242',
     /** Drop rate vs the library median (brief #20). */

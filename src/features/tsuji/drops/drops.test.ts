@@ -15,9 +15,11 @@ import {
     getIndexDropLine,
     getMangaAniListId,
     getMarkerFraction,
+    getPeerRank,
     isMapUsable,
     parseDropData,
     parseDropIndex,
+    resolveDropBand,
     sortByDropRate,
     splitNotes,
 } from '@/features/tsuji/drops/drops.ts';
@@ -153,7 +155,7 @@ describe('drop data', () => {
     });
 
     it('translated notes keep the original (tr + orig); orig without tr is ignored', () => {
-        const {notes} = parseDropData({
+        const { notes } = parseDropData({
             ...SOLO_LEVELING,
             notes: [
                 { ch: 67, text: 'Got boring after the tournament', tr: true, orig: 'Ficou chato depois do torneio' },
@@ -166,6 +168,61 @@ describe('drop data', () => {
             { ch: 68, text: 'fine', orig: null },
             { ch: 69, text: 'no original', orig: null },
         ]);
+    });
+});
+
+describe('v6 (al-drops since 2026-10-29)', () => {
+    const v6 = parseDropData({
+        ...SOLO_LEVELING,
+        id: 170400,
+        status: 'RELEASING',
+        label: 'low',
+        pctile: 5,
+        peer: 'ongoing manhwa',
+        peer_n: 115,
+        peer_med: 6.2,
+        ci: [2.2, 2.5],
+        drop_hi: 4.8,
+        map: { ...SOLO_LEVELING.map, cliffs: [], zero_share: 26, caught_up_share: 41 },
+    })!;
+
+    it('reads the peer label, the range, the on-hold rate and the map shares', () => {
+        expect(v6).toMatchObject({
+            status: 'RELEASING',
+            label: 'low',
+            pctile: 5,
+            peer: 'ongoing manhwa',
+            peerN: 115,
+            peerMedian: 6.2,
+            ci: [2.2, 2.5],
+            dropHi: 4.8,
+        });
+        expect(v6.map).toMatchObject({ zeroShare: 26, caughtUpShare: 41, cliffs: [] });
+        expect(getPeerRank(5)).toEqual({ direction: 'lower', share: 95 });
+        expect(getPeerRank(80)).toEqual({ direction: 'higher', share: 80 });
+    });
+
+    it("the server's label wins (null: none); without the field, the library-median rule", () => {
+        expect(resolveDropBand(v6.label, 2.3, 50, 8.5)).toBe('low');
+        expect(resolveDropBand(parseDropData({ ...SOLO_LEVELING, label: null })!.label, 3.2, 243525, 5.1)).toBeNull();
+        expect(parseDropData(SOLO_LEVELING)!.label).toBeUndefined();
+        expect(resolveDropBand(undefined, 3.2, 243525, 5.1)).toBe('low');
+        expect(resolveDropBand(undefined, 12, 150, 5.1)).toBeNull();
+        expect(resolveDropBand(parseDropData({ ...SOLO_LEVELING, label: 'odd' })!.label, 3.2, 243525, 5.1)).toBeNull();
+    });
+
+    it('index items: lab, last English release (s -> ms) and the usual gap', () => {
+        const index = parseDropIndex({
+            v: 6,
+            items: {
+                1: { drop_pct: 2.3, started: 900, lab: 'low', pc: 5, peer: 'ongoing manhwa', lr: 1_761_000_000, gm: 7 },
+                2: { drop_pct: 9, started: 90, lab: null },
+                3: { drop_pct: 5, started: 900 },
+            },
+        });
+        expect(index.items.get(1)).toMatchObject({ label: 'low', lastRelease: 1_761_000_000_000, gapDays: 7 });
+        expect(index.items.get(2)).toMatchObject({ label: null, lastRelease: null, gapDays: null });
+        expect(index.items.get(3)!.label).toBeUndefined();
     });
 });
 
@@ -210,7 +267,13 @@ describe('index and library sort', () => {
     });
     it('drop rate by AniList id, the median', () => {
         expect(index.medianDropPct).toBe(5.1);
-        expect(index.items.get(151025)).toEqual({ dropPct: 7.1, started: 30210, cliffs: [] });
+        expect(index.items.get(151025)).toEqual({
+            dropPct: 7.1,
+            started: 30210,
+            cliffs: [],
+            lastRelease: null,
+            gapDays: null,
+        });
         const shared = parseDropIndex({
             items: {
                 1: {

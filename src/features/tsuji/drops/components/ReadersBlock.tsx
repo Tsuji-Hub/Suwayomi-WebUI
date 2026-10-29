@@ -24,12 +24,13 @@ import { useMangaProgress } from '@/features/tsuji/progress/useMangaProgress.ts'
 import type { DropBand, DropData, DropMap, DropNote } from '@/features/tsuji/drops/drops.ts';
 import {
     formatDropPct,
-    getDropBand,
     getDropSummary,
     getMarkerFraction,
-    hasEnoughStarters,
+    getPeerRank,
     isCliffBucket,
     isMapUsable,
+    ON_HOLD_MARGIN,
+    resolveDropBand,
     splitNotes,
 } from '@/features/tsuji/drops/drops.ts';
 import { useDropIndex, useSeriesDrops } from '@/features/tsuji/drops/dropService.ts';
@@ -40,7 +41,14 @@ const STRIP_HEIGHT = 44;
 
 const formatCount = (count: number) => count.toLocaleString();
 
-/** "3.2 % dropped" with how it compares to the library, and the finished / on hold shares. */
+/** Ongoing on AniList (the "stopped when caught up" share replaces "finished"). */
+const isOngoing = (status: string | null) => status === 'RELEASING' || status === 'HIATUS';
+
+/**
+ * "3.2 % dropped · low for ongoing manhwa" (v6: the server's label against the title's peers, with how it ranks; an
+ * older server: low / typical / high vs the library median), then "58 % finished · 4 % on hold" ("41 % stopped when
+ * caught up" for an ongoing series) and the on-hold range when it matters.
+ */
 const RateLine = ({ data, band }: { data: DropData; band: DropBand | null }) => {
     const { t } = useLingui();
     const pct = formatDropPct(data.dropPct);
@@ -48,7 +56,8 @@ const RateLine = ({ data, band }: { data: DropData; band: DropBand | null }) => 
     const started = formatCount(data.started);
     const finished = Math.round(data.completePct);
     const onHold = Math.round(data.pausePct);
-    const bandLabel = (() => {
+    const caughtUp = isOngoing(data.status) ? data.map?.caughtUpShare : null;
+    const bandWord = (() => {
         switch (band) {
             case 'low':
                 return t`low`;
@@ -60,6 +69,34 @@ const RateLine = ({ data, band }: { data: DropData; band: DropBand | null }) => 
                 return null;
         }
     })();
+    const { peer, pctile, peerN, peerMedian, ci, dropHi } = data;
+    const bandLabel = bandWord && peer ? t`· ${bandWord} for ${peer}` : bandWord && `· ${bandWord}`;
+    const peerTooltip = (() => {
+        if (!band || !peer || pctile === null) {
+            return '';
+        }
+        const { direction, share } = getPeerRank(pctile);
+        let rank: string;
+        if (peerN !== null) {
+            rank =
+                direction === 'lower'
+                    ? t`Lower than ${share} % of ${peerN} ${peer} in your library`
+                    : t`Higher than ${share} % of ${peerN} ${peer} in your library`;
+        } else {
+            rank =
+                direction === 'lower'
+                    ? t`Lower than ${share} % of ${peer} in your library`
+                    : t`Higher than ${share} % of ${peer} in your library`;
+        }
+        const median = peerMedian !== null ? ` ${t`(median ${formatDropPct(peerMedian)} %)`}` : '';
+        const range = ci ? ` ${t`95 % range ${formatDropPct(ci[0])}-${formatDropPct(ci[1])} %.`}` : '';
+        return `${rank}${median}.${range}`;
+    })();
+    const onHoldRange =
+        dropHi !== null && dropHi > data.dropPct + ON_HOLD_MARGIN
+            ? ` ${t`(up to ${formatDropPct(dropHi)} % counting on-hold untouched 6+ months)`}`
+            : '';
+    const caughtUpPct = caughtUp != null ? Math.round(caughtUp) : null;
 
     return (
         <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -72,12 +109,17 @@ const RateLine = ({ data, band }: { data: DropData; band: DropBand | null }) => 
                 />
             </CustomTooltip>
             {bandLabel && (
-                <Typography variant="body2" sx={{ color: band ? DROP_BAND_COLOR[band] : undefined }}>
-                    {bandLabel}
-                </Typography>
+                <CustomTooltip title={peerTooltip} disabled={!peerTooltip}>
+                    <Typography variant="body2" sx={{ color: band ? DROP_BAND_COLOR[band] : undefined }}>
+                        {bandLabel}
+                    </Typography>
+                </CustomTooltip>
             )}
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {t`${finished} % finished · ${onHold} % on hold`}
+                {caughtUpPct !== null
+                    ? t`${caughtUpPct} % stopped when caught up · ${onHold} % on hold`
+                    : t`${finished} % finished · ${onHold} % on hold`}
+                {onHoldRange}
             </Typography>
         </Stack>
     );
@@ -148,9 +190,22 @@ const DropStrip = ({ map, readChapter }: { map: DropMap; readChapter: number | n
     );
 };
 
+/** v6: "26 % quit before ch 1", from 10 %. */
+const ZERO_SHARE_MIN = 10;
+
+const useZeroShareText = () => {
+    const { t } = useLingui();
+    return (map: DropMap | null) => {
+        const share = map?.zeroShare;
+        return share != null && share >= ZERO_SHARE_MIN ? t`${Math.round(share)} % quit before ch 1` : null;
+    };
+};
+
 const MapSummary = ({ map }: { map: DropMap }) => {
+    const getZeroShareText = useZeroShareText();
     const { t } = useLingui();
     const { cliffs, early, median } = getDropSummary(map);
+    const zero = getZeroShareText(map);
     const cliffText = cliffs
         .map(({ from, to, share }) => {
             const pct = Math.round(share);
@@ -159,6 +214,7 @@ const MapSummary = ({ map }: { map: DropMap }) => {
         .join(t` and `);
     const parts = [
         cliffText && t`Most drops: ${cliffText}`,
+        zero,
         early && t`${early.share} % quit in ch ${early.from}-${early.to}`,
         median !== null && t`half of droppers quit by ch ${median}`,
     ].filter(Boolean);
@@ -280,6 +336,7 @@ const DropNotes = ({ notes, readChapter }: { notes: DropNote[]; readChapter: num
  */
 export const ReadersBlock = ({ manga }: { manga: { id: number } & GqlMetaHolder }) => {
     const { t } = useLingui();
+    const getZeroShareText = useZeroShareText();
     const anilistId = useMangaAniListId(manga);
     const drops = useSeriesDrops(anilistId);
     const index = useDropIndex(drops.status === 'ready');
@@ -290,7 +347,7 @@ export const ReadersBlock = ({ manga }: { manga: { id: number } & GqlMetaHolder 
     }
     const { data, isMapping } = drops;
     // Under 200 starters: the rate alone, no low / typical / high (the card chips' threshold).
-    const band = hasEnoughStarters(data.started) ? getDropBand(data.dropPct, index?.medianDropPct) : null;
+    const band = resolveDropBand(data.label, data.dropPct, data.started, index?.medianDropPct);
     const readChapter = progress && progress.read > 0 ? progress.read : null;
     const { map } = data;
     const eta = Math.max(5, Math.round(map?.etaS ?? 30));
@@ -318,7 +375,7 @@ export const ReadersBlock = ({ manga }: { manga: { id: number } & GqlMetaHolder 
                 )}
                 {!isMapping && map && map.state !== 'pending' && !isMapUsable(map) && (
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {t`Not enough drops to map`}
+                        {[t`Not enough drops to map`, getZeroShareText(map)].filter(Boolean).join(' · ')}
                     </Typography>
                 )}
                 {!!data.notes.length && <DropNotes notes={data.notes} readChapter={readChapter} />}

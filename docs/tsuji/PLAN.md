@@ -14,6 +14,43 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Drop rate v6 + freshness tags (branch `feat/drop-v6`)
+
+**Built** (2026-10-29). Off `custom` (r3459). Not shipped.
+
+al-drops v6 (live since 2026-10-29) labels a title against real peers ("ongoing manhwa") instead of one library-wide
+median (8.5 %; ongoing titles read "low" just for being ongoing). New fields: index items `lab`, `pc`, `peer`, `hi`,
+`z`, `lr` (last English release, unix s, ongoing only), `gm` (median days between releases); `/drops/<id>` `label`,
+`pctile`, `peer`, `peer_n`, `peer_med`, `ci`, `drop_hi`, `map.zero_share`, `map.caught_up_share`; strict cliffs.
+
+1. **Label from the server** (`label` / `lab`; null = none, fewer than 100 readers): "2.3 % dropped · low for ongoing
+   manhwa", tooltip "Lower than 95 % of 115 ongoing manhwa in your library (median 6.2 %). 95 % range 2.2-2.5 %."
+   (percentile under 50: "Lower than 100-p %", else "Higher than p %"). Card chips take their colour from `lab`. The
+   old median rule (none under 200 starters) only when the field is missing (`resolveDropBand`).
+2. **On-hold range** in the subtext when `drop_hi` > drop % + 0.5: "(up to 4.8 % counting on-hold untouched 6+
+   months)".
+3. **"26 % quit before ch 1"** in the map summary (or beside "Not enough drops to map") from `zero_share` 10 %.
+4. **Ongoing** (status RELEASING / HIATUS with `caught_up_share`): "41 % stopped when caught up" instead of "x %
+   finished".
+5. **Freshness tags** (rec cards, ongoing only): "> 3 MO" (muted grey, 3-6 months; Comick's date, else the index's
+   `lr`) and "LATE" (muted amber) when the index has `lr` + `gm` and the time since `lr` is past max(3x `gm`, 21 days)
+   and under 3 months; tooltip "No English chapter for 40 days (usually every 7 days)". "> 6 MO" / "> 1 YR"
+   unchanged. From the index the cards already load: no new request.
+
+Files: `drops/drops.ts` (v6 fields, `resolveDropBand`, `getPeerRank`), `drops/components/ReadersBlock.tsx`,
+`drops/components/DropChips.tsx`, `recs/mergedScore.ts` (`getFreshness` returns `{ kind, sinceDays, gapDays }`),
+`recs/useCardFreshness.ts`, `recs/components/RecCard.tsx`, `Tsuji.palette.ts` (`stale3Months`, `releaseLate`). No
+upstream file. Tests: unit (v6 parse, labels and the fallback, peer rank, index `lab` / `lr` / `gm`, LATE / "> 3 MO"
+bands); `drop-rate.e2e.mjs` (a 170400-shaped v6 series: label, exact tooltip, on-hold range, caught up, quit before
+ch 1, no cliff; a null-label title; the old rule still on pre-v6 answers); `similar-freshness.e2e.mjs` (LATE, "> 3
+MO", none for a fresh weekly or a finished series).
+
+## Acceptance (Cowork, live)
+
+AniList 170400: "2.3 % dropped · low for ongoing manhwa", no orange cliff, "26 % quit before ch 1"; a < 100-reader
+title has no label; Million Times Attack Speed "> 1 YR", a weekly series no tag, a completed one no tag, a 3-6 month
+quiet one "> 3 MO"; request counts unchanged vs r3455.
+
 # #21 follow-up: unlinked Comick entries (branch `feat/comick-dedupe`)
 
 **Shipped** as r3459-ea23c812 (2026-10-29; Cowork: /manga/438 pass live with the trace on; "Wang You" is 58 %, the

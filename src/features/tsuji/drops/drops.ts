@@ -36,9 +36,30 @@ export type DropMap = {
     cliffs: DropCliff[];
     max: number | null;
     dropperScore: number | null;
+    /** v6: % of droppers who quit before chapter 1. */
+    zeroShare: number | null;
+    /** v6, ongoing series: % who stopped when they had caught up. */
+    caughtUpShare: number | null;
 };
 
-export type DropData = {
+/**
+ * v6 (al-drops since 2026-10-29): the label against real peers ("ongoing manhwa"), not one library median.
+ * `label` undefined: an older server (the median rule applies); null: no label (fewer than 100 readers).
+ */
+export type DropPeerLabel = {
+    label?: DropBand | null;
+    /** Percentile of the drop % among the peers (5: lower than 95 % of them). */
+    pctile: number | null;
+    peer: string | null;
+    peerN: number | null;
+    peerMedian: number | null;
+    /** The drop %'s 95 % range. */
+    ci: [number, number] | null;
+    /** The drop % counting on-hold lists untouched 180+ days. */
+    dropHi: number | null;
+};
+
+export type DropData = DropPeerLabel & {
     id: number;
     chapters: number | null;
     /** Readers who started it (CURRENT + COMPLETED + DROPPED + PAUSED). */
@@ -49,6 +70,8 @@ export type DropData = {
     completePct: number;
     map: DropMap | null;
     notes: DropNote[];
+    /** AniList's status (RELEASING, FINISHED, ...), when the relay sends it. */
+    status: string | null;
     /** `relay`: from al-drops; `anilist`: AniList's statusDistribution only (no map). */
     source: 'relay' | 'anilist';
 };
@@ -73,8 +96,18 @@ export type DropRange = { from: number; to: number };
 /** A cliff in the index: the range and its share of mapped droppers when the relay sends it. */
 export type DropIndexCliff = DropRange & { share: number | null };
 
-/** Index entry for cards, previews and the library sort. */
-export type DropIndexItem = { dropPct: number; started: number; cliffs: DropIndexCliff[] };
+/** Index entry for cards, previews, the library sort and (v6) the release-timing tags. */
+export type DropIndexItem = {
+    dropPct: number;
+    started: number;
+    cliffs: DropIndexCliff[];
+    /** v6 `lab`: undefined on an older server, null = no label. */
+    label?: DropBand | null;
+    /** v6 `lr`: the last English release (ms), ongoing series only. */
+    lastRelease: number | null;
+    /** v6 `gm`: median days between releases. */
+    gapDays: number | null;
+};
 export type DropIndex = { medianDropPct: number | null; items: Map<number, DropIndexItem> };
 
 /** Fewer mapped drops than this: no map ("Not enough drops to map"). */
@@ -145,8 +178,28 @@ const parseMap = (value: unknown): DropMap | null => {
         cliffs,
         max: toNumber(value.max),
         dropperScore: toNumber(value.dropper_score),
+        zeroShare: toNumber(value.zero_share),
+        caughtUpShare: toNumber(value.caught_up_share),
     };
 };
+
+const DROP_BANDS: DropBand[] = ['low', 'typical', 'high'];
+
+/** A v6 label field: a band, null (no label), or undefined (an older server without the field). */
+const parseLabel = (body: Record<string, unknown>, key: string): DropBand | null | undefined => {
+    if (!(key in body)) {
+        return undefined;
+    }
+    const value = body[key];
+    return DROP_BANDS.includes(value as DropBand) ? (value as DropBand) : null;
+};
+
+const parseRange = (value: unknown): [number, number] | null => {
+    const [lo, hi] = Array.isArray(value) ? value.map(toNumber) : [];
+    return lo !== null && lo !== undefined && hi !== null && hi !== undefined ? [lo, hi] : null;
+};
+
+const asText = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
 
 /** One `/drops/<id>` answer (null when it isn't one). Rates are recomputed from `dist`, the same formula. */
 export const parseDropData = (json: unknown): DropData | null => {
@@ -178,6 +231,14 @@ export const parseDropData = (json: unknown): DropData | null => {
         ...rates,
         map: parseMap(json.map),
         notes,
+        status: asText(json.status),
+        label: parseLabel(json, 'label'),
+        pctile: toNumber(json.pctile),
+        peer: asText(json.peer),
+        peerN: toNumber(json.peer_n),
+        peerMedian: toNumber(json.peer_med),
+        ci: parseRange(json.ci),
+        dropHi: toNumber(json.drop_hi),
         source: 'relay',
     };
 };
@@ -192,7 +253,23 @@ export const fromStatusDistribution = (
         (distribution ?? []).flatMap(({ status, amount }) => (status ? [[status, Math.max(0, amount ?? 0)]] : [])),
     );
     const rates = getDropRates(dist);
-    return rates.started ? { id, chapters, ...rates, map: null, notes: [], source: 'anilist' } : null;
+    return rates.started
+        ? {
+              id,
+              chapters,
+              ...rates,
+              map: null,
+              notes: [],
+              status: null,
+              pctile: null,
+              peer: null,
+              peerN: null,
+              peerMedian: null,
+              ci: null,
+              dropHi: null,
+              source: 'anilist',
+          }
+        : null;
 };
 
 /** The index's cliffs: `[[106, 120, 12.0]]` (from, to, share %; older answers without the share, or objects). */
@@ -213,7 +290,15 @@ export const parseDropIndex = (json: unknown): DropIndex => {
         const id = Number(key);
         const dropPct = isRecord(value) ? toNumber(value.drop_pct) : null;
         if (Number.isInteger(id) && id > 0 && dropPct !== null && isRecord(value)) {
-            items.set(id, { dropPct, started: toCount(value.started), cliffs: parseIndexCliffs(value.cliffs) });
+            const lastRelease = toNumber(value.lr);
+            items.set(id, {
+                dropPct,
+                started: toCount(value.started),
+                cliffs: parseIndexCliffs(value.cliffs),
+                label: parseLabel(value, 'lab'),
+                lastRelease: lastRelease !== null && lastRelease > 0 ? lastRelease * 1000 : null,
+                gapDays: toNumber(value.gm),
+            });
         }
     });
     return { medianDropPct: toNumber(body.median_drop_pct), items };
@@ -235,6 +320,31 @@ export const formatDropPct = (pct: number): string => (Math.round(pct * 10) / 10
 
 /** Whether a card chip is worth showing. */
 export const hasEnoughStarters = (started: number) => started >= MIN_STARTED_FOR_CHIP;
+
+/**
+ * The label shown: the server's (v6, against the title's peers; null = none), else the old library-median rule for an
+ * older server (none under 200 starters).
+ */
+export const resolveDropBand = (
+    label: DropBand | null | undefined,
+    dropPct: number,
+    started: number,
+    medianDropPct: number | null | undefined,
+): DropBand | null => {
+    if (label !== undefined) {
+        return label;
+    }
+    return hasEnoughStarters(started) ? getDropBand(dropPct, medianDropPct) : null;
+};
+
+/** The on-hold range is worth a mention from half a point above the drop %. */
+export const ON_HOLD_MARGIN = 0.5;
+
+/** "lower than 95 %" / "higher than 80 %" of the peers, from the percentile. */
+export const getPeerRank = (pctile: number): { direction: 'lower' | 'higher'; share: number } =>
+    pctile < 50
+        ? { direction: 'lower', share: Math.round(100 - pctile) }
+        : { direction: 'higher', share: Math.round(pctile) };
 
 /** Whether the map has enough mapped drops to draw. */
 export const isMapUsable = (map: DropMap | null): map is DropMap =>

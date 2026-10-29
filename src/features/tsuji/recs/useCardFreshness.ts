@@ -13,6 +13,7 @@ import { getAllTitles } from '@/features/tsuji/recs/media.ts';
 import type { Freshness } from '@/features/tsuji/recs/mergedScore.ts';
 import { getFreshness, isOngoingStatus } from '@/features/tsuji/recs/mergedScore.ts';
 import { loadComickFreshness } from '@/features/tsuji/comick/ComickService.ts';
+import { useDropIndex } from '@/features/tsuji/drops/dropService.ts';
 
 /** How close to the screen a card is before its date is looked up. */
 const NEAR_SCREEN = '300px';
@@ -20,7 +21,7 @@ const NEAR_SCREEN = '300px';
 /**
  * The freshness tag of an ongoing card (brief #21): from the card's own latest chapter date (Comick cards), else, for
  * an AniList card once it is near the screen, one Comick lookup a day (never before the rail has rendered, nothing for
- * a finished series).
+ * a finished series); the relay's index adds the last English release and the usual gap ("> 3 MO", "LATE").
  */
 export const useCardFreshness = (media: RecMedia, ref: RefObject<HTMLElement | null>): Freshness => {
     const isOngoing = isOngoingStatus(media.status);
@@ -58,8 +59,15 @@ export const useCardFreshness = (media: RecMedia, ref: RefObject<HTMLElement | n
         };
     }, [needsLookup, media.id, titlesKey]);
 
+    // The relay's release timing (v6 index, library series): from the index the cards already load, no new request.
+    const item = useDropIndex(isOngoing && media.id > 0)?.items.get(media.id);
+
     if (!isOngoing) {
         return null;
     }
-    return getFreshness(media.lastChapterAt ?? (looked?.id === media.id ? looked.at : null));
+    return getFreshness(
+        media.lastChapterAt ?? (looked?.id === media.id ? looked.at : null),
+        Date.now(),
+        item ? { lastRelease: item.lastRelease, gapDays: item.gapDays } : null,
+    );
 };
