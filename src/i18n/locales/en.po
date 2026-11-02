@@ -2237,6 +2237,10 @@ msgstr "Every 30 minutes"
 msgid "Every 6 hours"
 msgstr "Every 6 hours"
 
+#: src/features/tsuji/resume/TsujiContinueReadingButton.tsx
+msgid "Every chapter is read: open the series"
+msgstr "Every chapter is read: open the series"
+
 #: src/features/settings/Settings.constants.ts
 msgid "Every hour"
 msgstr "Every hour"

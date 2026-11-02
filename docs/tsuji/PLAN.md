@@ -14,6 +14,34 @@ Working plan for the current feature and the report of its last run. State, rule
 5. Library load: no `checkForWebUIUpdate` error in the server log and no ~10 s stall.
 6. Tests cover list parsing, hide rules, merge-on-write for `tsuji_seen`, timeout + parallel landing, sort memory.
 
+# Fix: library Play button ignores the twin-aware resume (branch `feat/library-play-resume`)
+
+**Built** (2026-11-02). Off `custom` (r3461). Not shipped.
+
+The library card's Play button opened the server's `firstUnreadChapter` (The Millionaire Divorcee, /manga/10876: ch
+87 official, sourceOrder 174) where the series page's Resume opens ch 87 unofficial (175): only the chapter list knows
+the twins, the read scanlator (`tsuji_readScanlator`) and the excluded scanlators, and the library query has no
+chapters (293 titles).
+
+`MangaCard` now renders `<TsujiContinueReadingButton>` (`tsuji/resume/`): on hover / focus it resolves the target with
+the series page's `getTsujiResumeChapter`, from the chapter list query `ChapterList` makes and `GET_MANGA_META` (both
+cache-first: a visited title, or a library title's meta, costs nothing), so the tooltip names the chapter a click
+opens; a click without a hover waits for it (a spinner in the button). Chapter list error: the server's first unread
+chapter, as before; every chapter number read in some copy: the series page. Shown under the same rule (server first
+unread + the setting), `default` mode only. Ctrl / middle click keep the link as it stands. One resolution in flight per
+title; nothing on library load.
+
+Tests: `library-play.e2e.mjs` (the Millionaire shape: hover resolves 175, tooltip "unofficial", one chapter query,
+none on load or on a second hover, click opens 175; a title without twins opens the same chapter as before; every
+number read opens the series; a failing chapter list falls back to the server's chapter). Fails on r3461 (tooltip
+"Official", no query).
+
+## Acceptance (Cowork, live)
+
+The Millionaire Divorcee: the library Play button opens ch 87 unofficial (175), its tooltip says unofficial, same as
+the series page Resume. A title with no twins opens the same chapter as before. Network: one chapters query per title
+on first hover / click, none on library load.
+
 # Drop rate v6 + freshness tags (branch `feat/drop-v6`)
 
 **Shipped** as r3461-15c0f8b8 (2026-10-29). Off `custom` (r3459). **Cowork live check: all pass** (170400 label,

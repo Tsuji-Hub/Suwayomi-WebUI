@@ -15,7 +15,7 @@ import { useManageMangaLibraryState } from '@/features/manga/hooks/useManageMang
 import { MangaGridCard } from '@/features/manga/components/cards/MangaGridCard.tsx';
 import { MangaListCard } from '@/features/manga/components/cards/MangaListCard.tsx';
 import type { MangaCardMode, MangaCardProps } from '@/features/manga/Manga.types.ts';
-import { ContinueReadingButton } from '@/features/manga/components/ContinueReadingButton.tsx';
+import { TsujiContinueReadingButton } from '@/features/tsuji/resume/TsujiContinueReadingButton.tsx';
 import { MangaBadges } from '@/features/manga/components/MangaBadges.tsx';
 import { GridLayout } from '@/base/Base.types.ts';
 import { AppRoutes } from '@/base/AppRoute.constants.ts';
@@ -196,8 +196,9 @@ export const MangaCard = memo((props: MangaCardProps) => {
                         isInLibrary={isInLibrary}
                         inLibraryIndicator={inLibraryIndicator}
                         continueReadingButton={
-                            <ContinueReadingButton
+                            <TsujiContinueReadingButton
                                 showContinueReadingButton={showContinueReadingButton && mode === 'default'}
+                                mangaId={id}
                                 chapter={firstUnreadChapter}
                                 mangaLinkTo={mangaLinkTo}
                             />
