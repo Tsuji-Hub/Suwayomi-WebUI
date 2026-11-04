@@ -16,7 +16,10 @@ Working plan for the current feature and the report of its last run. State, rule
 
 # Fix: library Play button ignores the twin-aware resume (branch `feat/library-play-resume`)
 
-**Shipped** as r3464-50901b95 (2026-11-02). Off `custom` (r3461).
+**Shipped** as r3464-50901b95 (2026-11-02). Off `custom` (r3461). **Cowork live check: accepted** (2026-11-03): The
+Millionaire Divorcee card href 174 before hover, 175 after, tooltip "unofficial", click opened 175; no card chapters
+query on library load, +1 on the first hover, +0 on the second; no-twin titles (/manga/12897, /manga/9600) unchanged;
+no page errors.
 
 The library card's Play button opened the server's `firstUnreadChapter` (The Millionaire Divorcee, /manga/10876: ch
 87 official, sourceOrder 174) where the series page's Resume opens ch 87 unofficial (175): only the chapter list knows
